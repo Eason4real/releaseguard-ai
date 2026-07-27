@@ -1,0 +1,31 @@
+Project root: /workspace/sites/risk-command-center
+Version: v17
+
+Branch:
+main
+
+HEAD commit:
+75cbe4140aa0ff5e079df17fead96167836129db
+
+Git status:
+Clean working tree at packaging time.
+
+Recent 10 commits:
+75cbe41 (HEAD -> main, origin/main, origin/HEAD) Fix Phase 3 deterministic planner runtime loading
+a7308a6 Implement Phase 3 agent loop chat and hybrid RAG
+7ef5813 Add visible Phase 2 demo launcher
+c99939c Add Phase 2 risk detection runtime
+98e4d98 Harden approval and action runtime
+1dbeefc Add persistent investigation runtime
+477b6e9 Add product architecture and evaluation docs
+8033db6 Unify audit timestamps and Sydney timezone
+e3bea6f Add visible GitHub integration setup and connection test
+74bc2ac Create approved repair issues on GitHub
+
+Remote information:
+origin https://git.chatgpt-team.site/af135d8d-acbb-4d6b-86fa-a91f2d91e0c9/appgprj_6a652a9062208191bc2f2a7b5d6a166a.git (fetch)
+origin https://git.chatgpt-team.site/af135d8d-acbb-4d6b-86fa-a91f2d91e0c9/appgprj_6a652a9062208191bc2f2a7b5d6a166a.git (push)
+
+The .git directory is intentionally not included in the migration archive.
+Initialize a new repository after extraction, or add the remote above only if
+you have appropriate access.

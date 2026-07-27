@@ -1,0 +1,2 @@
+DROP INDEX `rag_index_versions_corpus_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `rag_index_versions_identity_unique` ON `rag_index_versions` (`corpus_version`,`embedding_model`,`chunker_version`);
