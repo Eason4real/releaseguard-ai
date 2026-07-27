@@ -19,8 +19,21 @@ export interface Phase3InvestigationStore extends InvestigationStore {
     completedAt: string,
   ): Promise<void>;
   saveHypotheses(items: Hypothesis[]): Promise<void>;
-  updateHypothesis(item: Hypothesis): Promise<void>;
-  saveHypothesisEvidenceLinks(items: HypothesisEvidenceLink[]): Promise<void>;
+  commitEvidenceAssessment(input: {
+    links: HypothesisEvidenceLink[];
+    hypotheses: Hypothesis[];
+    traceEvent: InvestigationTraceEvent;
+    iterationId: string;
+    rationale: string;
+    completedAt: string;
+  }): Promise<void>;
+  commitHumanHypothesis(input: {
+    hypothesis: Hypothesis;
+    message: InvestigationMessage;
+    traceEvent: InvestigationTraceEvent;
+    iterationId: string;
+    completedAt: string;
+  }): Promise<void>;
   saveTraceEvents(items: InvestigationTraceEvent[]): Promise<void>;
   saveMessage(message: InvestigationMessage): Promise<boolean>;
   saveDiagnosisEvidenceLinks(items: DiagnosisEvidenceLink[]): Promise<void>;

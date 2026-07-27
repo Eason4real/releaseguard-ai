@@ -210,6 +210,8 @@ export const investigationRuntimeSchema = [
     run_id text NOT NULL REFERENCES investigation_runs(id) ON DELETE cascade,
     revision integer NOT NULL,
     statement text NOT NULL,
+    support_if text DEFAULT '' NOT NULL,
+    refute_if text DEFAULT '' NOT NULL,
     status text NOT NULL,
     confidence text NOT NULL,
     support_score real DEFAULT 0 NOT NULL,

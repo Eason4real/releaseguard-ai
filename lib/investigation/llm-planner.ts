@@ -9,6 +9,7 @@ import type {
   InvestigationPlanner,
   PlannerContext,
 } from "./planner";
+import { getPendingEvidence } from "./hypothesis-invariants";
 
 const extractObject = (text: string) => {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
@@ -53,6 +54,13 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         source: item.source,
       })),
       hypotheses: aggregate.hypotheses,
+      evidenceRelations: aggregate.hypothesisEvidenceLinks.map((item) => ({
+        evidenceId: item.evidenceId,
+        targetHypothesisId: item.hypothesisId,
+        relation: item.relation,
+        explanation: item.explanation,
+      })),
+      pendingEvidenceIds: getPendingEvidence(aggregate).map((evidence) => evidence.id),
       humanMessage: context.humanMessage,
       budget: {
         iterations: context.remainingIterations,
@@ -65,7 +73,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         {
           role: "system",
           content:
-            "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。CALL_TOOL 必须包含 toolName、arguments、rationale；ASK_HUMAN 包含 question、rationale；STOP_INCONCLUSIVE 包含 reason、rationale；FINALIZE 包含 diagnosis 和 rationale。Diagnosis 字段沿用 root_cause、summary、causal_chain、affected_metrics、affected_users、validated_claims、unvalidated_claims、confidence(HIGH/MEDIUM/LOW)、severity、recommended_action、requires_human_approval。历史事故只能辅助，不得单独确认根因。",
+            "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 包含 question、rationale；STOP_INCONCLUSIVE 包含 reason、rationale；FINALIZE 包含 diagnosis 和 rationale。Diagnosis 字段沿用 root_cause、summary、causal_chain、affected_metrics、affected_users、validated_claims、unvalidated_claims、confidence(HIGH/MEDIUM/LOW)、severity、recommended_action、requires_human_approval。历史事故只能辅助，不得单独确认根因。",
         },
         {
           role: "user",
@@ -78,19 +86,90 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
     const parsed = extractObject(content);
     const type = String(parsed?.type ?? "");
     const rationale = String(parsed?.rationale ?? "").trim().slice(0, 2_000);
+    if (type === "CREATE_HYPOTHESES") {
+      if (!Array.isArray(parsed?.hypotheses) || parsed.hypotheses.length < 1 || parsed.hypotheses.length > 3) {
+        throw new Error("Planner CREATE_HYPOTHESES 必须包含 1–3 个假设。");
+      }
+      const hypotheses = parsed.hypotheses.map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new Error("Planner 返回了无效 Hypothesis Draft。");
+        }
+        const draft = item as Record<string, unknown>;
+        const statement = String(draft.statement ?? "").trim();
+        const supportIf = String(draft.supportIf ?? "").trim();
+        const refuteIf = String(draft.refuteIf ?? "").trim();
+        if (!statement || !supportIf || !refuteIf) {
+          throw new Error("Hypothesis Draft 缺少 statement、supportIf 或 refuteIf。");
+        }
+        return { statement, supportIf, refuteIf };
+      });
+      return {
+        type,
+        hypotheses,
+        rationale: rationale || "建立可由当前工具区分的竞争假设。",
+      };
+    }
+    if (type === "ASSESS_EVIDENCE") {
+      if (!Array.isArray(parsed?.assessments) || parsed.assessments.length === 0) {
+        throw new Error("Planner ASSESS_EVIDENCE 缺少 assessments。");
+      }
+      const assessments = parsed.assessments.map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new Error("Planner 返回了无效 Evidence Assessment。");
+        }
+        const assessment = item as Record<string, unknown>;
+        const evidenceId = String(assessment.evidenceId ?? "").trim();
+        if (!evidenceId || !Array.isArray(assessment.relations) || assessment.relations.length === 0) {
+          throw new Error("Evidence Assessment 缺少 evidenceId 或 relations。");
+        }
+        const relations = assessment.relations.map((entry) => {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+            throw new Error("Planner 返回了无效 Evidence Relation。");
+          }
+          const relationEntry = entry as Record<string, unknown>;
+          const targetHypothesisId = String(relationEntry.targetHypothesisId ?? "").trim();
+          const relation = String(relationEntry.relation ?? "");
+          const explanation = String(relationEntry.explanation ?? "").trim();
+          if (
+            !targetHypothesisId
+            || !["SUPPORTS", "CONTRADICTS", "NEUTRAL"].includes(relation)
+            || !explanation
+          ) throw new Error("Evidence Relation 字段不符合 Planner Contract。");
+          return {
+            targetHypothesisId,
+            relation: relation as "SUPPORTS" | "CONTRADICTS" | "NEUTRAL",
+            explanation,
+          };
+        });
+        return { evidenceId, relations };
+      });
+      return {
+        type,
+        assessments,
+        rationale: rationale || "显式评价新 Evidence 对全部竞争假设的影响。",
+      };
+    }
     if (type === "CALL_TOOL") {
       const toolName = String(parsed?.toolName ?? "");
       const args = parsed?.arguments;
+      const targetHypothesisIds = Array.isArray(parsed?.targetHypothesisIds)
+        ? parsed.targetHypothesisIds.map(String).filter(Boolean)
+        : [];
+      const testIntent = String(parsed?.testIntent ?? "");
       if (
         !modelToolDefinitions.some((item) => item.function.name === toolName)
         || !args
         || typeof args !== "object"
         || Array.isArray(args)
+        || targetHypothesisIds.length === 0
+        || !["SUPPORT", "REFUTE", "DISCRIMINATE"].includes(testIntent)
       ) throw new Error("Planner 返回了无效 Tool Decision。");
       return {
         type,
         toolName,
         arguments: args as Record<string, unknown>,
+        targetHypothesisIds,
+        testIntent: testIntent as "SUPPORT" | "REFUTE" | "DISCRIMINATE",
         rationale: rationale || `调用 ${toolName} 补充证据。`,
       };
     }

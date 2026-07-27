@@ -209,6 +209,8 @@ const mapHypothesis = (row: typeof hypotheses.$inferSelect): Hypothesis => ({
   runId: row.runId,
   revision: row.revision,
   statement: row.statement,
+  supportIf: row.supportIf,
+  refuteIf: row.refuteIf,
   status: row.status as Hypothesis["status"],
   confidence: row.confidence as Confidence,
   supportScore: row.supportScore,
@@ -589,23 +591,111 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
     await (await getDb()).insert(hypotheses).values(items);
   }
 
-  async updateHypothesis(item: Hypothesis) {
-    await (await getDb())
-      .update(hypotheses)
-      .set({
-        status: item.status,
-        confidence: item.confidence,
-        supportScore: item.supportScore,
-        contradictionScore: item.contradictionScore,
-        confidenceReason: item.confidenceReason,
-        updatedAt: item.updatedAt,
-      })
-      .where(eq(hypotheses.id, item.id));
+  async commitEvidenceAssessment(input: {
+    links: HypothesisEvidenceLink[];
+    hypotheses: Hypothesis[];
+    traceEvent: InvestigationTraceEvent;
+    iterationId: string;
+    rationale: string;
+    completedAt: string;
+  }) {
+    if (input.links.length === 0 || input.hypotheses.length === 0) {
+      throw new Error("Evidence Assessment 原子提交缺少 links 或 hypotheses。");
+    }
+    const db = await getDb();
+    await db.batch([
+      db.insert(hypothesisEvidenceLinks).values(input.links),
+      ...input.hypotheses.map((item) => db
+        .update(hypotheses)
+        .set({
+          status: item.status,
+          confidence: item.confidence,
+          supportScore: item.supportScore,
+          contradictionScore: item.contradictionScore,
+          confidenceReason: item.confidenceReason,
+          updatedAt: item.updatedAt,
+        })
+        .where(and(eq(hypotheses.id, item.id), eq(hypotheses.runId, item.runId)))),
+      db.insert(investigationTraceEvents).values({
+        id: input.traceEvent.id,
+        runId: input.traceEvent.runId,
+        iterationId: input.traceEvent.iterationId,
+        sequence: input.traceEvent.sequence,
+        type: input.traceEvent.type,
+        actor: input.traceEvent.actor,
+        publicSummary: input.traceEvent.publicSummary,
+        detailsJson: JSON.stringify(input.traceEvent.details),
+        createdAt: input.traceEvent.createdAt,
+      }),
+      db.update(agentIterations)
+        .set({
+          status: "COMPLETED",
+          decisionType: "ASSESS_EVIDENCE",
+          publicRationale: input.rationale,
+          completedAt: input.completedAt,
+        })
+        .where(and(
+          eq(agentIterations.id, input.iterationId),
+          eq(agentIterations.status, "RUNNING"),
+        )),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null, updatedAt: input.completedAt })
+        .where(and(
+          eq(investigationRuns.id, input.traceEvent.runId),
+          eq(investigationRuns.activeIterationId, input.iterationId),
+        )),
+    ]);
   }
 
-  async saveHypothesisEvidenceLinks(items: HypothesisEvidenceLink[]) {
-    if (items.length === 0) return;
-    await (await getDb()).insert(hypothesisEvidenceLinks).values(items).onConflictDoNothing();
+  async commitHumanHypothesis(input: {
+    hypothesis: Hypothesis;
+    message: InvestigationMessage;
+    traceEvent: InvestigationTraceEvent;
+    iterationId: string;
+    completedAt: string;
+  }) {
+    const db = await getDb();
+    await db.batch([
+      db.insert(hypotheses).values(input.hypothesis),
+      db.insert(investigationMessages).values({
+        id: input.message.id,
+        runId: input.message.runId,
+        clientRequestId: input.message.clientRequestId,
+        role: input.message.role,
+        intent: input.message.intent,
+        content: input.message.content,
+        citedEvidenceIdsJson: JSON.stringify(input.message.citedEvidenceIds),
+        createdAt: input.message.createdAt,
+      }),
+      db.insert(investigationTraceEvents).values({
+        id: input.traceEvent.id,
+        runId: input.traceEvent.runId,
+        iterationId: input.traceEvent.iterationId,
+        sequence: input.traceEvent.sequence,
+        type: input.traceEvent.type,
+        actor: input.traceEvent.actor,
+        publicSummary: input.traceEvent.publicSummary,
+        detailsJson: JSON.stringify(input.traceEvent.details),
+        createdAt: input.traceEvent.createdAt,
+      }),
+      db.update(agentIterations)
+        .set({
+          status: "COMPLETED",
+          decisionType: "CREATE_HYPOTHESES",
+          publicRationale: "产品经理新增竞争假设",
+          completedAt: input.completedAt,
+        })
+        .where(and(
+          eq(agentIterations.id, input.iterationId),
+          eq(agentIterations.status, "RUNNING"),
+        )),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null, updatedAt: input.completedAt })
+        .where(and(
+          eq(investigationRuns.id, input.hypothesis.runId),
+          eq(investigationRuns.activeIterationId, input.iterationId),
+        )),
+    ]);
   }
 
   async saveTraceEvents(items: InvestigationTraceEvent[]) {

@@ -1,6 +1,7 @@
 import type { Phase3InvestigationStore } from "./phase3-store";
 import type { AuditEvent, InvestigationTraceEvent } from "./types";
 import { RuntimeRequestError } from "./action-runtime";
+import { assertActiveHypothesisInvariant } from "./hypothesis-invariants";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
@@ -14,6 +15,15 @@ export async function continueInvestigation(
 ) {
   const aggregate = await store.getAggregate(input.runId);
   if (!aggregate) throw new RuntimeRequestError("RUN_NOT_FOUND", "InvestigationRun 不存在。", 404);
+  try {
+    assertActiveHypothesisInvariant(aggregate);
+  } catch (error) {
+    throw new RuntimeRequestError(
+      "ACTIVE_HYPOTHESIS_LEGACY_INVARIANT",
+      error instanceof Error ? error.message : "Run 中未拒绝 Hypothesis 超过上限。",
+      409,
+    );
+  }
   if (aggregate.run.status !== "WAITING_APPROVAL") {
     throw new RuntimeRequestError(
       "RUN_NOT_WAITING_APPROVAL",

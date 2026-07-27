@@ -3,12 +3,17 @@ import { runAgentLoop } from "./agent-loop";
 import type { InvestigationPlanner } from "./planner";
 import type { Phase3InvestigationStore } from "./phase3-store";
 import type {
+  AgentIteration,
   Hypothesis,
   InvestigationMessage,
   InvestigationMessageIntent,
   InvestigationTraceEvent,
 } from "./types";
 import type { FeedbackRetriever, IncidentRetriever } from "../retrieval/types";
+import {
+  assertActiveHypothesisInvariant,
+  MAX_ACTIVE_HYPOTHESES,
+} from "./hypothesis-invariants";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
@@ -36,7 +41,7 @@ export async function submitInvestigationMessage(
     incidentRetriever?: IncidentRetriever;
   },
 ) {
-  const aggregate = await store.getAggregate(input.runId);
+  let aggregate = await store.getAggregate(input.runId);
   if (!aggregate) throw new InvestigationChatError("RUN_NOT_FOUND", "调查不存在。", 404);
   if (aggregate.run.status === "WAITING_VERIFICATION" || aggregate.run.status === "CLOSED_NO_ACTION") {
     throw new InvestigationChatError("RUN_READ_ONLY", "该调查已经进入只读终态。", 409);
@@ -56,8 +61,31 @@ export async function submitInvestigationMessage(
     throw new InvestigationChatError("INVALID_EVIDENCE_CITATION", "消息引用了不属于当前 Run 的证据。", 400);
   }
 
-  const now = new Date().toISOString();
-  const message: InvestigationMessage = {
+  if (aggregate.messages.some((item) => item.clientRequestId === input.clientRequestId)) {
+    return aggregate;
+  }
+  if (input.intent !== "EXPLAIN" && !input.planner) {
+    throw new InvestigationChatError("PLANNER_REQUIRED", "调查型消息需要可用的 Planner。", 503);
+  }
+  if (input.intent !== "EXPLAIN") {
+    try {
+      assertActiveHypothesisInvariant(aggregate);
+    } catch (error) {
+      throw new InvestigationChatError(
+        "ACTIVE_HYPOTHESIS_LEGACY_INVARIANT",
+        error instanceof Error ? error.message : "Run 中未拒绝 Hypothesis 超过上限。",
+        409,
+      );
+    }
+  }
+  if (aggregate.run.status === "WAITING_HUMAN_INPUT") {
+    await store.transitionRun(input.runId, "RUNNING");
+    const resumed = await store.getAggregate(input.runId);
+    if (!resumed) throw new InvestigationChatError("RUN_NOT_FOUND", "调查不存在。", 404);
+    aggregate = resumed;
+  }
+
+  const createMessage = (now: string): InvestigationMessage => ({
     id: createId("MSG"),
     runId: input.runId,
     clientRequestId: input.clientRequestId,
@@ -66,25 +94,32 @@ export async function submitInvestigationMessage(
     content,
     citedEvidenceIds: cited,
     createdAt: now,
-  };
-  const inserted = await store.saveMessage(message);
-  if (!inserted) return store.getAggregate(input.runId);
-
-  const traceSequence = (aggregate.traceEvents.at(-1)?.sequence ?? 0) + 1;
-  const trace: InvestigationTraceEvent = {
+  });
+  const createTrace = (
+    now: string,
+    sequence: number,
+    iterationId: string | null,
+  ): InvestigationTraceEvent => ({
     id: createId("ITE"),
     runId: input.runId,
-    iterationId: null,
-    sequence: traceSequence,
+    iterationId,
+    sequence,
     type: "HUMAN_MESSAGE_RECEIVED",
     actor: "HUMAN",
     publicSummary: content,
     details: { intent: input.intent, citedEvidenceIds: cited },
     createdAt: now,
-  };
-  await store.saveTraceEvents([trace]);
+  });
+  let triggerMessageId: string | null = null;
 
   if (input.intent === "EXPLAIN") {
+    const now = new Date().toISOString();
+    const message = createMessage(now);
+    const inserted = await store.saveMessage(message);
+    if (!inserted) return store.getAggregate(input.runId);
+    await store.saveTraceEvents([
+      createTrace(now, (aggregate.traceEvents.at(-1)?.sequence ?? 0) + 1, null),
+    ]);
     const selected = cited.length > 0
       ? aggregate.evidence.filter((item) => cited.includes(item.id))
       : aggregate.evidence.slice(-4);
@@ -105,28 +140,86 @@ export async function submitInvestigationMessage(
   }
 
   if (input.intent === "ADD_HYPOTHESIS") {
-    const hypothesis: Hypothesis = {
-      id: createId("HYP"),
+    const now = new Date().toISOString();
+    const iteration: AgentIteration = {
+      id: createId("AI"),
       runId: input.runId,
-      revision: aggregate.run.currentDiagnosisRevision + 1,
-      statement: content,
-      status: "ACTIVE",
-      confidence: "LOW",
-      supportScore: 0,
-      contradictionScore: 0,
-      confidenceReason: "产品经理提出，等待工具证据验证",
-      createdBy: "HUMAN",
-      createdAt: now,
-      updatedAt: now,
+      sequence: aggregate.run.currentIteration + 1,
+      trigger: "HUMAN_HYPOTHESIS",
+      plannerType: input.planner!.type,
+      status: "RUNNING",
+      decisionType: null,
+      publicRationale: null,
+      startedAt: now,
+      completedAt: null,
     };
-    await store.saveHypotheses([hypothesis]);
+    const claimed = await store.claimIteration(iteration, aggregate.run.lockVersion);
+    if (!claimed) {
+      throw new InvestigationChatError("RUN_BUSY", "调查正在处理其他请求，请稍后重试。", 409);
+    }
+    try {
+      const locked = await store.getAggregate(input.runId);
+      if (!locked) throw new InvestigationChatError("RUN_NOT_FOUND", "调查不存在。", 404);
+      const activeHypothesisCount = assertActiveHypothesisInvariant(locked);
+      if (activeHypothesisCount >= MAX_ACTIVE_HYPOTHESES) {
+        throw new InvestigationChatError(
+          "ACTIVE_HYPOTHESIS_LIMIT",
+          "一个调查最多同时保留三个未拒绝的竞争假设。",
+          409,
+        );
+      }
+      const hypothesis: Hypothesis = {
+        id: createId("HYP"),
+        runId: input.runId,
+        revision: locked.run.currentDiagnosisRevision + 1,
+        statement: content,
+        supportIf: "后续工具证据与该人工假设的可验证预期一致",
+        refuteIf: "后续工具证据直接反驳该人工假设的可验证预期",
+        status: "ACTIVE",
+        confidence: "LOW",
+        supportScore: 0,
+        contradictionScore: 0,
+        confidenceReason: "产品经理提出，等待工具证据验证",
+        createdBy: "HUMAN",
+        createdAt: now,
+        updatedAt: now,
+      };
+      const message = createMessage(now);
+      await store.commitHumanHypothesis({
+        hypothesis,
+        message,
+        traceEvent: createTrace(
+          now,
+          (locked.traceEvents.at(-1)?.sequence ?? 0) + 1,
+          iteration.id,
+        ),
+        iterationId: iteration.id,
+        completedAt: new Date().toISOString(),
+      });
+      triggerMessageId = message.id;
+    } catch (error) {
+      await store.completeIteration(
+        iteration.id,
+        "FAILED",
+        null,
+        error instanceof Error ? error.message : "人工 Hypothesis 创建失败",
+        new Date().toISOString(),
+      );
+      throw error;
+    }
+  } else {
+    const now = new Date().toISOString();
+    const message = createMessage(now);
+    const inserted = await store.saveMessage(message);
+    if (!inserted) return store.getAggregate(input.runId);
+    triggerMessageId = message.id;
+    await store.saveTraceEvents([
+      createTrace(now, (aggregate.traceEvents.at(-1)?.sequence ?? 0) + 1, null),
+    ]);
   }
 
   if (!input.planner) {
     throw new InvestigationChatError("PLANNER_REQUIRED", "调查型消息需要可用的 Planner。", 503);
-  }
-  if (aggregate.run.status === "WAITING_HUMAN_INPUT") {
-    await store.transitionRun(input.runId, "RUNNING");
   }
   return runAgentLoop(store, {
     runId: input.runId,
@@ -134,7 +227,7 @@ export async function submitInvestigationMessage(
     analytics: input.analytics,
     trigger: input.intent === "ADD_HYPOTHESIS" ? "HUMAN_HYPOTHESIS" : "HUMAN_MESSAGE",
     humanMessage: content,
-    triggerMessageId: message.id,
+    triggerMessageId,
     maxToolCalls: 3,
     feedbackRetriever: input.feedbackRetriever,
     incidentRetriever: input.incidentRetriever,

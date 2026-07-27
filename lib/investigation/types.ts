@@ -213,6 +213,8 @@ export type AgentIteration = {
 };
 
 export type InvestigationDecisionType =
+  | "CREATE_HYPOTHESES"
+  | "ASSESS_EVIDENCE"
   | "CALL_TOOL"
   | "ASK_HUMAN"
   | "FINALIZE"
@@ -230,6 +232,8 @@ export type Hypothesis = {
   runId: string;
   revision: number;
   statement: string;
+  supportIf: string;
+  refuteIf: string;
   status: HypothesisStatus;
   confidence: Confidence;
   supportScore: number;

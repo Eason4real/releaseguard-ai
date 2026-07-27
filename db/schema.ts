@@ -254,6 +254,8 @@ export const hypotheses = sqliteTable("hypotheses", {
   runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
   revision: integer("revision").notNull(),
   statement: text("statement").notNull(),
+  supportIf: text("support_if").notNull().default(""),
+  refuteIf: text("refute_if").notNull().default(""),
   status: text("status").notNull(),
   confidence: text("confidence").notNull(),
   supportScore: real("support_score").notNull().default(0),

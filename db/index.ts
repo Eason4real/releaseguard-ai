@@ -21,6 +21,8 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   const diagnosisColumns = new Set(diagnosisInfo.results.map((column: { name: string }) => column.name));
   const approvalInfo = await d1.prepare("PRAGMA table_info(approvals)").all<{ name: string }>();
   const approvalColumns = new Set(approvalInfo.results.map((column: { name: string }) => column.name));
+  const hypothesisInfo = await d1.prepare("PRAGMA table_info(hypotheses)").all<{ name: string }>();
+  const hypothesisColumns = new Set(hypothesisInfo.results.map((column: { name: string }) => column.name));
   const upgrades = [];
   if (!runColumns.has("risk_event_id")) {
     upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN risk_event_id text REFERENCES risk_events(id)"));
@@ -57,6 +59,8 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!approvalColumns.has("revision")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN revision integer DEFAULT 1 NOT NULL"));
   if (!approvalColumns.has("supersedes_approval_id")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN supersedes_approval_id text"));
   if (!approvalColumns.has("withdrawn_at")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN withdrawn_at text"));
+  if (!hypothesisColumns.has("support_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN support_if text DEFAULT '' NOT NULL"));
+  if (!hypothesisColumns.has("refute_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN refute_if text DEFAULT '' NOT NULL"));
   if (upgrades.length > 0) await d1.batch(upgrades);
   await d1.prepare("DROP INDEX IF EXISTS diagnoses_run_unique").run();
   await d1.batch(indexStatements.map((statement) => d1.prepare(statement)));

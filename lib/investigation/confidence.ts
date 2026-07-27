@@ -5,8 +5,21 @@ import type {
   HypothesisStatus,
 } from "./types";
 
+const impactCategories = new Set([
+  "METRIC_ANOMALY",
+  "PRODUCT_METRIC",
+  "SEGMENT_METRIC",
+]);
+
+const mechanismCategories = new Set([
+  "ERROR_TRACE",
+  "SYSTEM_EVENT",
+  "CODE_CHANGE_MECHANISM",
+  "RELEASE_CHANGE_MECHANISM",
+]);
+
 const reliability = (item: Evidence) => {
-  if (item.category === "METRIC_ANOMALY" || item.category === "SEGMENT_METRIC") return 4;
+  if (impactCategories.has(item.category) || mechanismCategories.has(item.category)) return 4;
   if (item.category === "RELEASE_CHANGE" || item.source.includes("Registry")) return 3;
   if (item.category === "USER_FEEDBACK") return 2;
   if (item.category === "SIMILAR_INCIDENT") return 1;
@@ -14,8 +27,9 @@ const reliability = (item: Evidence) => {
 };
 
 const family = (item: Evidence) => {
-  if (item.category === "METRIC_ANOMALY" || item.category === "SEGMENT_METRIC") return "ANALYTICS";
-  if (item.category === "RELEASE_CHANGE") return "RELEASE";
+  if (impactCategories.has(item.category)) return "ANALYTICS";
+  if (item.category === "RELEASE_CHANGE" || item.category.includes("CHANGE_MECHANISM")) return "RELEASE";
+  if (item.category === "ERROR_TRACE" || item.category === "SYSTEM_EVENT") return "SYSTEM";
   if (item.category === "USER_FEEDBACK") return "FEEDBACK";
   if (item.category === "SIMILAR_INCIDENT") return "RAG";
   return item.source;
@@ -28,9 +42,11 @@ export function calculateHypothesisConfidence(
   const evidenceById = new Map(evidence.map((item) => [item.id, item]));
   let supportScore = 0;
   let contradictionScore = 0;
-  const supportingFamilies = new Set<string>();
-  let hasTierA = false;
-  let tierAContradiction = false;
+  const currentSupportingFamilies = new Set<string>();
+  let hasCurrentSupport = false;
+  let hasImpactSupport = false;
+  let hasMechanismSupport = false;
+  let hasCoreContradiction = false;
 
   for (const link of links) {
     const item = evidenceById.get(link.evidenceId);
@@ -38,11 +54,19 @@ export function calculateHypothesisConfidence(
     const weight = reliability(item);
     if (link.relation === "SUPPORTS") {
       supportScore += weight;
-      supportingFamilies.add(family(item));
-      if (weight === 4) hasTierA = true;
+      const isCurrentEvent = item.category !== "SIMILAR_INCIDENT"
+        && item.provenance !== "public_reference";
+      if (isCurrentEvent) {
+        hasCurrentSupport = true;
+        currentSupportingFamilies.add(family(item));
+        if (impactCategories.has(item.category)) hasImpactSupport = true;
+        if (mechanismCategories.has(item.category)) hasMechanismSupport = true;
+      }
     } else {
       contradictionScore += weight;
-      if (weight === 4) tierAContradiction = true;
+      if (weight === 4 && item.category !== "SIMILAR_INCIDENT") {
+        hasCoreContradiction = true;
+      }
     }
   }
 
@@ -50,14 +74,24 @@ export function calculateHypothesisConfidence(
   let confidence: Confidence = "LOW";
   if (
     netScore >= 5
-    && supportingFamilies.size >= 2
-    && hasTierA
-    && !tierAContradiction
+    && currentSupportingFamilies.size >= 2
+    && hasImpactSupport
+    && !hasCoreContradiction
   ) confidence = "HIGH";
-  else if (netScore >= 2 || (hasTierA && !tierAContradiction)) confidence = "MEDIUM";
+  else if (
+    hasCurrentSupport
+    && !hasCoreContradiction
+    && (netScore >= 2 || hasImpactSupport)
+  ) confidence = "MEDIUM";
 
   let status: HypothesisStatus = "ACTIVE";
-  if (contradictionScore >= supportScore + 3 || tierAContradiction) status = "REJECTED";
+  if (contradictionScore >= supportScore + 3 || hasCoreContradiction) status = "REJECTED";
+  else if (
+    confidence === "HIGH"
+    && currentSupportingFamilies.size >= 2
+    && hasImpactSupport
+    && hasMechanismSupport
+  ) status = "CONFIRMED";
   else if (supportScore > contradictionScore) status = "SUPPORTED";
   else if (contradictionScore > 0) status = "WEAKENED";
 
@@ -67,7 +101,8 @@ export function calculateHypothesisConfidence(
     confidence,
     status,
     confidenceReason:
-      `${supportingFamilies.size} 个独立来源；支持分 ${supportScore}，反证分 ${contradictionScore}` +
-      (tierAContradiction ? "；存在未解决的核心指标反证" : ""),
+      `${currentSupportingFamilies.size} 个当前事件独立来源；支持分 ${supportScore}，反证分 ${contradictionScore}` +
+      `；影响证据 ${hasImpactSupport ? "有" : "无"}；机制证据 ${hasMechanismSupport ? "有" : "无"}` +
+      (hasCoreContradiction ? "；存在未解决的核心反证" : ""),
   };
 }

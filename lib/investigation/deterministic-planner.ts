@@ -1,5 +1,6 @@
 import { fixtureDiagnosis } from "./runtime";
 import type { InvestigationPlanner, PlannerContext } from "./planner";
+import { getActiveHypotheses, getPendingEvidence } from "./hypothesis-invariants";
 
 export class DeterministicInvestigationPlanner implements InvestigationPlanner {
   readonly type = "DETERMINISTIC" as const;
@@ -10,9 +11,6 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
     const release = aggregate.release;
     const completed = aggregate.toolCalls.filter((call) => call.proposedActionId === null);
     const step = completed.length;
-    const hypothesisDrafts = step === 0
-      ? [{ statement: "Android 7.3.0 的重试改动与幂等锁生命周期冲突，导致优惠券领取失败。" }]
-      : undefined;
 
     if (!event || !release) {
       return {
@@ -22,6 +20,82 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       };
     }
 
+    const assessable = getActiveHypotheses(aggregate);
+    if (aggregate.hypotheses.length === 0) {
+      return {
+        type: "CREATE_HYPOTHESES" as const,
+        hypotheses: [
+          {
+            statement: "Android 7.3.0 的重试改动与幂等锁生命周期冲突，导致优惠券领取失败。",
+            supportIf: "异常集中于 7.3.0，且发布改动、分群和当前用户体验与重试锁冲突一致。",
+            refuteIf: "旧版本同幅下降，或当前事件证据显示不存在重试锁冲突。",
+          },
+          {
+            statement: "第三方依赖故障导致多个 Android 版本同步领券失败。",
+            supportIf: "新旧版本同步下降，并存在跨版本的外部依赖故障信号。",
+            refuteIf: "异常只集中于 7.3.0，旧版本控制组保持稳定。",
+          },
+          {
+            statement: "成功事件漏报导致领券指标出现假性下降。",
+            supportIf: "业务结果和用户体验正常，但成功事件记录缺失。",
+            refuteIf: "用户反馈和分群指标都显示真实领取失败。",
+          },
+        ],
+        rationale: "先建立发布回归、外部依赖和数据质量三个可区分的竞争假设。",
+      };
+    }
+
+    const pending = getPendingEvidence(aggregate);
+    if (pending.length > 0) {
+      const relationFor = (
+        category: string,
+        statement: string,
+      ): "SUPPORTS" | "CONTRADICTS" | "NEUTRAL" => {
+        if (/重试|幂等锁/.test(statement)) {
+          return [
+            "RELEASE_CHANGE",
+            "PRODUCT_METRIC",
+            "SEGMENT_METRIC",
+            "USER_FEEDBACK",
+            "SIMILAR_INCIDENT",
+          ].includes(category) ? "SUPPORTS" : "NEUTRAL";
+        }
+        if (/第三方|外部依赖/.test(statement)) {
+          return category === "SEGMENT_METRIC" ? "CONTRADICTS" : "NEUTRAL";
+        }
+        if (/漏报|假性下降/.test(statement)) {
+          return category === "USER_FEEDBACK" ? "CONTRADICTS" : "NEUTRAL";
+        }
+        if (/新用户|地区|region|US/i.test(statement) && category === "SEGMENT_METRIC") {
+          return "SUPPORTS";
+        }
+        return "NEUTRAL";
+      };
+      return {
+        type: "ASSESS_EVIDENCE" as const,
+        assessments: pending.map((evidence) => ({
+          evidenceId: evidence.id,
+          relations: assessable.map((hypothesis) => ({
+            targetHypothesisId: hypothesis.id,
+            relation: relationFor(evidence.category, hypothesis.statement),
+            explanation: `根据 ${evidence.category} 当前事件证据，显式评价该证据与假设的关系。`,
+          })),
+        })),
+        rationale: "在继续调用工具前，批量评价全部新 Evidence 对每个 Active Hypothesis 的影响。",
+      };
+    }
+
+    if (assessable.length === 0) {
+      return {
+        type: "STOP_INCONCLUSIVE" as const,
+        reason: "所有竞争假设均已被当前证据否定",
+        rationale: "现有工具无法形成新的可验证假设，安全停止调查。",
+      };
+    }
+
+    const targetHypothesisIds = assessable.map((item) => item.id);
+    const testIntent = targetHypothesisIds.length > 1 ? "DISCRIMINATE" as const : "SUPPORT" as const;
+
     if (context.trigger === "HUMAN_HYPOTHESIS" || context.trigger === "HUMAN_MESSAGE") {
       const dimension = /地区|region|美国|US/i.test(context.humanMessage ?? "")
         ? "region"
@@ -29,6 +103,8 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       return {
         type: "CALL_TOOL" as const,
         toolName: "segment_metric",
+        targetHypothesisIds,
+        testIntent,
         arguments: {
           metric_key: event.metricKey,
           start_time: event.firstBreachedAt,
@@ -47,13 +123,16 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       {
         type: "CALL_TOOL" as const,
         toolName: "get_release",
+        targetHypothesisIds,
+        testIntent,
         arguments: { release_id: release.id },
         rationale: "先确认发布版本与高风险变更模块。",
-        hypothesisDrafts,
       },
       {
         type: "CALL_TOOL" as const,
         toolName: "query_metric",
+        targetHypothesisIds,
+        testIntent,
         arguments: {
           metric_key: event.metricKey,
           start_time: event.firstBreachedAt,
@@ -67,6 +146,8 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       {
         type: "CALL_TOOL" as const,
         toolName: "segment_metric",
+        targetHypothesisIds,
+        testIntent,
         arguments: {
           metric_key: event.metricKey,
           start_time: event.firstBreachedAt,
@@ -80,6 +161,8 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       {
         type: "CALL_TOOL" as const,
         toolName: "search_user_feedback",
+        targetHypothesisIds,
+        testIntent,
         arguments: {
           query: "优惠券领取超时 重复加载 Android 7.3.0",
           platform: "Android",
@@ -91,6 +174,8 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       {
         type: "CALL_TOOL" as const,
         toolName: "search_similar_incidents",
+        targetHypothesisIds,
+        testIntent: "SUPPORT" as const,
         arguments: {
           query: "优惠券领取失败 服务端重试 幂等锁",
           metricKey: event.metricKey,
