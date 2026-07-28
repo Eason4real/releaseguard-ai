@@ -22,6 +22,16 @@ export type ModelConfig = {
   baseUrl: string;
   model: string;
   apiKey: string;
+  responseObserver?: (response: ModelResponseObservation) => void;
+};
+
+export type ModelResponseObservation = {
+  model: string;
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  } | null;
 };
 
 export type ModelFinalization = {
@@ -94,10 +104,24 @@ export async function callModel(
       const detail = await response.text();
       throw new Error(`${config.provider} ${response.status}: ${detail.slice(0, 240)}`);
     }
-    return (await response.json()) as {
+    const payload = (await response.json()) as {
       choices?: Array<{ message?: ModelMessage }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      model?: string;
     };
+    try {
+      config.responseObserver?.({
+        model: payload.model ?? config.model,
+        usage: payload.usage ? {
+          promptTokens: payload.usage.prompt_tokens ?? null,
+          completionTokens: payload.usage.completion_tokens ?? null,
+          totalTokens: payload.usage.total_tokens ?? null,
+        } : null,
+      });
+    } catch {
+      // Eval instrumentation must never change Planner behavior.
+    }
+    return payload;
   } finally {
     clearTimeout(timeout);
   }

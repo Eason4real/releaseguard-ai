@@ -3,12 +3,16 @@ import { mkdir, rm } from "node:fs/promises";
 import { build } from "esbuild";
 
 const configured = Boolean(
+  process.env.LIVE_EVAL_PROVIDER
+  && ["deepseek", "openai-compatible"].includes(process.env.LIVE_EVAL_PROVIDER)
+  &&
   process.env.LIVE_EVAL_API_KEY
   && process.env.LIVE_EVAL_BASE_URL
   && process.env.LIVE_EVAL_MODEL,
 );
 if (!configured) {
-  console.log("Live LLM Eval skipped: LIVE_EVAL_API_KEY, LIVE_EVAL_BASE_URL and LIVE_EVAL_MODEL are not configured.");
+  console.log("LIVE_EVAL_SKIPPED");
+  console.log("reason = missing credentials or invalid LIVE_EVAL_PROVIDER");
   process.exit(0);
 }
 const outputDirectory = new URL("../.sites-runtime/eval/", import.meta.url);

@@ -42,3 +42,4 @@ next-env.d.ts
 /outputs/
 /work/
 /data/public-incidents/cache/
+/eval-results/

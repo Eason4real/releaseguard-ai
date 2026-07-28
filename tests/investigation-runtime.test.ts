@@ -8,6 +8,7 @@ import "./analytics-tools.test";
 import "./retrieval.test";
 import "./phase4-scenarios.test";
 import "./phase4-agent-benchmark.test";
+import "./live-phase4-eval.test";
 import "./phase4-ui.test";
 import "./hypothesis-confidence.test";
 import "./verification-evaluator.test";

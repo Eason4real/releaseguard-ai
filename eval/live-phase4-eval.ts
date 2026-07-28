@@ -1,84 +1,59 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import { LLMInvestigationPlanner } from "../lib/investigation/llm-planner";
-import type { InvestigationAggregate } from "../lib/investigation/types";
-import { phase4ScenarioGroundTruth } from "./fixtures/phase4-scenarios";
+import type { ModelResponseObservation } from "../lib/investigation/model";
+import { phase4ScenarioInputs } from "./fixtures/phase4-scenario-inputs";
+import { liveEvalExitCode } from "./live-eval-cli";
+import { attachModelObservations, runLiveScenarioRuntime } from "./live-phase4-runtime";
 
-const config = {
-  provider: new URL(process.env.LIVE_EVAL_BASE_URL!).host,
-  baseUrl: process.env.LIVE_EVAL_BASE_URL!,
-  model: process.env.LIVE_EVAL_MODEL!,
-  apiKey: process.env.LIVE_EVAL_API_KEY!,
-};
-
-const planner = new LLMInvestigationPlanner(config);
-const emptyAggregate = (scenario: (typeof phase4ScenarioGroundTruth)[number]): InvestigationAggregate => {
-  const now = new Date().toISOString();
-  const runId = `LIVE-EVAL-${scenario.id}`;
-  return {
-    run: {
-      id: runId, incidentId: `INC-${scenario.id}`, riskEventId: `RE-${scenario.id}`,
-      releaseId: scenario.input.releaseId, question: scenario.input.triggerSummary,
-      provider: config.provider, model: config.model, plannerType: "LLM", status: "RUNNING",
-      currentIteration: 1, activeIterationId: null, lockVersion: 0, stopReason: null,
-      currentDiagnosisRevision: 0, totalTokens: 0, errorMessage: null, startedAt: now,
-      completedAt: null, createdAt: now, updatedAt: now,
+const provider = process.env.LIVE_EVAL_PROVIDER!;
+const model = process.env.LIVE_EVAL_MODEL!;
+const observations: ModelResponseObservation[] = [];
+const runtimeResults = [];
+for (const scenario of phase4ScenarioInputs) {
+  const scenarioObservations: ModelResponseObservation[] = [];
+  const planner = new LLMInvestigationPlanner({
+    provider, baseUrl: process.env.LIVE_EVAL_BASE_URL!, apiKey: process.env.LIVE_EVAL_API_KEY!, model,
+    responseObserver: (observation) => {
+      observations.push(observation);
+      scenarioObservations.push(observation);
     },
-    riskEvent: {
-      id: `RE-${scenario.id}`, correlatedReleaseId: scenario.input.releaseId,
-      metricKey: scenario.input.metricKey, status: "INVESTIGATING",
-      direction: scenario.input.direction, filters: scenario.input.filters,
-      segmentSignature: JSON.stringify(scenario.input.filters), detectedAt: now,
-      firstBreachedAt: now, lastBreachedAt: now, observedValue: 0.5, baselineValue: 1,
-      absoluteDeviation: 0.5, relativeDeviation: 0.5, sampleSize: 1_000,
-      thresholdPct: 0.1, minSampleSize: 100, requiredConsecutiveBuckets: 3,
-      triggerBucketIds: [`MB-${scenario.id}`], baselineMethod: "RECENT_MEDIAN",
-      baselinePointCount: 24, triggerSignature: `live-eval:${scenario.id}`,
-      provenance: "live_eval_input", createdAt: now, updatedAt: now,
-    },
-    release: null, toolCalls: [], evidence: [], diagnosis: null, diagnoses: [],
-    proposedAction: null, proposedActions: [], approval: null, approvals: [], auditEvents: [],
-    iterations: [], hypotheses: [], hypothesisEvidenceLinks: [], traceEvents: [], messages: [],
-    diagnosisClaims: [], diagnosisClaimEvidenceLinks: [], diagnosisEvidenceLinks: [],
-    approvalSnapshots: [], actionCompletions: [], verificationRuns: [],
-    verificationPolicySnapshots: [], verificationEvidence: [], verificationEvaluations: [],
-  };
-};
-
-const reports = [];
-for (const scenario of phase4ScenarioGroundTruth) {
-  const started = Date.now();
-  try {
-    const decision = await planner.plan({
-      aggregate: emptyAggregate(scenario), trigger: "INITIAL", humanMessage: null,
-      remainingIterations: 16, remainingToolCalls: 12,
-    });
-    reports.push({
-      provider: config.provider, model: config.model, scenario: scenario.id,
-      latencyMs: Date.now() - started, decisionType: decision.type,
-      hypothesisTrajectory: decision.type === "CREATE_HYPOTHESES"
-        ? decision.hypotheses.map((item) => item.statement) : [],
-      toolCalls: decision.type === "CALL_TOOL" ? [decision.toolName] : [],
-      selectedHypothesis: decision.type === "FINALIZE" ? decision.selectedHypothesisId : null,
-      grounding: decision.type === "FINALIZE" ? "SERVER_VALIDATION_REQUIRED" : "NOT_APPLICABLE",
-      action: decision.type === "FINALIZE" ? decision.disposition : null,
-      finalState: null,
-      pass: decision.type === "CREATE_HYPOTHESES",
-      reason: decision.type === "CREATE_HYPOTHESES"
-        ? "Valid competing-hypothesis opening decision"
-        : `Expected CREATE_HYPOTHESES for an empty Run, received ${decision.type}`,
-    });
-  } catch (error) {
-    reports.push({
-      provider: config.provider, model: config.model, scenario: scenario.id,
-      latencyMs: Date.now() - started, pass: false,
-      reason: error instanceof Error ? error.message : "Unknown live eval error",
-    });
-  }
+  });
+  const result = await runLiveScenarioRuntime(scenario, planner);
+  attachModelObservations(result.plannerCalls, scenarioObservations);
+  runtimeResults.push(result);
 }
 
-console.log(JSON.stringify({
-  eval: "Phase 4 live LLM structural probe",
-  blocking: false,
-  fallback: false,
-  note: "Expected answers are never supplied to LLMInvestigationPlanner. Deterministic CI remains authoritative.",
-  reports,
-}, null, 2));
+// Ground truth is intentionally loaded only after all scenario runtimes have completed.
+const { scoreLivePhase4 } = await import("./live-phase4-scorer");
+const scored = scoreLivePhase4(runtimeResults);
+const usages = observations.map((item) => item.usage).filter((item) => item !== null);
+const tokenUsage = usages.length === 0 ? null : {
+  promptTokens: usages.reduce((sum, item) => sum + (item.promptTokens ?? 0), 0),
+  completionTokens: usages.reduce((sum, item) => sum + (item.completionTokens ?? 0), 0),
+  totalTokens: usages.reduce((sum, item) => sum + (item.totalTokens ?? 0), 0),
+};
+const report = {
+  eval: "Live LLM Agent Eval v2", timestamp: new Date().toISOString(), provider, model,
+  deterministicFallback: false, tokenUsage, tokenUsageStatus: tokenUsage ? "PROVIDED" : "NOT_PROVIDED",
+  plannerCallCount: runtimeResults.reduce((sum, item) => sum + item.plannerCalls.length, 0),
+  toolCallCount: runtimeResults.reduce((sum, item) => sum
+    + item.aggregate.toolCalls.filter((call) => call.proposedActionId === null).length, 0),
+  totalLatencyMs: runtimeResults.reduce((sum, item) => sum + item.totalLatencyMs, 0),
+  ...scored,
+};
+const outputDirectory = new URL("../eval-results/", import.meta.url);
+await mkdir(outputDirectory, { recursive: true });
+const outputFile = new URL(`live-phase4-${Date.now()}.json`, outputDirectory);
+await writeFile(outputFile, JSON.stringify(report, null, 2), "utf8");
+console.table(scored.scenarios.map((item) => ({
+  Scenario: item.scenario, RootCause: item.rootCausePass ? "PASS" : "FAIL",
+  Grounding: item.groundingPass ? "PASS" : "FAIL",
+  Contradiction: item.contradictionPass ? "PASS" : "FAIL", Action: item.actionPass ? "PASS" : "FAIL",
+  Verification: item.verificationPass ? "PASS" : "FAIL", Final: item.finalStatePass ? "PASS" : "FAIL",
+})));
+console.log(JSON.stringify({ metrics: scored.metrics, runtime: {
+  plannerCalls: report.plannerCallCount, toolCalls: report.toolCallCount,
+  totalLatencyMs: report.totalLatencyMs, tokenUsage: report.tokenUsage,
+  tokenUsageStatus: report.tokenUsageStatus }, reportFile: outputFile.pathname }, null, 2));
+console.log(JSON.stringify(report, null, 2));
+process.exitCode = liveEvalExitCode(scored.pass);
