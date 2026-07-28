@@ -5,7 +5,12 @@ import test from "node:test";
 import { phase4ScenarioInputs } from "../eval/fixtures/phase4-scenario-inputs";
 import { liveEvalExitCode } from "../eval/live-eval-cli";
 import { attachModelObservations, runLiveScenarioRuntime } from "../eval/live-phase4-runtime";
+import {
+  classifyLiveRuntimeFailure,
+  summarizePlannerReliability,
+} from "../eval/live-phase4-scorer";
 import { LLMInvestigationPlanner } from "../lib/investigation/llm-planner";
+import type { ModelResponseObservation } from "../lib/investigation/model";
 import type { InvestigationPlanner } from "../lib/investigation/planner";
 
 const forbiddenKeys = /^(expected|acceptable|failureConditions|hypotheses$|relations$|benchmark)/i;
@@ -31,6 +36,7 @@ test("Live runtime imports scenario input and shared AgentLoop, never ground tru
 test("mocked OpenAI-compatible planner runs the formal multi-iteration full chain", async () => {
   const originalFetch = globalThis.fetch;
   let modelCalls = 0;
+  let malformedAssessmentSent = false;
   globalThis.fetch = async (_input, init) => {
     modelCalls += 1;
     const body = JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> };
@@ -49,7 +55,10 @@ test("mocked OpenAI-compatible planner runs the formal multi-iteration full chai
         { statement: "第三方依赖故障导致领券失败", supportIf: "跨版本同步失败", refuteIf: "仅新版本失败" },
       ], rationale: "建立竞争假设" };
     } else if (context.pendingEvidenceIds.length > 0) {
-      decision = { type: "ASSESS_EVIDENCE", assessments: context.pendingEvidenceIds.map((evidenceId) => ({
+      if (!malformedAssessmentSent) {
+        malformedAssessmentSent = true;
+        decision = { type: "ASSESS_EVIDENCE", rationale: "First response intentionally omits assessments." };
+      } else decision = { type: "ASSESS_EVIDENCE", assessments: context.pendingEvidenceIds.map((evidenceId) => ({
         evidenceId, relations: context.hypotheses.filter((item) => item.status !== "REJECTED")
           .map((hypothesis, index) => ({
           targetHypothesisId: hypothesis.id, relation: index === 0 ? "SUPPORTS" : "CONTRADICTS",
@@ -83,11 +92,12 @@ test("mocked OpenAI-compatible planner runs the formal multi-iteration full chai
       content: JSON.stringify(decision) } }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
   };
   try {
-    const observations: unknown[] = [];
+    const observations: ModelResponseObservation[] = [];
     const result = await runLiveScenarioRuntime(phase4ScenarioInputs[0], new LLMInvestigationPlanner({
       provider: "openai-compatible", baseUrl: "https://example.invalid/v1", apiKey: "test-only",
       model: "mock-live-model", responseObserver: (value) => observations.push(value),
     }));
+    attachModelObservations(result.plannerCalls, observations);
     assert.equal(result.runtimeError, null);
     assert.ok(modelCalls >= 6);
     assert.ok(result.plannerCalls.length >= 6);
@@ -103,10 +113,64 @@ test("mocked OpenAI-compatible planner runs the formal multi-iteration full chai
     assert.equal(result.aggregate.verificationEvaluations[0]?.outcome, "RESOLVED");
     assert.equal(result.aggregate.run.status, "RESOLVED");
     assert.equal(observations.length, modelCalls);
+    assert.equal(result.plannerCalls.filter((item) => item.modelCallCount === 2).length, 1);
+    assert.equal(result.plannerCalls.find((item) => item.modelCallCount === 2)?.decisionRepairAttempts, 1);
+    assert.equal(result.plannerCalls.find((item) => item.modelCallCount === 2)?.tokenUsage?.totalTokens, 30);
+    assert.equal(result.aggregate.auditEvents.filter((item) =>
+      item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length, 1);
+    assert.equal(result.aggregate.auditEvents.filter((item) =>
+      item.type === "PLANNER_DECISION_REPAIRED").length, 1);
+    assert.deepEqual(summarizePlannerReliability([result]), {
+      plannerDecisionCount: result.plannerCalls.length,
+      invalidPlannerDecisionCount: 1,
+      repairedPlannerDecisionCount: 1,
+      decisionRepairCount: 1,
+      decisionRepairRate: 1,
+    });
+    assert.equal(classifyLiveRuntimeFailure(result), null);
+    const schemaFailure = structuredClone(result);
+    schemaFailure.runtimeError = "Planner decision invalid";
+    schemaFailure.runtimeErrorCategory = "PLANNER_SCHEMA_ERROR";
+    assert.equal(classifyLiveRuntimeFailure(schemaFailure), "PLANNER_SCHEMA_ERROR");
     assert.ok(result.plannerCalls.every((item) => item.latencyMs >= 0));
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("Live runtime classifies exhausted typed Planner schema repair separately from runtime errors", async (t) => {
+  for (const malformed of [
+    { type: "ASSESS_EVIDENCE", rationale: "Missing required assessments." },
+    { type: "CALL_TOOL", toolName: "get_release", arguments: {}, targetHypothesisIds: ["H-1"],
+      testIntent: 7, rationale: "Invalid tool intent type." },
+  ]) await t.test(String(malformed.type), async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => Response.json({
+      choices: [{ message: { content: JSON.stringify(malformed) } }],
+    });
+    try {
+      const result = await runLiveScenarioRuntime(phase4ScenarioInputs[0], new LLMInvestigationPlanner({
+        provider: "openai-compatible", baseUrl: "https://example.invalid/v1", apiKey: "test-only",
+        model: "mock-live-model",
+      }));
+      assert.equal(result.runtimeErrorCategory, "PLANNER_SCHEMA_ERROR");
+      assert.equal(classifyLiveRuntimeFailure(result), "PLANNER_SCHEMA_ERROR");
+      assert.equal(result.aggregate.auditEvents.filter((event) =>
+        event.type === "PLANNER_DECISION_REPAIR_FAILED").length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  await t.test("ordinary runtime failure", async () => {
+    const planner: InvestigationPlanner = {
+      type: "LLM",
+      async plan() { throw new Error("Synthetic store or tool runtime failure"); },
+    };
+    const result = await runLiveScenarioRuntime(phase4ScenarioInputs[0], planner);
+    assert.equal(result.runtimeErrorCategory, "RUNTIME_ERROR");
+    assert.equal(classifyLiveRuntimeFailure(result), "RUNTIME_ERROR");
+  });
 });
 
 test("missing scenario data reaches INCONCLUSIVE without harness repair", async () => {
@@ -213,9 +277,12 @@ test("missing provider usage remains null without token estimation", () => {
   const calls = attachModelObservations([{
     sequence: 1, latencyMs: 1, decision: null, error: null, hypotheses: [], evidence: [],
     evidenceRelations: [], tokenUsage: { promptTokens: 999, completionTokens: 999, totalTokens: 999 },
-    tokenUsageStatus: "PROVIDED", responseModel: "stale",
+    tokenUsageStatus: "PROVIDED", responseModel: "stale", modelCallCount: 99,
+    modelLatencyMs: 99, decisionRepairAttempts: 99,
   }], []);
   assert.equal(calls[0].tokenUsage, null);
   assert.equal(calls[0].tokenUsageStatus, "NOT_PROVIDED");
   assert.equal(calls[0].responseModel, null);
+  assert.equal(calls[0].modelCallCount, 0);
+  assert.equal(calls[0].decisionRepairAttempts, 0);
 });

@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import type {
   Confidence,
   Evidence as RuntimeEvidence,
   LegacyInvestigationResponse,
 } from "@/lib/investigation/types";
+import {
+  canApplyInvestigationResponse,
+  canPresentCurrentInvestigation,
+  presentationStatusFromRun,
+  resolveInvestigationConfidence,
+} from "@/lib/investigation/ui-presentation";
 
 type View = "overview" | "incident" | "approval" | "evidence" | "audit";
 type Stage = "pending" | "approved" | "rejected" | "fixed" | "resolved";
@@ -365,7 +371,7 @@ function Overview({ onView, investigation }: { onView: (view: View) => void; inv
     </section><EvidenceStrip onView={onView} items={activeEvidence} /></div>;
 }
 
-function Incident({ stage, onView, onAdvance, onSubmitApproval, hasApprovalSnapshot, hasGithubIssue, investigationStatus, investigation, investigationError, runInvestigation, runFixtureDemo, activeConfig, onConfigure, onReset, onSendMessage, onVerificationAction, chatBusy }: {
+function Incident({ stage, onView, onAdvance, onSubmitApproval, hasApprovalSnapshot, hasGithubIssue, investigationStatus, investigation, currentRunId, investigationError, runInvestigation, runFixtureDemo, activeConfig, onConfigure, onReset, onSendMessage, onVerificationAction, chatBusy }: {
   stage: Stage;
   onView: (view: View) => void;
   onAdvance: () => void;
@@ -374,6 +380,7 @@ function Incident({ stage, onView, onAdvance, onSubmitApproval, hasApprovalSnaps
   hasGithubIssue: boolean;
   investigationStatus: InvestigationStatus;
   investigation: InvestigationResult | null;
+  currentRunId: string | null;
   investigationError: string;
   runInvestigation: () => void;
   runFixtureDemo: () => void;
@@ -394,63 +401,70 @@ function Incident({ stage, onView, onAdvance, onSubmitApproval, hasApprovalSnaps
     resolved: ["查看审计记录", "audit"],
   };
   const [label, target] = actions[stage];
-  const live = investigationStatus === "live" && investigation;
-  const runtimeRelease = live ? investigation.investigation.release : null;
-  const runtimeRisk = live ? investigation.investigation.riskEvent : null;
-  const confidence: Confidence | null = live ? investigation.conclusion.confidence : "HIGH";
-  const runEvidence = live ? presentEvidence(investigation.investigation.evidence) : [];
-  const ragMode = ragModeFromRuntime(investigation);
-  const timeline = live && investigation.investigation.traceEvents.length > 0
-    ? investigation.investigation.traceEvents.map((item, index) => [
+  const live = canPresentCurrentInvestigation(investigationStatus, investigation, currentRunId)
+    ? investigation
+    : null;
+  const runtimeRelease = live?.investigation.release ?? null;
+  const runtimeRisk = live?.investigation.riskEvent ?? null;
+  const confidencePresentation = resolveInvestigationConfidence(
+    investigationStatus,
+    investigation,
+    currentRunId,
+  );
+  const confidence = confidencePresentation.confidence;
+  const runEvidence = live ? presentEvidence(live.investigation.evidence) : [];
+  const ragMode = ragModeFromRuntime(live);
+  const timeline = live && live.investigation.traceEvents.length > 0
+    ? live.investigation.traceEvents.map((item, index) => [
         `#${item.sequence}`,
         item.actor === "HUMAN" ? "产品经理输入" : item.type === "PLANNER_DECISION" ? "Agent 决策" : item.type,
         item.publicSummary,
-        index === investigation.investigation.traceEvents.length - 1 ? "current" : "done",
+        index === live.investigation.traceEvents.length - 1 ? "current" : "done",
       ])
     : live
-    ? investigation.trace.map((item, index) => {
+    ? live.trace.map((item, index) => {
         const [title, baseDetail] = toolLabels[item.tool] ?? [item.tool, "完成工具调用"];
         const detail = item.status === "SUCCESS" ? baseDetail : `${baseDetail} · ${item.status}`;
-        return [`步骤 ${index + 1}`, title, detail, index === investigation.trace.length - 1 ? "current" : "done"];
+        return [`步骤 ${index + 1}`, title, detail, index === live.trace.length - 1 ? "current" : "done"];
       })
     : agentSteps;
   return <div className="content detail-page">
-    <RuntimeTruth investigation={investigation} ragMode={ragMode} />
+    <RuntimeTruth investigation={live} ragMode={ragMode} />
     <section className="panel flow-panel"><div className="panel-heading"><div><span className="section-kicker">RISK EVENT {runtimeRisk?.id ?? "等待统计检测"}</span><h2>优惠券领取成功率异常</h2></div><span className={stage === "resolved" ? "success-pill" : "risk-pill"}>{stage === "resolved" ? "验证已完成" : "高风险"}</span></div><StatusFlow stage={stage} /></section>
     <section className="panel demo-launcher" aria-label="Deterministic Demo Scenario"><div><span className="section-kicker">DETERMINISTIC DEMO SCENARIO</span><h2>运行正式 Agent Runtime 演示</h2><p>统计 fixture 先生成 RiskEvent，再由 DeterministicPlanner 驱动共享 AgentLoop。Feedback、历史事故与 Verification 均明确标记为 fixture 数据。</p></div><div className="demo-launcher-actions"><button className="text-button" onClick={onConfigure}>模型配置</button><button className="text-button" onClick={onReset}>重置页面状态</button><button className="primary-button" disabled={investigationStatus === "running"} onClick={runFixtureDemo}>{investigationStatus === "running" ? "演示运行中…" : live ? "重新运行演示" : "运行演示"}</button></div></section>
-    <section className="detail-grid"><article className="panel investigation-panel"><div className="panel-heading investigation-heading"><div><span className="section-kicker">AGENT INVESTIGATION</span><h2>调查过程</h2></div><div className="agent-actions">{ragMode && <span className="rag-mode-pill">{ragMode === "HYBRID_VECTORIZE" ? "Hybrid RAG · Vectorize" : ragMode === "HYBRID_LOCAL" ? "Hybrid RAG · Local fallback" : "RAG · Lexical fallback"}</span>}<span className={live ? "live-pill" : "agent-pill"}>{live ? `● ${investigation.provider} / ${investigation.model} · 实时` : activeConfig ? `${activeConfig.provider} / ${activeConfig.model}` : "AI Agent · 安全演示"}</span><button className="run-agent-button" disabled={investigationStatus === "running"} onClick={runInvestigation}>{investigationStatus === "running" ? <><i className="spinner" />{activeConfig?.provider || "结构化演示"}调查中</> : live ? "重新调查" : activeConfig ? "运行真实调查" : "运行结构化演示"}</button></div></div>
+    <section className="detail-grid"><article className="panel investigation-panel"><div className="panel-heading investigation-heading"><div><span className="section-kicker">AGENT INVESTIGATION</span><h2>调查过程</h2></div><div className="agent-actions">{ragMode && <span className="rag-mode-pill">{ragMode === "HYBRID_VECTORIZE" ? "Hybrid RAG · Vectorize" : ragMode === "HYBRID_LOCAL" ? "Hybrid RAG · Local fallback" : "RAG · Lexical fallback"}</span>}<span className={live ? "live-pill" : "agent-pill"}>{live ? `● ${live.provider} / ${live.model} · 实时` : activeConfig ? `${activeConfig.provider} / ${activeConfig.model}` : "AI Agent · 安全演示"}</span><button className="run-agent-button" disabled={investigationStatus === "running"} onClick={runInvestigation}>{investigationStatus === "running" ? <><i className="spinner" />{activeConfig?.provider || "结构化演示"}调查中</> : live ? "重新调查" : activeConfig ? "运行真实调查" : "运行结构化演示"}</button></div></div>
       <p className="question">“为什么 {runtimeRelease ? `${runtimeRelease.platform} ${runtimeRelease.version}` : "本次发布"} 后，优惠券领取成功率突然下降？”</p>
-      {live && <div className="sandbox-note"><b>统计检测 → Agent 调查</b><span>RiskEvent 由确定性规则生成；{investigation.provider} 只负责从正式分析工具中调查原因。</span></div>}
-      {live && investigation.conclusion.parse_status === "repaired" && <div className="result-note"><b>格式已自动整理</b><span>模型原始结论已转换为可审阅的结构化结果，事实内容未改写。</span></div>}
-      {live && investigation.conclusion.parse_status === "raw" && <details className="raw-conclusion"><summary>结构化解析未成功 · 查看模型原始结论</summary><p>{investigation.conclusion.raw_conclusion}</p></details>}
+      {live && <div className="sandbox-note"><b>统计检测 → Agent 调查</b><span>RiskEvent 由确定性规则生成；{live.provider} 只负责从正式分析工具中调查原因。</span></div>}
+      {live?.conclusion.parse_status === "repaired" && <div className="result-note"><b>格式已自动整理</b><span>模型原始结论已转换为可审阅的结构化结果，事实内容未改写。</span></div>}
+      {live?.conclusion.parse_status === "raw" && <details className="raw-conclusion"><summary>结构化解析未成功 · 查看模型原始结论</summary><p>{live.conclusion.raw_conclusion}</p></details>}
       {investigationStatus === "not_configured" && <div className="agent-alert amber"><b>还差最后一步</b><span>请先选择任意 OpenAI-compatible 模型服务。</span><button onClick={onConfigure}>配置模型 →</button></div>}
-      {investigationStatus === "error" && <div className="agent-alert red"><b>调查未完成</b><span>{investigationError}</span></div>}
+      {investigationStatus === "error" && <div className="agent-alert red"><b>调查失败</b><span>{investigationError}</span></div>}
       <div className="agent-timeline">{timeline.map(([time, title, detail, status], index) => <div className={`timeline-item ${status}`} key={`${title}-${index}`}><time>{time}</time><i /><div><strong>{title}</strong><p>{detail}</p></div></div>)}</div>
-      {live && <div className="token-note">Run {investigation.runId.slice(0, 18)}… · {investigation.runStatus} · {investigation.trace.length} 个工具 · {investigation.usage?.total_tokens ?? "—"} tokens</div>}</article>
-      <aside className="panel decision-panel"><span className="section-kicker">DECISION BRIEF</span><h2>处置建议</h2><div className="score-ring" style={{ "--score": `${confidence ? confidenceAngle[confidence] : 0}deg` } as CSSProperties}><strong className={confidence === null ? "score-pending" : ""}>{confidence ?? "待复核"}</strong><small>根因置信度</small></div><h3>{live ? investigation.conclusion.recommendation : "等待结构化调查"}</h3><div className="root-cause"><small>根因判断</small><p>{live ? investigation.conclusion.root_cause : "RiskEvent 只确认异常，不预设根因"}</p></div><ul><li>预计恢复时间：15 分钟</li><li>影响范围：{runtimeRelease ? `${runtimeRelease.platform} ${runtimeRelease.version}` : "等待检测"}</li><li>{live && investigation.conclusion.requires_human_approval ? "模型要求：必须人工审批" : "变更风险：等待调查"}</li></ul><button className="primary-button" onClick={() => target === "advance" ? onAdvance() : target === "approval" ? (hasApprovalSnapshot ? onView("approval") : onSubmitApproval()) : onView(target as View)}>{label} <span>→</span></button></aside></section>
+      {live && <div className="token-note">Run {live.runId.slice(0, 18)}… · {live.runStatus} · {live.trace.length} 个工具 · {live.usage?.total_tokens ?? "—"} tokens</div>}</article>
+      <aside className="panel decision-panel"><span className="section-kicker">DECISION BRIEF</span><h2>处置建议</h2><div className="score-ring" style={{ "--score": `${confidence ? confidenceAngle[confidence] : 0}deg` } as CSSProperties}><strong className={confidence === null ? "score-pending" : ""}>{confidencePresentation.label}</strong><small>根因置信度</small></div><h3>{live ? live.conclusion.recommendation : "等待结构化调查"}</h3><div className="root-cause"><small>根因判断</small><p>{live ? live.conclusion.root_cause : "RiskEvent 只确认异常，不预设根因"}</p></div><ul><li>预计恢复时间：15 分钟</li><li>影响范围：{runtimeRelease ? `${runtimeRelease.platform} ${runtimeRelease.version}` : "等待检测"}</li><li>{live?.conclusion.requires_human_approval ? "模型要求：必须人工审批" : "变更风险：等待调查"}</li></ul><button className="primary-button" onClick={() => target === "advance" ? onAdvance() : target === "approval" ? (hasApprovalSnapshot ? onView("approval") : onSubmitApproval()) : onView(target as View)}>{label} <span>→</span></button></aside></section>
     {live && <section className="phase3-collaboration">
       <article className="panel hypothesis-board">
-        <div className="panel-heading"><div><span className="section-kicker">HYPOTHESIS BOARD</span><h2>根因假设与证据</h2></div><span className="pending-pill">Diagnosis rev {investigation.investigation.diagnosis?.revision ?? 0}</span></div>
-        <div className="hypothesis-list">{investigation.investigation.hypotheses.map((item) => {
-          const links = investigation.investigation.hypothesisEvidenceLinks.filter((link) => link.hypothesisId === item.id);
-          const selected = investigation.investigation.diagnosis?.selectedHypothesisId === item.id;
+        <div className="panel-heading"><div><span className="section-kicker">HYPOTHESIS BOARD</span><h2>根因假设与证据</h2></div><span className="pending-pill">Diagnosis rev {live.investigation.diagnosis?.revision ?? 0}</span></div>
+        <div className="hypothesis-list">{live.investigation.hypotheses.map((item) => {
+          const links = live.investigation.hypothesisEvidenceLinks.filter((link) => link.hypothesisId === item.id);
+          const selected = live.investigation.diagnosis?.selectedHypothesisId === item.id;
           const role = item.status === "REJECTED" ? "Rejected Alternative" : selected ? "Leading Hypothesis" : "Still Unresolved";
           const linkedEvidence = (relation: "SUPPORTS" | "CONTRADICTS" | "NEUTRAL") => links
             .filter((link) => link.relation === relation)
-            .map((link) => ({ link, evidence: investigation.investigation.evidence.find((evidence) => evidence.id === link.evidenceId) }));
+            .map((link) => ({ link, evidence: live.investigation.evidence.find((evidence) => evidence.id === link.evidenceId) }));
           return <article className={`hypothesis-card ${selected ? "leading" : item.status.toLowerCase()}`} key={item.id}><div><span>{role} · {item.createdBy === "HUMAN" ? "PM" : "Agent"}</span><b>{item.status} · {item.confidence}</b></div><h3>{item.statement}</h3><dl><div><dt>Support if</dt><dd>{item.supportIf}</dd></div><div><dt>Refute if</dt><dd>{item.refuteIf}</dd></div></dl><p>{item.confidenceReason}</p><section className="relation-group supports"><b>Supporting Evidence</b>{linkedEvidence("SUPPORTS").map(({ link, evidence }) => <small key={link.id}>{evidence?.category === "SIMILAR_INCIDENT" ? "Historical Memory / RAG · " : ""}{evidence?.statement ?? link.evidenceId}<em>{evidence?.source} · {evidence?.category}</em></small>)}</section><section className="relation-group contradicts"><b>Contradicting Evidence</b>{linkedEvidence("CONTRADICTS").map(({ link, evidence }) => <small key={link.id}>{evidence?.statement ?? link.evidenceId}<em>{evidence?.source} · {evidence?.category}</em></small>)}</section>{linkedEvidence("NEUTRAL").length > 0 && <details className="neutral-evidence"><summary>Neutral Evidence ({linkedEvidence("NEUTRAL").length})</summary>{linkedEvidence("NEUTRAL").map(({ link, evidence }) => <small key={link.id}>{evidence?.statement ?? link.evidenceId}</small>)}</details>}</article>;
         })}</div>
       </article>
       <article className="panel agent-chat">
-        <div className="panel-heading"><div><span className="section-kicker">HUMAN × AGENT</span><h2>与调查 Agent 讨论</h2></div><span className="live-pill">{investigation.investigation.run.plannerType} Planner</span></div>
-        <div className="chat-history">{investigation.investigation.messages.length === 0 ? <p className="chat-empty">可以要求解释现有证据、继续调用工具，或提出一个产品经理假设。</p> : investigation.investigation.messages.map((message) => <div className={`chat-message ${message.role.toLowerCase()}`} key={message.id}><b>{message.role === "USER" ? "产品经理" : "Agent"}</b><p>{message.content}</p>{message.citedEvidenceIds.length > 0 && <small>引用 {message.citedEvidenceIds.length} 条证据</small>}</div>)}</div>
+        <div className="panel-heading"><div><span className="section-kicker">HUMAN × AGENT</span><h2>与调查 Agent 讨论</h2></div><span className="live-pill">{live.investigation.run.plannerType} Planner</span></div>
+        <div className="chat-history">{live.investigation.messages.length === 0 ? <p className="chat-empty">可以要求解释现有证据、继续调用工具，或提出一个产品经理假设。</p> : live.investigation.messages.map((message) => <div className={`chat-message ${message.role.toLowerCase()}`} key={message.id}><b>{message.role === "USER" ? "产品经理" : "Agent"}</b><p>{message.content}</p>{message.citedEvidenceIds.length > 0 && <small>引用 {message.citedEvidenceIds.length} 条证据</small>}</div>)}</div>
         <div className="chat-intents"><button className={chatIntent === "EXPLAIN" ? "active" : ""} onClick={() => setChatIntent("EXPLAIN")}>解释证据</button><button className={chatIntent === "INVESTIGATE" ? "active" : ""} onClick={() => setChatIntent("INVESTIGATE")}>继续调查</button><button className={chatIntent === "ADD_HYPOTHESIS" ? "active" : ""} onClick={() => setChatIntent("ADD_HYPOTHESIS")}>添加假设</button></div>
         <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); if (!chatDraft.trim()) return; void onSendMessage(chatIntent, chatDraft).then(() => setChatDraft("")); }}><textarea value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} placeholder={chatIntent === "ADD_HYPOTHESIS" ? "例如：异常可能主要集中在新用户。" : "输入你想让 Agent 解释或调查的方向…"} disabled={chatBusy} /><button className="primary-button" disabled={chatBusy || !chatDraft.trim()}>{chatBusy ? "Agent 调查中…" : "发送"}</button></form>
       </article>
     </section>}
-    {live && <GroundedDiagnosisPanel investigation={investigation} />}
-    {live && <RealPublicHistoricalMemory investigation={investigation} />}
-    {live && <VerificationPanel investigation={investigation} onAction={onVerificationAction} />}
+    {live && <GroundedDiagnosisPanel investigation={live} />}
+    {live && <RealPublicHistoricalMemory investigation={live} />}
+    {live && <VerificationPanel investigation={live} onAction={onVerificationAction} />}
     <EvidenceStrip onView={onView} items={runEvidence} /></div>;
 }
 
@@ -668,7 +682,44 @@ export default function Home() {
   const [showModelConfig, setShowModelConfig] = useState(false);
   const [showGithubConfig, setShowGithubConfig] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const investigationRequest = useRef(0);
+  const currentRunIdRef = useRef<string | null>(null);
+  const clearCurrentInvestigation = () => {
+    investigationRequest.current += 1;
+    currentRunIdRef.current = null;
+    setCurrentRunId(null);
+    setInvestigation(null);
+  };
+  const acceptInvestigationResponse = (
+    payload: InvestigationResult,
+    requestGeneration: number,
+    expectedRunId: string | null,
+  ) => {
+    if (!canApplyInvestigationResponse(
+      requestGeneration,
+      investigationRequest.current,
+      expectedRunId,
+      payload.runId,
+    )) return false;
+    currentRunIdRef.current = payload.runId;
+    setCurrentRunId(payload.runId);
+    setInvestigation(payload);
+    const presentationStatus = presentationStatusFromRun(payload);
+    setInvestigationStatus(presentationStatus);
+    setInvestigationError(presentationStatus === "error"
+      ? payload.investigation.run.errorMessage ?? "服务端调查运行失败"
+      : "");
+    const snapshot = snapshotFromRuntime(payload);
+    setStage(stageFromRuntime(payload));
+    setApprovalSnapshot(snapshot);
+    setApprovalDecisions(decisionFromRuntime(payload, snapshot));
+    setGithubIssue(issueFromRuntime(payload));
+    window.sessionStorage.setItem("releaseguard:run-id", payload.runId);
+    return true;
+  };
   useEffect(() => {
+    const requestGeneration = ++investigationRequest.current;
     let active = true;
     const hydrate = async () => {
       await Promise.resolve();
@@ -678,7 +729,7 @@ export default function Home() {
         const savedGithub = window.sessionStorage.getItem("releaseguard:github-config");
         if (savedGithub && active) setGithubConfig(JSON.parse(savedGithub) as GithubConfig);
         const savedWorkflow = window.sessionStorage.getItem("releaseguard:workflow");
-        if (savedWorkflow && active) {
+        if (savedWorkflow && active && requestGeneration === investigationRequest.current) {
           const workflow = JSON.parse(savedWorkflow) as { stage?: Stage; snapshot?: ApprovalSnapshot | null; decisions?: ApprovalDecision[]; githubIssue?: GithubIssue | null; workflowTimes?: WorkflowTimes };
           if (workflow.stage) setStage(workflow.stage);
           setApprovalSnapshot(workflow.snapshot ?? null);
@@ -698,14 +749,7 @@ export default function Home() {
           : "/api/investigate");
         if (response.ok && active) {
           const persisted = await response.json() as InvestigationResult;
-          const snapshot = snapshotFromRuntime(persisted);
-          setInvestigation(persisted);
-          setInvestigationStatus("live");
-          setStage(stageFromRuntime(persisted));
-          setApprovalSnapshot(snapshot);
-          setApprovalDecisions(decisionFromRuntime(persisted, snapshot));
-          setGithubIssue(issueFromRuntime(persisted));
-          window.sessionStorage.setItem("releaseguard:run-id", persisted.runId);
+          acceptInvestigationResponse(persisted, requestGeneration, savedRunId);
         }
       } catch {
         // The static demo remains available when no persisted run exists yet.
@@ -730,6 +774,8 @@ export default function Home() {
       setApprovalError("当前没有可审批的服务端 ProposedAction。");
       return;
     }
+    const expectedRunId = investigation.runId;
+    const requestGeneration = investigationRequest.current;
     if (decision === "approved" && !githubConfig) {
       setApprovalError("批准前请先配置 GitHub 目标；仓库会随 Approval 一起冻结。");
       setShowGithubConfig(true);
@@ -753,12 +799,7 @@ export default function Home() {
       });
       const payload = await response.json() as InvestigationResult & { error?: string };
       if (!response.ok) throw new Error(payload.error || "审批请求失败");
-      const snapshot = snapshotFromRuntime(payload);
-      setInvestigation(payload);
-      setStage(stageFromRuntime(payload));
-      setApprovalSnapshot(snapshot);
-      setApprovalDecisions(decisionFromRuntime(payload, snapshot));
-      setGithubIssue(issueFromRuntime(payload));
+      if (!acceptInvestigationResponse(payload, requestGeneration, expectedRunId)) return;
       notify(decision === "approved"
         ? "Approval 已由服务端批准，GitHub 目标已冻结"
         : "Approval 已驳回，Action 已取消并写入审计记录");
@@ -772,7 +813,7 @@ export default function Home() {
   const approve = (note: string) => decide("approved", note);
   const reject = (note: string) => decide("rejected", note);
   const advance = () => notify("Action 完成后需人工确认 effectiveAt，随后由 Verification Runtime 判断恢复结果");
-  const reset = () => { window.sessionStorage.removeItem("releaseguard:run-id"); setStage("pending"); setView("overview"); setInvestigationStatus("idle"); setInvestigation(null); setApprovalSnapshot(null); setApprovalDecisions([]); setGithubIssue(null); setApprovalStatus("idle"); setApprovalError(""); setGithubStatus("idle"); setGithubError(""); setInvestigationError(""); setWorkflowTimes(newWorkflowTimes()); notify("演示状态已重置"); };
+  const reset = () => { clearCurrentInvestigation(); window.sessionStorage.removeItem("releaseguard:run-id"); setStage("pending"); setView("overview"); setInvestigationStatus("idle"); setApprovalSnapshot(null); setApprovalDecisions([]); setGithubIssue(null); setApprovalStatus("idle"); setApprovalError(""); setGithubStatus("idle"); setGithubError(""); setInvestigationError(""); setWorkflowTimes(newWorkflowTimes()); notify("演示状态已重置"); };
   const submitForApproval = () => {
     if (!investigation?.investigation.approval) {
       notify("请先运行结构化调查，服务端会自动创建 Approval");
@@ -786,15 +827,17 @@ export default function Home() {
   const saveModelConfig = (config: ModelConfig) => {
     window.sessionStorage.setItem("releaseguard:model-config", JSON.stringify(config));
     setModelConfig(config);
+    clearCurrentInvestigation();
+    window.sessionStorage.removeItem("releaseguard:run-id");
     setInvestigationStatus("idle");
-    setInvestigation(null);
     setShowModelConfig(false);
     notify(`${config.provider} / ${config.model} 已连接到本次会话`);
   };
   const clearModelConfig = () => {
     window.sessionStorage.removeItem("releaseguard:model-config");
     setModelConfig(null);
-    setInvestigation(null);
+    clearCurrentInvestigation();
+    window.sessionStorage.removeItem("releaseguard:run-id");
     setInvestigationStatus("idle");
     setShowModelConfig(false);
     notify("模型配置已从本次会话清除");
@@ -816,6 +859,8 @@ export default function Home() {
   const createGithubIssue = async () => {
     const action = investigation?.investigation.proposedAction;
     if (stage !== "approved" || !investigation || !action || !githubConfig || githubIssue || githubStatus === "running") return;
+    const expectedRunId = investigation.runId;
+    const requestGeneration = investigationRequest.current;
     setGithubStatus("running");
     setGithubError("");
     try {
@@ -834,11 +879,7 @@ export default function Home() {
       const refreshed = await fetch(`/api/investigate?runId=${encodeURIComponent(investigation.runId)}`);
       if (refreshed.ok) {
         const persisted = await refreshed.json() as InvestigationResult;
-        const snapshot = snapshotFromRuntime(persisted);
-        setInvestigation(persisted);
-        setStage(stageFromRuntime(persisted));
-        setApprovalSnapshot(snapshot);
-        setApprovalDecisions(decisionFromRuntime(persisted, snapshot));
+        if (!acceptInvestigationResponse(persisted, requestGeneration, expectedRunId)) return;
         setGithubIssue(issueFromRuntime(persisted) ?? payload);
       }
       notify(payload.deduplicated ? `已找到现有 GitHub Issue #${payload.number}，未重复创建` : `工作项 #${payload.number} 已创建，尚未确认修复上线`);
@@ -850,7 +891,16 @@ export default function Home() {
     setGithubStatus("idle");
   };
   const runInvestigation = async () => {
+    const requestId = ++investigationRequest.current;
+    currentRunIdRef.current = null;
+    setCurrentRunId(null);
+    window.sessionStorage.removeItem("releaseguard:run-id");
     setInvestigationStatus("running");
+    setInvestigation(null);
+    setApprovalSnapshot(null);
+    setApprovalDecisions([]);
+    setGithubIssue(null);
+    setStage("pending");
     setInvestigationError("");
     try {
       const response = await fetch("/api/investigate", {
@@ -868,6 +918,7 @@ export default function Home() {
         }),
       });
       const payload = await response.json() as InvestigationResult & { code?: string; error?: string };
+      if (requestId !== investigationRequest.current) return;
       if (!response.ok) {
         if (payload.code === "MODEL_NOT_CONFIGURED") {
           setInvestigationStatus("not_configured");
@@ -876,22 +927,25 @@ export default function Home() {
         }
         throw new Error(payload.error || `${modelConfig?.provider ?? "模型"} 调查请求失败`);
       }
-      setInvestigation(payload);
-      setInvestigationStatus("live");
-      const snapshot = snapshotFromRuntime(payload);
-      setStage(stageFromRuntime(payload));
-      setApprovalSnapshot(snapshot);
-      setApprovalDecisions(decisionFromRuntime(payload, snapshot));
-      setGithubIssue(issueFromRuntime(payload));
-      window.sessionStorage.setItem("releaseguard:run-id", payload.runId);
+      if (!acceptInvestigationResponse(payload, requestId, null)) return;
       notify(`${payload.provider} / ${payload.model} 已完成并持久化调查`);
     } catch (error) {
+      if (requestId !== investigationRequest.current) return;
       setInvestigationStatus("error");
       setInvestigationError(error instanceof Error ? error.message : "网络异常，请稍后重试");
     }
   };
   const runFixtureDemo = async () => {
+    const requestId = ++investigationRequest.current;
+    currentRunIdRef.current = null;
+    setCurrentRunId(null);
+    window.sessionStorage.removeItem("releaseguard:run-id");
     setInvestigationStatus("running");
+    setInvestigation(null);
+    setApprovalSnapshot(null);
+    setApprovalDecisions([]);
+    setGithubIssue(null);
+    setStage("pending");
     setInvestigationError("");
     try {
       const response = await fetch("/api/investigate", {
@@ -903,17 +957,12 @@ export default function Home() {
         }),
       });
       const payload = await response.json() as InvestigationResult & { error?: string };
+      if (requestId !== investigationRequest.current) return;
       if (!response.ok) throw new Error(payload.error || "Phase 2 演示运行失败");
-      const snapshot = snapshotFromRuntime(payload);
-      setInvestigation(payload);
-      setInvestigationStatus("live");
-      setStage(stageFromRuntime(payload));
-      setApprovalSnapshot(snapshot);
-      setApprovalDecisions(decisionFromRuntime(payload, snapshot));
-      setGithubIssue(issueFromRuntime(payload));
-      window.sessionStorage.setItem("releaseguard:run-id", payload.runId);
+      if (!acceptInvestigationResponse(payload, requestId, null)) return;
       notify("Phase 3 fixture 已完成：RiskEvent → AgentLoop → Hypothesis → WAITING_APPROVAL");
     } catch (error) {
+      if (requestId !== investigationRequest.current) return;
       setInvestigationStatus("error");
       setInvestigationError(error instanceof Error ? error.message : "Phase 2 演示运行失败");
     }
@@ -923,6 +972,8 @@ export default function Home() {
     content: string,
   ) => {
     if (!investigation) return;
+    const expectedRunId = investigation.runId;
+    const requestGeneration = investigationRequest.current;
     setChatBusy(true);
     setInvestigationError("");
     try {
@@ -943,13 +994,11 @@ export default function Home() {
       });
       const payload = await response.json() as InvestigationResult & { error?: string };
       if (!response.ok) throw new Error(payload.error || "Agent 消息处理失败");
-      const snapshot = snapshotFromRuntime(payload);
-      setInvestigation(payload);
-      setStage(stageFromRuntime(payload));
-      setApprovalSnapshot(snapshot);
-      setApprovalDecisions(decisionFromRuntime(payload, snapshot));
+      if (!acceptInvestigationResponse(payload, requestGeneration, expectedRunId)) return;
       notify(intent === "EXPLAIN" ? "Agent 已基于现有证据回复" : "Agent 已完成补充调查并持久化结果");
     } catch (error) {
+      if (requestGeneration !== investigationRequest.current
+        || currentRunIdRef.current !== expectedRunId) return;
       setInvestigationError(error instanceof Error ? error.message : "Agent 消息处理失败");
       notify(error instanceof Error ? error.message : "Agent 消息处理失败");
     } finally {
@@ -958,6 +1007,8 @@ export default function Home() {
   };
   const reopenInvestigation = async () => {
     if (!investigation) return;
+    const expectedRunId = investigation.runId;
+    const requestGeneration = investigationRequest.current;
     setApprovalStatus("running");
     setApprovalError("");
     try {
@@ -971,10 +1022,7 @@ export default function Home() {
       });
       const payload = await response.json() as InvestigationResult & { error?: string };
       if (!response.ok) throw new Error(payload.error || "继续调查失败");
-      setInvestigation(payload);
-      setStage(stageFromRuntime(payload));
-      setApprovalSnapshot(snapshotFromRuntime(payload));
-      setApprovalDecisions(decisionFromRuntime(payload, snapshotFromRuntime(payload)));
+      if (!acceptInvestigationResponse(payload, requestGeneration, expectedRunId)) return;
       setView("incident");
       notify("旧审批快照已撤回；Run 已回到调查中");
     } catch (error) {
@@ -989,6 +1037,8 @@ export default function Home() {
     verificationRunId: string,
   ) => {
     if (!investigation) return;
+    const expectedRunId = investigation.runId;
+    const requestGeneration = investigationRequest.current;
     try {
       const response = await fetch(
         `/api/investigations/${encodeURIComponent(investigation.runId)}/verifications/${encodeURIComponent(verificationRunId)}/${action}`,
@@ -1006,17 +1056,21 @@ export default function Home() {
       const refreshed = await fetch(`/api/investigate?runId=${encodeURIComponent(investigation.runId)}`);
       if (!refreshed.ok) throw new Error("Verification 已更新，但刷新 Investigation 失败");
       const persisted = await refreshed.json() as InvestigationResult;
-      setInvestigation(persisted);
-      setStage(stageFromRuntime(persisted));
+      if (!acceptInvestigationResponse(persisted, requestGeneration, expectedRunId)) return;
       notify(action === "retry" ? "已创建新的 Verification attempt" : "已重新进入 Investigation");
     } catch (error) {
       notify(error instanceof Error ? error.message : `Verification ${action} 失败`);
     }
   };
-  const activeEvidence = investigation
-    ? presentEvidence(investigation.investigation.evidence)
+  const presentedInvestigation = canPresentCurrentInvestigation(
+    investigationStatus,
+    investigation,
+    currentRunId,
+  ) ? investigation : null;
+  const activeEvidence = presentedInvestigation
+    ? presentEvidence(presentedInvestigation.investigation.evidence)
     : [];
 
   return <main className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">R</span><div><strong>上线风险中心</strong><small>ReleaseGuard AI</small></div></div><nav aria-label="主导航">{navItems.map((item) => <button key={item.id} className={view === item.id ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span className="nav-glyph">{item.glyph}</span>{item.label}{item.id === "approval" && stage === "pending" && approvalSnapshot && <b className="nav-badge">1</b>}</button>)}</nav><div className="system-card"><span className="status-dot" /><div><strong>监控运行中</strong><small>4 个数据源已连接</small></div></div><div className="profile"><span>PM</span><div><strong>产品经理</strong><small>演示工作区</small></div></div></aside>
-    <section className="workspace"><header className="topbar"><div><p className="eyebrow">RELEASE OPERATIONS</p><h1>{activeLabel}</h1><p>Detect → Investigate → Decide → Approve → Act → Verify</p></div><div className="top-actions"><span>最近更新 {lastUpdated}</span><button className={modelConfig ? "model-config-button connected" : "model-config-button"} onClick={() => setShowModelConfig(true)}><i />{modelConfig ? `${modelConfig.provider} · ${modelConfig.model}` : "配置模型服务"}</button><button className={githubConfig ? "model-config-button connected" : "model-config-button"} onClick={() => setShowGithubConfig(true)}><i />{githubConfig ? `GitHub · ${githubConfig.owner}/${githubConfig.repo}` : "配置集成"}</button><button className="reset-button" onClick={reset}>重置演示</button><button className="secondary-button" onClick={() => setLastUpdated("刚刚")}>↻ 刷新</button></div></header>{view === "overview" && <Overview onView={setView} investigation={investigation} />}{view === "incident" && <Incident stage={stage} onView={setView} onAdvance={advance} onSubmitApproval={submitForApproval} hasApprovalSnapshot={Boolean(approvalSnapshot)} hasGithubIssue={Boolean(githubIssue)} investigationStatus={investigationStatus} investigation={investigation} investigationError={investigationError} runInvestigation={runInvestigation} runFixtureDemo={runFixtureDemo} activeConfig={modelConfig} onConfigure={() => setShowModelConfig(true)} onReset={reset} onSendMessage={sendInvestigationMessage} onVerificationAction={handleVerificationAction} chatBusy={chatBusy} />}{view === "approval" && <Approval key={approvalSnapshot?.submittedAt ?? "empty"} stage={stage} snapshot={approvalSnapshot} latestDecision={approvalDecisions.at(-1) ?? null} githubConfig={githubConfig} githubIssue={githubIssue} approvalStatus={approvalStatus} approvalError={approvalError} githubStatus={githubStatus} githubError={githubError} approve={approve} reject={reject} onInvestigate={() => setView("incident")} onConfigureGithub={() => setShowGithubConfig(true)} onCreateGithubIssue={createGithubIssue} onContinueInvestigation={reopenInvestigation} />}{view === "evidence" && <EvidenceView items={activeEvidence} />}{view === "audit" && <Audit stage={stage} snapshot={approvalSnapshot} decisions={approvalDecisions} githubIssue={githubIssue} workflowTimes={workflowTimes} investigation={investigation} />}</section>{showModelConfig && <ModelConfigModal initial={modelConfig} onClose={() => setShowModelConfig(false)} onSave={saveModelConfig} onClear={clearModelConfig} />}{showGithubConfig && <GithubConfigModal initial={githubConfig} onClose={() => setShowGithubConfig(false)} onSave={saveGithubConfig} onClear={clearGithubConfig} />}{toast && <div className="toast"><i>✓</i>{toast}</div>}</main>;
+    <section className="workspace"><header className="topbar"><div><p className="eyebrow">RELEASE OPERATIONS</p><h1>{activeLabel}</h1><p>Detect → Investigate → Decide → Approve → Act → Verify</p></div><div className="top-actions"><span>最近更新 {lastUpdated}</span><button className={modelConfig ? "model-config-button connected" : "model-config-button"} onClick={() => setShowModelConfig(true)}><i />{modelConfig ? `${modelConfig.provider} · ${modelConfig.model}` : "配置模型服务"}</button><button className={githubConfig ? "model-config-button connected" : "model-config-button"} onClick={() => setShowGithubConfig(true)}><i />{githubConfig ? `GitHub · ${githubConfig.owner}/${githubConfig.repo}` : "配置集成"}</button><button className="reset-button" onClick={reset}>重置演示</button><button className="secondary-button" onClick={() => setLastUpdated("刚刚")}>↻ 刷新</button></div></header>{view === "overview" && <Overview onView={setView} investigation={presentedInvestigation} />}{view === "incident" && <Incident stage={stage} onView={setView} onAdvance={advance} onSubmitApproval={submitForApproval} hasApprovalSnapshot={Boolean(approvalSnapshot)} hasGithubIssue={Boolean(githubIssue)} investigationStatus={investigationStatus} investigation={investigation} currentRunId={currentRunId} investigationError={investigationError} runInvestigation={runInvestigation} runFixtureDemo={runFixtureDemo} activeConfig={modelConfig} onConfigure={() => setShowModelConfig(true)} onReset={reset} onSendMessage={sendInvestigationMessage} onVerificationAction={handleVerificationAction} chatBusy={chatBusy} />}{view === "approval" && <Approval key={approvalSnapshot?.submittedAt ?? "empty"} stage={stage} snapshot={approvalSnapshot} latestDecision={approvalDecisions.at(-1) ?? null} githubConfig={githubConfig} githubIssue={githubIssue} approvalStatus={approvalStatus} approvalError={approvalError} githubStatus={githubStatus} githubError={githubError} approve={approve} reject={reject} onInvestigate={() => setView("incident")} onConfigureGithub={() => setShowGithubConfig(true)} onCreateGithubIssue={createGithubIssue} onContinueInvestigation={reopenInvestigation} />}{view === "evidence" && <EvidenceView items={activeEvidence} />}{view === "audit" && <Audit stage={stage} snapshot={approvalSnapshot} decisions={approvalDecisions} githubIssue={githubIssue} workflowTimes={workflowTimes} investigation={investigation} />}</section>{showModelConfig && <ModelConfigModal initial={modelConfig} onClose={() => setShowModelConfig(false)} onSave={saveModelConfig} onClear={clearModelConfig} />}{showGithubConfig && <GithubConfigModal initial={githubConfig} onClose={() => setShowGithubConfig(false)} onSave={saveGithubConfig} onClear={clearGithubConfig} />}{toast && <div className="toast"><i>✓</i>{toast}</div>}</main>;
 }

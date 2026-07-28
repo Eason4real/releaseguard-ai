@@ -27,6 +27,9 @@ export type ModelConfig = {
 
 export type ModelResponseObservation = {
   model: string;
+  attemptIndex?: number;
+  latencyMs: number;
+  status: "SUCCESS" | "ERROR";
   usage: {
     promptTokens: number | null;
     completionTokens: number | null;
@@ -74,6 +77,17 @@ export async function callModel(
   messages: ModelMessage[],
   options: { enableTools?: boolean; enableThinking?: boolean } = {},
 ) {
+  const startedAt = performance.now();
+  let observationSent = false;
+  const observe = (observation: ModelResponseObservation) => {
+    if (observationSent) return;
+    observationSent = true;
+    try {
+      config.responseObserver?.(observation);
+    } catch {
+      // Eval instrumentation must never change Planner behavior.
+    }
+  };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 75_000);
   const body: Record<string, unknown> = {
@@ -102,6 +116,7 @@ export async function callModel(
     });
     if (!response.ok) {
       const detail = await response.text();
+      observe({ model: config.model, latencyMs: performance.now() - startedAt, status: "ERROR", usage: null });
       throw new Error(`${config.provider} ${response.status}: ${detail.slice(0, 240)}`);
     }
     const payload = (await response.json()) as {
@@ -109,19 +124,20 @@ export async function callModel(
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
       model?: string;
     };
-    try {
-      config.responseObserver?.({
-        model: payload.model ?? config.model,
-        usage: payload.usage ? {
-          promptTokens: payload.usage.prompt_tokens ?? null,
-          completionTokens: payload.usage.completion_tokens ?? null,
-          totalTokens: payload.usage.total_tokens ?? null,
-        } : null,
-      });
-    } catch {
-      // Eval instrumentation must never change Planner behavior.
-    }
+    observe({
+      model: payload.model ?? config.model,
+      latencyMs: performance.now() - startedAt,
+      status: "SUCCESS",
+      usage: payload.usage ? {
+        promptTokens: payload.usage.prompt_tokens ?? null,
+        completionTokens: payload.usage.completion_tokens ?? null,
+        totalTokens: payload.usage.total_tokens ?? null,
+      } : null,
+    });
     return payload;
+  } catch (error) {
+    observe({ model: config.model, latencyMs: performance.now() - startedAt, status: "ERROR", usage: null });
+    throw error;
   } finally {
     clearTimeout(timeout);
   }

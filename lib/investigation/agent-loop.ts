@@ -9,6 +9,7 @@ import {
   markInvestigationFailed,
 } from "./runtime";
 import type {
+  AuditEvent,
   AgentIteration,
   AgentIterationTrigger,
   Hypothesis,
@@ -25,6 +26,47 @@ import {
 } from "./hypothesis-invariants";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+
+async function persistPlannerValidationObservations(
+  store: Phase3InvestigationStore,
+  planner: InvestigationPlanner,
+  runId: string,
+  iteration: AgentIteration,
+) {
+  const observations = planner.drainDecisionValidationObservations?.() ?? [];
+  if (observations.length === 0) return;
+  const eventType: Record<(typeof observations)[number]["outcome"], AuditEvent["type"]> = {
+    REPAIR_ATTEMPTED: "PLANNER_DECISION_REPAIR_ATTEMPTED",
+    REPAIRED: "PLANNER_DECISION_REPAIRED",
+    REPAIR_FAILED: "PLANNER_DECISION_REPAIR_FAILED",
+  };
+  await store.saveAuditEvents(observations.map((observation) => ({
+    id: createId("AE"),
+    runId,
+    proposedActionId: null,
+    approvalId: null,
+    toolCallId: null,
+    type: eventType[observation.outcome],
+    actor: "LLM_PLANNER",
+    details: {
+      iterationId: iteration.id,
+      iterationSequence: iteration.sequence,
+      provider: observation.provider,
+      model: observation.model,
+      attemptIndex: observation.attemptIndex,
+      decisionType: observation.decisionType,
+      topLevelKeys: observation.topLevelKeys,
+      validationCode: observation.validationCode,
+      validationPath: observation.validationPath,
+      responseLength: observation.responseLength,
+      responseHash: observation.responseHash,
+      latencyMs: observation.latencyMs,
+      usage: observation.usage,
+      structure: observation.structure,
+    },
+    createdAt: observation.createdAt,
+  })));
+}
 
 const boundedText = (value: string, label: string) => {
   const text = value.trim().slice(0, 2_000);
@@ -131,6 +173,7 @@ export async function runAgentLoop(
         remainingIterations: maxIterations - localRound,
         remainingToolCalls: maxToolCalls - callsThisInvocation,
       });
+      await persistPlannerValidationObservations(store, input.planner, input.runId, iteration);
       const traceSequence = (current.traceEvents.at(-1)?.sequence ?? 0) + 1;
       const decisionTrace = trace(
         input.runId,
@@ -438,6 +481,11 @@ export async function runAgentLoop(
       );
       return store.getAggregate(input.runId);
     } catch (error) {
+      try {
+        await persistPlannerValidationObservations(store, input.planner, input.runId, iteration);
+      } catch {
+        // Failure-state persistence remains authoritative if diagnostic audit storage is unavailable.
+      }
       await store.completeIteration(
         iteration.id,
         "FAILED",

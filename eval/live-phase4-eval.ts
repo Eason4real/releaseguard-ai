@@ -35,6 +35,7 @@ const tokenUsage = usages.length === 0 ? null : {
 const report = {
   eval: "Live LLM Agent Eval v2", timestamp: new Date().toISOString(), provider, model,
   deterministicFallback: false, tokenUsage, tokenUsageStatus: tokenUsage ? "PROVIDED" : "NOT_PROVIDED",
+  modelCallCount: observations.length,
   plannerCallCount: runtimeResults.reduce((sum, item) => sum + item.plannerCalls.length, 0),
   toolCallCount: runtimeResults.reduce((sum, item) => sum
     + item.aggregate.toolCalls.filter((call) => call.proposedActionId === null).length, 0),

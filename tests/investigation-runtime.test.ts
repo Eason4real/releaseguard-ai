@@ -84,7 +84,11 @@ import {
 import { continueInvestigation } from "../lib/investigation/revision-runtime";
 import { submitInvestigationMessage } from "../lib/investigation/chat-runtime";
 import { DeterministicInvestigationPlanner } from "../lib/investigation/deterministic-planner";
-import { LLMInvestigationPlanner } from "../lib/investigation/llm-planner";
+import {
+  LLMInvestigationPlanner,
+  PlannerDecisionValidationError,
+  parseInvestigationDecision,
+} from "../lib/investigation/llm-planner";
 import { D1InvestigationStore } from "../lib/investigation/repository";
 import {
   InMemoryFeedbackRetriever,
@@ -3380,6 +3384,329 @@ test("P4.2 LLMPlanner rejects model-supplied confidence and grounding fields", a
       }),
       /Grounded Contract/,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("LLM planner repairs missing, wrong-type and empty assessments without server completion", async (t) => {
+  const malformedCases = [
+    {
+      name: "missing assessments",
+      value: {
+        type: "ASSESS_EVIDENCE",
+        rationale: "Assess pending evidence.",
+        Authorization: "ephemeral-response-only",
+        apiKey: "ephemeral-response-only",
+      },
+      code: "MISSING_REQUIRED_FIELD",
+    },
+    {
+      name: "wrong assessments type",
+      value: { type: "ASSESS_EVIDENCE", assessments: {}, rationale: "Assess pending evidence." },
+      code: "INVALID_FIELD_TYPE",
+    },
+    {
+      name: "empty assessments",
+      value: { type: "ASSESS_EVIDENCE", assessments: [], rationale: "Assess pending evidence." },
+      code: "INVALID_FIELD_VALUE",
+    },
+  ] as const;
+  for (const malformed of malformedCases) await t.test(malformed.name, async () => {
+    const setup = await runningInvestigationWithHypotheses();
+    await executeAndRecordTool(setup.store, {
+      runId: setup.runId,
+      name: "get_release",
+      args: { release_id: setup.release.id },
+      iteration: 1,
+      order: 1,
+      analytics: setup.store.analytics,
+    });
+    const aggregate = (await setup.store.getAggregate(setup.runId))!;
+    const valid = {
+      type: "ASSESS_EVIDENCE",
+      assessments: aggregate.evidence.map((evidence) => ({
+        evidenceId: evidence.id,
+        relations: aggregate.hypotheses.map((candidate) => ({
+          targetHypothesisId: candidate.id,
+          relation: "NEUTRAL",
+          explanation: "The current release metadata does not distinguish this hypothesis.",
+        })),
+      })),
+      rationale: "Explicitly assess every pending evidence and active hypothesis pair.",
+    };
+    const responses = [malformed.value, valid];
+    const requests: Array<{ model: string; messages: Array<{ role: string; content: string }> }> = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return Response.json({
+        model: "repair-test-model",
+        choices: [{ message: { content: JSON.stringify(responses.shift()) } }],
+        usage: { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 },
+      });
+    };
+    const planner = new LLMInvestigationPlanner({
+      provider: "OpenAI-compatible",
+      baseUrl: "https://example.invalid/v1",
+      model: "repair-test-model",
+      apiKey: "test-only-secret",
+    });
+    try {
+      const decision = await planner.plan({
+        aggregate,
+        trigger: "INITIAL",
+        humanMessage: null,
+        remainingIterations: 4,
+        remainingToolCalls: 2,
+      });
+      assert.equal(decision.type, "ASSESS_EVIDENCE");
+      assert.equal(requests.length, 2);
+      assert.equal(requests[0].model, requests[1].model);
+      assert.equal(requests[0].messages[1].content, requests[1].messages[1].content);
+      assert.match(requests[1].messages.at(-1)!.content, new RegExp(malformed.code));
+      assert.match(requests[1].messages.at(-1)!.content, /path.*assessments/);
+      assert.match(requests[1].messages.at(-1)!.content, /ASSESS_EVIDENCE/);
+      assert.deepEqual((decision as Extract<InvestigationDecision, { type: "ASSESS_EVIDENCE" }>).assessments,
+        valid.assessments);
+      const observations = planner.drainDecisionValidationObservations();
+      assert.deepEqual(observations.map((item) => item.outcome), ["REPAIR_ATTEMPTED", "REPAIRED"]);
+      assert.equal(observations[0].validationCode, malformed.code);
+      assert.equal(observations[0].validationPath, "assessments");
+      assert.equal(observations[0].structure.assessmentsFieldPresent,
+        malformed.name !== "missing assessments");
+      const serialized = JSON.stringify(observations);
+      assert.doesNotMatch(serialized,
+        /test-only-secret|ephemeral-response-only|Authorization|apiKey|rawResponse|responseBody/);
+      if (malformed.name === "missing assessments") {
+        assert.ok(observations[0].topLevelKeys.includes("[REDACTED]"));
+      }
+      assert.equal(observations[0].responseHash.length, 64);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+test("LLM planner strictly rejects missing, empty, and non-string business fields for every decision", () => {
+  const valid = {
+    CREATE_HYPOTHESES: {
+      type: "CREATE_HYPOTHESES", rationale: "Create competing hypotheses.",
+      hypotheses: [{ statement: "Release regression", supportIf: "Version isolation",
+        refuteIf: "Cross-version failure" }],
+    },
+    ASSESS_EVIDENCE: {
+      type: "ASSESS_EVIDENCE", rationale: "Assess current evidence.",
+      assessments: [{ evidenceId: "E-1", relations: [{ targetHypothesisId: "H-1",
+        relation: "NEUTRAL", explanation: "This evidence does not distinguish the hypothesis." }] }],
+    },
+    CALL_TOOL: {
+      type: "CALL_TOOL", rationale: "Query release metadata.", toolName: "get_release",
+      arguments: { release_id: "REL-1" }, targetHypothesisIds: ["H-1"], testIntent: "DISCRIMINATE",
+    },
+    ASK_HUMAN: { type: "ASK_HUMAN", rationale: "Request missing context.", question: "Which cohort changed?" },
+    FINALIZE: {
+      type: "FINALIZE", rationale: "Finalize grounded findings.", selectedHypothesisId: "H-1",
+      diagnosis: { summary: "Release regression is supported.", claims: [{ type: "ROOT_CAUSE",
+        statement: "Release regression", evidenceIds: ["E-1"] }] }, disposition: "FIX",
+    },
+    STOP_INCONCLUSIVE: {
+      type: "STOP_INCONCLUSIVE", rationale: "Available evidence is insufficient.",
+      reason: "The required current metric is unavailable.",
+    },
+  } as const;
+  const malformed = [
+    { decision: { ...valid.CREATE_HYPOTHESES, rationale: undefined }, path: "rationale" },
+    { decision: { ...valid.CREATE_HYPOTHESES, rationale: 123 }, path: "rationale" },
+    { decision: { ...valid.CREATE_HYPOTHESES,
+      hypotheses: [{ ...valid.CREATE_HYPOTHESES.hypotheses[0], statement: 123 }] },
+    path: "hypotheses[0].statement" },
+    { decision: { ...valid.ASSESS_EVIDENCE, assessments: undefined }, path: "assessments" },
+    { decision: { ...valid.ASSESS_EVIDENCE, assessments: [{ evidenceId: "E-1", relations: [{
+      targetHypothesisId: "H-1", relation: "NEUTRAL", explanation: { guessed: true },
+    }] }] }, path: "assessments[0].relations[0].explanation" },
+    { decision: { ...valid.CALL_TOOL, testIntent: 1 }, path: "testIntent" },
+    { decision: { ...valid.CALL_TOOL, targetHypothesisIds: [1] }, path: "targetHypothesisIds[0]" },
+    { decision: { ...valid.ASK_HUMAN, question: "" }, path: "question" },
+    { decision: { ...valid.FINALIZE, disposition: undefined }, path: "disposition" },
+    { decision: { ...valid.FINALIZE, diagnosis: { ...valid.FINALIZE.diagnosis, claims: [{
+      ...valid.FINALIZE.diagnosis.claims[0], statement: 123,
+    }] } }, path: "diagnosis.claims[0].statement" },
+    { decision: { ...valid.STOP_INCONCLUSIVE, reason: undefined }, path: "reason" },
+  ];
+  for (const item of malformed) {
+    assert.throws(
+      () => parseInvestigationDecision(JSON.stringify(item.decision)),
+      (error) => error instanceof PlannerDecisionValidationError && error.path === item.path,
+    );
+  }
+  for (const decision of Object.values(valid)) {
+    assert.deepEqual(parseInvestigationDecision(JSON.stringify(decision)), decision);
+  }
+});
+
+test("LLM planner asks the same model to repair a missing STOP reason instead of filling it", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const responses = [
+    { type: "STOP_INCONCLUSIVE", rationale: "Current evidence is insufficient." },
+    { type: "STOP_INCONCLUSIVE", reason: "The current metric source is unavailable.",
+      rationale: "Current evidence is insufficient." },
+  ];
+  let modelCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    modelCalls += 1;
+    return Response.json({ choices: [{ message: { content: JSON.stringify(responses.shift()) } }] });
+  };
+  try {
+    const planner = new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+      baseUrl: "https://example.invalid/v1", model: "repair-test-model", apiKey: "test-only" });
+    const decision = await planner.plan({ aggregate: (await setup.store.getAggregate(setup.runId))!,
+      trigger: "INITIAL", humanMessage: null, remainingIterations: 2, remainingToolCalls: 1 });
+    assert.equal(modelCalls, 2);
+    assert.deepEqual(decision, {
+      type: "STOP_INCONCLUSIVE", reason: "The current metric source is unavailable.",
+      rationale: "Current evidence is insufficient.",
+    });
+    assert.deepEqual(planner.drainDecisionValidationObservations().map((item) => item.outcome),
+      ["REPAIR_ATTEMPTED", "REPAIRED"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("LLM decision repair stays inside one AgentLoop iteration and persists safe audit", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "get_release",
+    args: { release_id: setup.release.id },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+  });
+  const before = (await setup.store.getAggregate(setup.runId))!;
+  const assessment = {
+    type: "ASSESS_EVIDENCE",
+    assessments: before.evidence.map((evidence) => ({
+      evidenceId: evidence.id,
+      relations: before.hypotheses.map((candidate) => ({
+        targetHypothesisId: candidate.id,
+        relation: "NEUTRAL",
+        explanation: "Release metadata alone is neutral for this competing hypothesis.",
+      })),
+    })),
+    rationale: "Complete the explicit evidence matrix.",
+  };
+  const decisions = [
+    { type: "ASSESS_EVIDENCE", rationale: "Malformed first attempt." },
+    assessment,
+    { type: "STOP_INCONCLUSIVE", reason: "More current evidence is required.", rationale: "Stop safely." },
+  ];
+  let modelCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    modelCalls += 1;
+    return Response.json({
+      choices: [{ message: { content: JSON.stringify(decisions.shift()) } }],
+      usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+    });
+  };
+  try {
+    const completed = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({
+        provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1",
+        model: "repair-test-model",
+        apiKey: "never-persist-this-secret",
+      }),
+      analytics: setup.store.analytics,
+      maxIterations: 2,
+      maxToolCalls: 1,
+    });
+    assert.equal(modelCalls, 3);
+    assert.equal(completed?.iterations.length, 2);
+    assert.equal(completed?.toolCalls.length, before.toolCalls.length);
+    assert.equal(completed?.evidence.length, before.evidence.length);
+    assert.equal(completed?.hypothesisEvidenceLinks.length,
+      before.evidence.length * before.hypotheses.length);
+    const repairEvents = completed?.auditEvents.filter((event) => [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIRED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ].includes(event.type)) ?? [];
+    assert.deepEqual(repairEvents.map((event) => event.type).sort(), [
+      "PLANNER_DECISION_REPAIRED",
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+    ]);
+    assert.equal(repairEvents[0].details.iterationId, repairEvents[1].details.iterationId);
+    assert.equal(repairEvents[0].details.iterationSequence, 1);
+    assert.doesNotMatch(JSON.stringify(repairEvents),
+      /never-persist-this-secret|Authorization|Malformed first attempt|rawResponse|responseBody/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("LLM decision repair is bounded and terminal invalid output leaves no assessment state", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "get_release",
+    args: { release_id: setup.release.id },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+  });
+  const malformed = JSON.stringify({
+    type: "ASSESS_EVIDENCE",
+    assessments: [],
+    rationale: "Assess pending evidence.",
+  });
+  let modelCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    modelCalls += 1;
+    return Response.json({ choices: [{ message: { content: malformed } }] });
+  };
+  try {
+    await assert.rejects(
+      runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: new LLMInvestigationPlanner({
+          provider: "OpenAI-compatible",
+          baseUrl: "https://example.invalid/v1",
+          model: "repair-test-model",
+          apiKey: "test-only",
+        }),
+        analytics: setup.store.analytics,
+      }),
+      (error) => error instanceof PlannerDecisionValidationError
+        && error.code === "INVALID_FIELD_VALUE"
+        && error.decisionType === "ASSESS_EVIDENCE"
+        && error.path === "assessments"
+        && error.attempt === 1,
+    );
+    assert.equal(modelCalls, 2);
+    const failed = (await setup.store.getAggregate(setup.runId))!;
+    assert.equal(failed.run.status, "FAILED");
+    assert.equal(failed.iterations.length, 1);
+    assert.equal(failed.iterations[0].status, "FAILED");
+    assert.equal(failed.hypothesisEvidenceLinks.length, 0);
+    assert.ok(failed.hypotheses.every((item) => item.supportScore === 0
+      && item.contradictionScore === 0 && item.confidence === "LOW"));
+    const events = failed.auditEvents.filter((event) => [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIRED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ].includes(event.type));
+    assert.deepEqual(events.map((event) => event.type).sort(), [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ]);
+    assert.equal(events[0].details.responseHash, events[1].details.responseHash);
+    assert.equal(String(events[0].details.responseHash).length, 64);
   } finally {
     globalThis.fetch = originalFetch;
   }

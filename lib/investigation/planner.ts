@@ -33,6 +33,34 @@ export type PlannerContext = {
   remainingToolCalls: number;
 };
 
+export type PlannerDecisionValidationCode =
+  | "INVALID_JSON"
+  | "INVALID_DECISION_TYPE"
+  | "MISSING_REQUIRED_FIELD"
+  | "INVALID_FIELD_TYPE"
+  | "INVALID_FIELD_VALUE";
+
+export type PlannerDecisionValidationObservation = {
+  outcome: "REPAIR_ATTEMPTED" | "REPAIRED" | "REPAIR_FAILED";
+  provider: string;
+  model: string;
+  attemptIndex: number;
+  decisionType: InvestigationDecision["type"] | null;
+  topLevelKeys: string[];
+  validationCode: PlannerDecisionValidationCode;
+  validationPath: string;
+  responseLength: number;
+  responseHash: string;
+  latencyMs: number;
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  } | null;
+  structure: Record<string, string | number | boolean | null>;
+  createdAt: string;
+};
+
 export type InvestigationDecision =
   | {
       type: "CREATE_HYPOTHESES";
@@ -84,4 +112,5 @@ export type InvestigationDecision =
 export interface InvestigationPlanner {
   readonly type: "LLM" | "DETERMINISTIC";
   plan(context: PlannerContext): Promise<InvestigationDecision>;
+  drainDecisionValidationObservations?(): PlannerDecisionValidationObservation[];
 }

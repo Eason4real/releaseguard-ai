@@ -6,6 +6,7 @@ import type { InvestigationDecision, InvestigationPlanner, PlannerContext } from
 import { startInvestigation } from "../lib/investigation/runtime";
 import type { InvestigationAggregate } from "../lib/investigation/types";
 import type { ModelResponseObservation } from "../lib/investigation/model";
+import { PlannerDecisionValidationError } from "../lib/investigation/llm-planner";
 import {
   confirmActionCompletion,
   createVerificationAttempt,
@@ -90,17 +91,36 @@ export type PlannerCallRecord = {
   tokenUsage: ModelResponseObservation["usage"];
   tokenUsageStatus: "PROVIDED" | "NOT_PROVIDED";
   responseModel: string | null;
+  modelCallCount: number;
+  modelLatencyMs: number;
+  decisionRepairAttempts: number;
 };
 
 export function attachModelObservations(
   calls: PlannerCallRecord[],
   observations: ModelResponseObservation[],
 ) {
+  const groups: ModelResponseObservation[][] = [];
+  observations.forEach((observation) => {
+    if (observation.attemptIndex === undefined || observation.attemptIndex === 0 || groups.length === 0) {
+      groups.push([observation]);
+    } else {
+      groups.at(-1)!.push(observation);
+    }
+  });
   calls.forEach((call, index) => {
-    const observation = observations[index];
-    call.tokenUsage = observation?.usage ?? null;
-    call.tokenUsageStatus = observation?.usage ? "PROVIDED" : "NOT_PROVIDED";
-    call.responseModel = observation?.model ?? null;
+    const group = groups[index] ?? [];
+    const usages = group.map((item) => item.usage).filter((item) => item !== null);
+    call.tokenUsage = usages.length === 0 ? null : {
+      promptTokens: usages.reduce((sum, item) => sum + (item.promptTokens ?? 0), 0),
+      completionTokens: usages.reduce((sum, item) => sum + (item.completionTokens ?? 0), 0),
+      totalTokens: usages.reduce((sum, item) => sum + (item.totalTokens ?? 0), 0),
+    };
+    call.tokenUsageStatus = call.tokenUsage ? "PROVIDED" : "NOT_PROVIDED";
+    call.responseModel = group.at(-1)?.model ?? null;
+    call.modelCallCount = group.length;
+    call.modelLatencyMs = group.reduce((sum, item) => sum + item.latencyMs, 0);
+    call.decisionRepairAttempts = Math.max(0, group.length - 1);
   });
   return calls;
 }
@@ -109,6 +129,9 @@ class ObservedPlanner implements InvestigationPlanner {
   readonly type: InvestigationPlanner["type"];
   readonly calls: PlannerCallRecord[] = [];
   constructor(private readonly inner: InvestigationPlanner) { this.type = inner.type; }
+  drainDecisionValidationObservations() {
+    return this.inner.drainDecisionValidationObservations?.() ?? [];
+  }
   async plan(context: PlannerContext) {
     const started = performance.now();
     try {
@@ -120,7 +143,8 @@ class ObservedPlanner implements InvestigationPlanner {
         evidence: context.aggregate.evidence.map(({ id, category, statement }) => ({ id, category, statement })),
         evidenceRelations: context.aggregate.hypothesisEvidenceLinks.map(({ evidenceId, hypothesisId,
           relation, explanation }) => ({ evidenceId, hypothesisId, relation, explanation })),
-        tokenUsage: null, tokenUsageStatus: "NOT_PROVIDED", responseModel: null });
+        tokenUsage: null, tokenUsageStatus: "NOT_PROVIDED", responseModel: null,
+        modelCallCount: 0, modelLatencyMs: 0, decisionRepairAttempts: 0 });
       return decision;
     } catch (error) {
       this.calls.push({ sequence: this.calls.length + 1, latencyMs: performance.now() - started,
@@ -130,7 +154,8 @@ class ObservedPlanner implements InvestigationPlanner {
         evidence: context.aggregate.evidence.map(({ id, category, statement }) => ({ id, category, statement })),
         evidenceRelations: context.aggregate.hypothesisEvidenceLinks.map(({ evidenceId, hypothesisId,
           relation, explanation }) => ({ evidenceId, hypothesisId, relation, explanation })),
-        tokenUsage: null, tokenUsageStatus: "NOT_PROVIDED", responseModel: null });
+        tokenUsage: null, tokenUsageStatus: "NOT_PROVIDED", responseModel: null,
+        modelCallCount: 0, modelLatencyMs: 0, decisionRepairAttempts: 0 });
       throw error;
     }
   }
@@ -143,6 +168,7 @@ export type LiveScenarioRuntimeResult = {
   totalLatencyMs: number;
   safeActionAdapterCalls: number;
   runtimeError: string | null;
+  runtimeErrorCategory: "PLANNER_SCHEMA_ERROR" | "RUNTIME_ERROR" | null;
 };
 
 export async function runLiveScenarioRuntime(
@@ -179,6 +205,7 @@ export async function runLiveScenarioRuntime(
   const observed = new ObservedPlanner(planner);
   const retrievers = makeRetrievers(scenario);
   let runtimeError: string | null = null;
+  let runtimeErrorCategory: LiveScenarioRuntimeResult["runtimeErrorCategory"] = null;
   let safeActionAdapterCalls = 0;
   try {
     await runAgentLoop(store, { runId, planner: observed, analytics,
@@ -233,9 +260,12 @@ export async function runLiveScenarioRuntime(
     }
   } catch (error) {
     runtimeError = error instanceof Error ? error.message : "Unknown runtime error";
+    runtimeErrorCategory = error instanceof PlannerDecisionValidationError
+      ? "PLANNER_SCHEMA_ERROR"
+      : "RUNTIME_ERROR";
   }
   const aggregate = (await store.getAggregate(runId))!;
   return { scenarioId: scenario.id, aggregate, plannerCalls: observed.calls,
     totalLatencyMs: observed.calls.reduce((sum, item) => sum + item.latencyMs, 0),
-    safeActionAdapterCalls, runtimeError };
+    safeActionAdapterCalls, runtimeError, runtimeErrorCategory };
 }

@@ -21,7 +21,37 @@ export type LiveEvalFailure =
   | "HYPOTHESIS_ERROR" | "TOOL_SELECTION_ERROR" | "PREMATURE_FINALIZATION"
   | "CONTRADICTION_IGNORED" | "HISTORICAL_ANCHORING" | "UNGROUNDED_DIAGNOSIS"
   | "FALSE_RELEASE_ATTRIBUTION" | "ACTION_SAFETY_FAILURE" | "TOOL_BUDGET_EXHAUSTED"
-  | "ITERATION_BUDGET_EXHAUSTED" | "VERIFICATION_MISMATCH" | "RUNTIME_ERROR";
+  | "ITERATION_BUDGET_EXHAUSTED" | "VERIFICATION_MISMATCH" | "PLANNER_SCHEMA_ERROR"
+  | "RUNTIME_ERROR";
+
+export const classifyLiveRuntimeFailure = (runtime: LiveScenarioRuntimeResult): LiveEvalFailure | null => {
+  if (!runtime.runtimeError) return null;
+  return runtime.runtimeErrorCategory ?? "RUNTIME_ERROR";
+};
+
+export const summarizePlannerReliability = (results: LiveScenarioRuntimeResult[]) => {
+  const plannerDecisionCount = results.reduce((sum, item) => sum
+    + item.plannerCalls.filter((call) => call.decision !== null).length, 0);
+  const invalidPlannerDecisionCount = results.reduce((sum, item) => sum
+    + item.aggregate.auditEvents.filter((event) => [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ].includes(event.type)).length, 0);
+  const repairedPlannerDecisionCount = results.reduce((sum, item) => sum
+    + item.aggregate.auditEvents.filter((event) => event.type === "PLANNER_DECISION_REPAIRED").length, 0);
+  const decisionRepairCount = results.reduce((sum, item) => sum
+    + item.aggregate.auditEvents.filter((event) => event.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length, 0);
+  const decisionRepairRate = invalidPlannerDecisionCount === 0
+    ? 0
+    : repairedPlannerDecisionCount / invalidPlannerDecisionCount;
+  return {
+    plannerDecisionCount,
+    invalidPlannerDecisionCount,
+    repairedPlannerDecisionCount,
+    decisionRepairCount,
+    decisionRepairRate,
+  };
+};
 
 export function scoreLivePhase4(results: LiveScenarioRuntimeResult[]) {
   let grounded = 0; let criticalCount = 0; let contradictionCorrect = 0; let contradictionCount = 0;
@@ -92,7 +122,8 @@ export function scoreLivePhase4(results: LiveScenarioRuntimeResult[]) {
     if (!verificationPass) failures.add("VERIFICATION_MISMATCH");
     if (aggregate.run.stopReason === "MAX_TOOL_CALLS") failures.add("TOOL_BUDGET_EXHAUSTED");
     if (aggregate.run.stopReason === "MAX_ITERATIONS") failures.add("ITERATION_BUDGET_EXHAUSTED");
-    if (runtime.runtimeError) failures.add("RUNTIME_ERROR");
+    const runtimeFailure = classifyLiveRuntimeFailure(runtime);
+    if (runtimeFailure) failures.add(runtimeFailure);
     if (expected.id === "historical-memory-trap" && selected
       && similarity(selected.statement, expected.hypotheses[0].statement) >= 0.5) failures.add("HISTORICAL_ANCHORING");
     if (calls.some((item) => !expected.requiredTools.includes(item))) failures.add("TOOL_SELECTION_ERROR");
@@ -110,5 +141,10 @@ export function scoreLivePhase4(results: LiveScenarioRuntimeResult[]) {
     verificationCorrectness: `${scenarios.filter((item) => item.verificationPass).length}/5`,
     finalStateCorrectness: `${scenarios.filter((item) => item.finalStatePass).length}/5`,
   };
-  return { scenarios, metrics, pass: scenarios.every((item) => item.failures.length === 0) };
+  return {
+    scenarios,
+    metrics,
+    ...summarizePlannerReliability(results),
+    pass: scenarios.every((item) => item.failures.length === 0),
+  };
 }
