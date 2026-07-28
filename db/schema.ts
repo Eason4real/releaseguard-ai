@@ -429,16 +429,59 @@ export const verificationPolicySnapshots = sqliteTable("verification_policy_snap
   settlingPeriodMinutes: integer("settling_period_minutes").notNull(),
   verificationWindowMinutes: integer("verification_window_minutes").notNull(),
   metricKey: text("metric_key").notNull(),
+  baselineValue: real("baseline_value"),
+  incidentObservedValue: real("incident_observed_value"),
+  direction: text("direction"),
+  granularityMinutes: integer("granularity_minutes"),
   affectedFiltersJson: text("affected_filters_json").notNull(),
   controlFiltersJson: text("control_filters_json"),
+  controlBaselineValue: real("control_baseline_value"),
   minimumSampleSize: integer("minimum_sample_size").notNull(),
   requiredConsecutiveBuckets: integer("required_consecutive_buckets").notNull(),
   metricRecoveryThreshold: real("metric_recovery_threshold").notNull(),
+  minimumImprovementThreshold: real("minimum_improvement_threshold").default(0.05).notNull(),
   feedbackTrendThreshold: real("feedback_trend_threshold").notNull(),
+  feedbackRequired: integer("feedback_required", { mode: "boolean" }).default(false).notNull(),
+  feedbackMinimumSampleSize: integer("feedback_minimum_sample_size").default(5).notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("verification_policy_run_unique").on(table.verificationRunId),
   index("verification_policy_history_idx").on(table.runId, table.createdAt),
+]);
+
+export const verificationEvidence = sqliteTable("verification_evidence", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  verificationRunId: text("verification_run_id").notNull().references(() => verificationRuns.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  source: text("source").notNull(),
+  queryJson: text("query_json").notNull(),
+  windowStart: text("window_start").notNull(),
+  windowEnd: text("window_end").notNull(),
+  sampleSize: integer("sample_size").notNull(),
+  observedValue: real("observed_value"),
+  baselineValue: real("baseline_value"),
+  recoveryRatio: real("recovery_ratio"),
+  qualityStatus: text("quality_status").notNull(),
+  detailsJson: text("details_json").notNull(),
+  provenance: text("provenance").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("verification_evidence_run_idx").on(table.verificationRunId, table.createdAt),
+]);
+
+export const verificationEvaluations = sqliteTable("verification_evaluations", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  verificationRunId: text("verification_run_id").notNull().references(() => verificationRuns.id, { onDelete: "cascade" }),
+  clientRequestId: text("client_request_id").notNull(),
+  outcome: text("outcome").notNull(),
+  reasonCode: text("reason_code").notNull(),
+  resultJson: text("result_json").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("verification_evaluations_run_unique").on(table.verificationRunId),
+  uniqueIndex("verification_evaluations_request_unique").on(table.runId, table.clientRequestId),
 ]);
 
 export const feedbackRecords = sqliteTable("feedback_records", {

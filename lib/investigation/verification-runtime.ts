@@ -9,11 +9,15 @@ import type {
   InvestigationTraceEvent,
   VerificationPolicySnapshot,
   VerificationRun,
+  VerificationEvaluation,
 } from "./types";
+import { evaluateVerification } from "./verification-evaluator";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const CONFIRMED_BY = "Product Manager · Workspace Owner";
 const ACTIVE_VERIFICATION_STATUSES = new Set(["PENDING", "WAITING_WINDOW", "RUNNING"]);
+const MAX_VERIFICATION_ATTEMPTS = 3;
+const MAX_VERIFICATION_WINDOW_MINUTES = 480;
 
 const requiredText = (value: string, label: string, maxLength: number) => {
   const normalized = value.trim();
@@ -64,6 +68,10 @@ type CanonicalVerificationTarget = {
   metricKey: string;
   affectedFilters: MetricFilters;
   controlFilters: MetricFilters | null;
+  baselineValue: number;
+  incidentObservedValue: number;
+  direction: "DOWN" | "UP";
+  granularityMinutes: number;
 };
 
 const canonicalMetricFilters = (value: unknown): MetricFilters | null => {
@@ -217,7 +225,28 @@ const resolveCanonicalTarget = (
     affectedFilters = uniqueFilters.values().next().value ?? {};
   }
 
-  return { metricKey, affectedFilters, controlFilters: null };
+  const reference = aggregate.riskEvent;
+  if (!reference || reference.metricKey !== metricKey) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_REFERENCE_UNRESOLVED",
+      "当前 snapshot 缺少由 RiskEvent 冻结的 baseline/reference，不能创建可执行 Verification attempt。",
+      409,
+    );
+  }
+  const granularities = new Set(metricCalls.flatMap((call) => {
+    const value = call.arguments.granularity_minutes;
+    return typeof value === "number" && Number.isInteger(value) && value > 0 ? [value] : [];
+  }));
+  const granularityMinutes = granularities.size === 1 ? [...granularities][0] : 5;
+  return {
+    metricKey,
+    affectedFilters,
+    controlFilters: null,
+    baselineValue: reference.baselineValue,
+    incidentObservedValue: reference.observedValue,
+    direction: reference.direction,
+    granularityMinutes,
+  };
 };
 
 const resolveVerificationSource = (
@@ -418,19 +447,27 @@ function buildVerificationPolicy(
     id: createId("VPS"),
     verificationRunId,
     runId: aggregate.run.id,
-    policyVersion: "P4.3A_V1",
+    policyVersion: "P4.3B_V1",
     anchorAt: source.anchorAt,
     settlingPeriodMinutes: 30,
     verificationWindowMinutes: 120,
     metricKey: target.metricKey,
+    baselineValue: target.baselineValue,
+    incidentObservedValue: target.incidentObservedValue,
+    direction: target.direction,
+    granularityMinutes: target.granularityMinutes,
     affectedFilters: structuredClone(target.affectedFilters),
     controlFilters: target.controlFilters === null
       ? null
       : structuredClone(target.controlFilters),
+    controlBaselineValue: null,
     minimumSampleSize: riskEvent?.minSampleSize ?? 100,
     requiredConsecutiveBuckets: riskEvent?.requiredConsecutiveBuckets ?? 3,
     metricRecoveryThreshold: 0.9,
+    minimumImprovementThreshold: 0.05,
     feedbackTrendThreshold: 0,
+    feedbackRequired: false,
+    feedbackMinimumSampleSize: 5,
     createdAt,
   };
 }
@@ -590,5 +627,304 @@ export async function listVerificationHistory(
     verificationRun,
     policySnapshot: aggregate.verificationPolicySnapshots.find((item) =>
       item.verificationRunId === verificationRun.id) ?? null,
+    evidence: aggregate.verificationEvidence.filter((item) =>
+      item.verificationRunId === verificationRun.id),
+    evaluation: aggregate.verificationEvaluations.find((item) =>
+      item.verificationRunId === verificationRun.id) ?? null,
   }));
+}
+
+export async function evaluateVerificationAttempt(
+  store: Phase4InvestigationStore,
+  input: { runId: string; verificationRunId: string; clientRequestId: string },
+  clock: () => Date = () => new Date(),
+) {
+  const runId = requiredText(input.runId, "runId", 200);
+  const verificationRunId = requiredText(input.verificationRunId, "verificationRunId", 200);
+  const clientRequestId = requiredText(input.clientRequestId, "clientRequestId", 200);
+  let aggregate = await store.getAggregate(runId);
+  if (!aggregate) throw new RuntimeRequestError("RUN_NOT_FOUND", "InvestigationRun 不存在。", 404);
+  let verification = aggregate.verificationRuns.find((item) => item.id === verificationRunId);
+  if (!verification) throw new RuntimeRequestError("VERIFICATION_NOT_FOUND", "VerificationRun 不存在。", 404);
+  const existing = aggregate.verificationEvaluations.find((item) => item.verificationRunId === verificationRunId);
+  if (existing) return {
+    verificationRun: verification,
+    evaluation: existing,
+    evidence: aggregate.verificationEvidence.filter((item) => item.verificationRunId === verificationRunId),
+  };
+  const policy = aggregate.verificationPolicySnapshots.find((item) => item.verificationRunId === verificationRunId);
+  if (!policy) throw new RuntimeRequestError("VERIFICATION_POLICY_MISSING", "Verification Policy 缺失。", 500);
+  const now = clock();
+  const verificationStart = new Date(Date.parse(policy.anchorAt) + policy.settlingPeriodMinutes * 60_000);
+  const verificationEnd = new Date(verificationStart.getTime() + policy.verificationWindowMinutes * 60_000);
+  if (now.getTime() < verificationEnd.getTime()) {
+    await store.markVerificationWaitingWindow({
+      runId, verificationRunId, expectedLockVersion: aggregate.run.lockVersion, updatedAt: now.toISOString(),
+    });
+    aggregate = await store.getAggregate(runId);
+    return {
+      verificationRun: aggregate!.verificationRuns.find((item) => item.id === verificationRunId)!,
+      evaluation: null,
+      evidence: [],
+    };
+  }
+  if (verification.status !== "RUNNING") {
+    const begun = await store.beginVerificationEvaluation({
+      runId, verificationRunId, clientRequestId,
+      expectedLockVersion: aggregate.run.lockVersion, startedAt: now.toISOString(),
+    });
+    if (!begun) {
+      aggregate = await store.getAggregate(runId);
+      const replay = aggregate?.verificationEvaluations.find((item) => item.verificationRunId === verificationRunId);
+      if (replay) return {
+        verificationRun: aggregate!.verificationRuns.find((item) => item.id === verificationRunId)!,
+        evaluation: replay,
+        evidence: aggregate!.verificationEvidence.filter((item) => item.verificationRunId === verificationRunId),
+      };
+      throw new RuntimeRequestError("VERIFICATION_EVALUATION_RACE", "Verification evaluation 已由其他请求启动。", 409);
+    }
+    aggregate = (await store.getAggregate(runId))!;
+    verification = aggregate.verificationRuns.find((item) => item.id === verificationRunId)!;
+  } else if (aggregate.run.activeIterationId
+    !== `VERIFICATION_EVALUATION:${verificationRunId}:${clientRequestId}`) {
+    throw new RuntimeRequestError("VERIFICATION_EVALUATION_IN_PROGRESS", "其他 evaluation 请求正在执行。", 409);
+  }
+
+  const queryMetric = (filters: MetricFilters) => store.queryVerificationMetricBuckets({
+    metricKey: policy.metricKey, filters,
+    startTime: verificationStart.toISOString(), endTime: verificationEnd.toISOString(),
+  });
+  type SignalQuery = {
+    kind: "AFFECTED_METRIC" | "CONTROL_METRIC" | "FEEDBACK_REFERENCE" | "FEEDBACK_VERIFICATION";
+    promise: Promise<unknown[]>;
+  };
+  const signalQueries: SignalQuery[] = [{
+    kind: "AFFECTED_METRIC", promise: queryMetric(policy.affectedFilters),
+  }];
+  if (policy.controlFilters) {
+    signalQueries.push({ kind: "CONTROL_METRIC", promise: queryMetric(policy.controlFilters) });
+  }
+  if (policy.feedbackRequired) {
+    signalQueries.push({
+      kind: "FEEDBACK_REFERENCE",
+      promise: store.queryVerificationFeedback({
+        filters: policy.affectedFilters,
+        startTime: new Date(Date.parse(policy.anchorAt)
+          - policy.verificationWindowMinutes * 60_000).toISOString(),
+        endTime: policy.anchorAt,
+      }),
+    }, {
+      kind: "FEEDBACK_VERIFICATION",
+      promise: store.queryVerificationFeedback({
+        filters: policy.affectedFilters,
+        startTime: verificationStart.toISOString(), endTime: verificationEnd.toISOString(),
+      }),
+    });
+  }
+  const signalResults = await Promise.all(signalQueries.map(async (signal) => {
+    try {
+      return { kind: signal.kind, ok: true as const, value: await signal.promise };
+    } catch (error) {
+      return { kind: signal.kind, ok: false as const,
+        error: error instanceof Error ? error.message : "DATA_READ_FAILED" };
+    }
+  }));
+  const successful = new Map(signalResults.flatMap((item) => item.ok
+    ? [[item.kind, item.value] as const] : []));
+  const signalErrors = Object.fromEntries(signalResults.flatMap((item) => item.ok
+    ? [] : [[item.kind, item.error]]));
+  const computed = evaluateVerification({
+    runId, verificationRunId, policy,
+    affectedBuckets: (successful.get("AFFECTED_METRIC") ?? []) as import("../analytics/types").MetricBucket[],
+    controlBuckets: (successful.get("CONTROL_METRIC") ?? []) as import("../analytics/types").MetricBucket[],
+    feedbackReference: (successful.get("FEEDBACK_REFERENCE") ?? []) as import("./verification-evaluator").VerificationFeedbackRecord[],
+    feedbackObserved: (successful.get("FEEDBACK_VERIFICATION") ?? []) as import("./verification-evaluator").VerificationFeedbackRecord[],
+    signalErrors, createdAt: now.toISOString(),
+  });
+  const evaluation: VerificationEvaluation = {
+    id: createId("VEV"), runId, verificationRunId, clientRequestId,
+    outcome: computed.outcome, reasonCode: computed.reasonCode, result: computed.result,
+    createdAt: now.toISOString(),
+  };
+  const auditEvents: AuditEvent[] = [{
+    id: createId("AE"), runId, proposedActionId: null, approvalId: null, toolCallId: null,
+    type: "VERIFICATION_EVALUATED", actor: "ReleaseGuard Verification Runtime",
+    details: { verificationRunId, outcome: evaluation.outcome, reasonCode: evaluation.reasonCode },
+    createdAt: evaluation.createdAt,
+  }, {
+    id: createId("AE"), runId, proposedActionId: null, approvalId: null, toolCallId: null,
+    type: "RUN_STATE_CHANGED", actor: "ReleaseGuard Verification Runtime",
+    details: { from: "VERIFYING", to: evaluation.outcome === "INCONCLUSIVE"
+      ? "VERIFICATION_INCONCLUSIVE" : evaluation.outcome }, createdAt: evaluation.createdAt,
+  }];
+  const traceEvent: InvestigationTraceEvent = {
+    id: createId("ITE"), runId, iterationId: null, sequence: traceSequence(aggregate),
+    type: "VERIFICATION_EVALUATED", actor: "RUNTIME",
+    publicSummary: `Deterministic verification 完成：${evaluation.outcome}。`,
+    details: { verificationRunId, outcome: evaluation.outcome, reasonCode: evaluation.reasonCode },
+    createdAt: evaluation.createdAt,
+  };
+  const committed = await store.commitVerificationEvaluation({
+    evaluation, evidence: computed.evidence, auditEvents, traceEvent,
+    expectedLockVersion: aggregate.run.lockVersion,
+    expectedVerificationAttempt: verification.attempt,
+  });
+  if (!committed) throw new RuntimeRequestError("VERIFICATION_EVALUATION_COMMIT_RACE", "Evaluation 提交冲突。", 409);
+  aggregate = (await store.getAggregate(runId))!;
+  return {
+    verificationRun: aggregate.verificationRuns.find((item) => item.id === verificationRunId)!,
+    evaluation: aggregate.verificationEvaluations.find((item) => item.verificationRunId === verificationRunId)!,
+    evidence: aggregate.verificationEvidence.filter((item) => item.verificationRunId === verificationRunId),
+  };
+}
+
+export async function reopenAfterVerification(
+  store: Phase4InvestigationStore,
+  input: { runId: string; verificationRunId: string; clientRequestId: string; reason?: string | null },
+) {
+  const aggregate = await store.getAggregate(requiredText(input.runId, "runId", 200));
+  const clientRequestId = requiredText(input.clientRequestId, "clientRequestId", 200);
+  if (!aggregate) throw new RuntimeRequestError("RUN_NOT_FOUND", "InvestigationRun 不存在。", 404);
+  const verification = aggregate.verificationRuns.find((item) => item.id === input.verificationRunId);
+  const replay = aggregate.traceEvents.find((item) => item.type === "VERIFICATION_REOPENED"
+    && item.details.clientRequestId === clientRequestId);
+  if (replay) {
+    if (replay.details.verificationRunId === input.verificationRunId) return aggregate;
+    throw new RuntimeRequestError(
+      "VERIFICATION_REOPEN_IDEMPOTENCY_CONFLICT",
+      "clientRequestId is already bound to another verification attempt.",
+      409,
+    );
+  }
+  if (!verification) throw new RuntimeRequestError("VERIFICATION_NOT_FOUND", "VerificationRun 不存在。", 404);
+  if (verification.status === "RESOLVED") {
+    throw new RuntimeRequestError("RESOLVED_VERIFICATION_CANNOT_REOPEN", "RESOLVED verification 不允许 reopen。", 409);
+  }
+  if (!["PARTIALLY_RESOLVED", "NOT_RECOVERED", "INCONCLUSIVE"].includes(verification.status)) {
+    throw new RuntimeRequestError("VERIFICATION_NOT_REOPENABLE", "当前 VerificationRun 不允许 reopen。", 409);
+  }
+  const expectedRunStatus = verification.status === "INCONCLUSIVE"
+    ? "VERIFICATION_INCONCLUSIVE" : verification.status;
+  const latestAttempt = Math.max(...aggregate.verificationRuns.map((item) => item.attempt));
+  if (verification.attempt !== latestAttempt || aggregate.run.status !== expectedRunStatus) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_REOPEN_CONTEXT_STALE",
+      "Only the latest completed verification attempt matching the current Run outcome can reopen investigation.",
+      409,
+    );
+  }
+  const now = new Date().toISOString();
+  const reason = input.reason?.trim().slice(0, 2_000) || "Verification 结果需要继续调查";
+  const auditEvent: AuditEvent = {
+    id: createId("AE"), runId: input.runId, proposedActionId: null, approvalId: null, toolCallId: null,
+    type: "VERIFICATION_REOPENED", actor: CONFIRMED_BY,
+    details: { verificationRunId: verification.id, outcome: verification.status, reason }, createdAt: now,
+  };
+  const traceEvent: InvestigationTraceEvent = {
+    id: createId("ITE"), runId: input.runId, iterationId: null,
+    sequence: traceSequence(aggregate), type: "VERIFICATION_REOPENED", actor: "HUMAN",
+    publicSummary: reason, details: {
+      verificationRunId: verification.id, outcome: verification.status, clientRequestId,
+    }, createdAt: now,
+  };
+  const committed = await store.commitVerificationReopen({
+    runId: input.runId, verificationRunId: verification.id,
+    clientRequestId,
+    auditEvent, traceEvent, expectedLockVersion: aggregate.run.lockVersion, createdAt: now,
+  });
+  if (!committed) throw new RuntimeRequestError("VERIFICATION_REOPEN_RACE", "Reopen 请求发生并发冲突。", 409);
+  return store.getAggregate(input.runId);
+}
+
+export async function retryVerificationAttempt(
+  store: Phase4InvestigationStore,
+  input: { runId: string; verificationRunId: string; clientRequestId: string },
+  clock: () => Date = () => new Date(),
+) {
+  let aggregate = await store.getAggregate(requiredText(input.runId, "runId", 200));
+  if (!aggregate) throw new RuntimeRequestError("RUN_NOT_FOUND", "InvestigationRun 不存在。", 404);
+  const clientRequestId = requiredText(input.clientRequestId, "clientRequestId", 200);
+  const replay = aggregate.verificationRuns.find((item) => item.clientRequestId === clientRequestId);
+  if (replay) return {
+    verificationRun: replay,
+    policySnapshot: aggregate.verificationPolicySnapshots.find((item) => item.verificationRunId === replay.id)!,
+  };
+  const previous = aggregate.verificationRuns.find((item) => item.id === input.verificationRunId);
+  if (!previous || !["PARTIALLY_RESOLVED", "NOT_RECOVERED", "INCONCLUSIVE"].includes(previous.status)) {
+    throw new RuntimeRequestError("VERIFICATION_NOT_RETRYABLE", "当前 VerificationRun 不允许 retry。", 409);
+  }
+  const latestAttempt = Math.max(...aggregate.verificationRuns.map((item) => item.attempt));
+  if (previous.attempt !== latestAttempt) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_RETRY_CONTEXT_STALE",
+      "Only the latest verification attempt can be retried.",
+      409,
+    );
+  }
+  const expectedRunStatus = previous.status === "INCONCLUSIVE"
+    ? "VERIFICATION_INCONCLUSIVE" : previous.status;
+  if (aggregate.run.status !== expectedRunStatus) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_RETRY_CONTEXT_STALE",
+      "Verification outcome no longer matches the current InvestigationRun state.",
+      409,
+    );
+  }
+  if (latestAttempt >= MAX_VERIFICATION_ATTEMPTS) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_ATTEMPT_LIMIT_REACHED",
+      "Verification retry attempt limit reached.",
+      409,
+    );
+  }
+  const previousPolicy = aggregate.verificationPolicySnapshots.find((item) => item.verificationRunId === previous.id);
+  if (!previousPolicy) throw new RuntimeRequestError("VERIFICATION_POLICY_MISSING", "Verification Policy 缺失。", 500);
+  const now = clock();
+  const createdAt = now.toISOString();
+  const nextWindow = previousPolicy.verificationWindowMinutes * 2;
+  if (nextWindow > MAX_VERIFICATION_WINDOW_MINUTES) {
+    throw new RuntimeRequestError(
+      "VERIFICATION_WINDOW_LIMIT_REACHED",
+      "Verification retry window limit reached.",
+      409,
+    );
+  }
+  const verificationRun: VerificationRun = {
+    ...previous,
+    id: createId("VR"), attempt: Math.max(...aggregate.verificationRuns.map((item) => item.attempt)) + 1,
+    clientRequestId, status: "WAITING_WINDOW", createdAt, updatedAt: createdAt, completedAt: null,
+  };
+  const policySnapshot: VerificationPolicySnapshot = {
+    ...structuredClone(previousPolicy), id: createId("VPS"), verificationRunId: verificationRun.id,
+    verificationWindowMinutes: nextWindow,
+    policyVersion: "P4.3B_RETRY_V1", createdAt,
+  };
+  const end = Date.parse(policySnapshot.anchorAt)
+    + (policySnapshot.settlingPeriodMinutes + policySnapshot.verificationWindowMinutes) * 60_000;
+  verificationRun.status = now.getTime() < end ? "WAITING_WINDOW" : "PENDING";
+  const auditEvent: AuditEvent = {
+    id: createId("AE"), runId: input.runId, proposedActionId: null, approvalId: null, toolCallId: null,
+    type: "VERIFICATION_RETRY_CREATED", actor: CONFIRMED_BY,
+    details: { previousVerificationRunId: previous.id, verificationRunId: verificationRun.id,
+      attempt: verificationRun.attempt, verificationWindowMinutes: policySnapshot.verificationWindowMinutes },
+    createdAt,
+  };
+  const traceEvent: InvestigationTraceEvent = {
+    id: createId("ITE"), runId: input.runId, iterationId: null, sequence: traceSequence(aggregate),
+    type: "VERIFICATION_RETRY_CREATED", actor: "HUMAN",
+    publicSummary: "已显式创建新的 Verification retry attempt。",
+    details: auditEvent.details, createdAt,
+  };
+  const committed = await store.commitVerificationRetry({
+    verificationRun, policySnapshot, previousVerificationRunId: previous.id, clientRequestId,
+    expectedLockVersion: aggregate.run.lockVersion,
+    expectedDiagnosisRevision: aggregate.run.currentDiagnosisRevision, auditEvent, traceEvent,
+  });
+  if (!committed) {
+    aggregate = await store.getAggregate(input.runId);
+    const concurrent = aggregate?.verificationRuns.find((item) => item.clientRequestId === clientRequestId);
+    if (concurrent) return { verificationRun: concurrent, policySnapshot: aggregate!.verificationPolicySnapshots.find((item) => item.verificationRunId === concurrent.id)! };
+    throw new RuntimeRequestError("VERIFICATION_RETRY_RACE", "Verification retry 发生并发冲突。", 409);
+  }
+  return { verificationRun, policySnapshot };
 }

@@ -25,6 +25,8 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   const hypothesisColumns = new Set(hypothesisInfo.results.map((column: { name: string }) => column.name));
   const diagnosisClaimInfo = await d1.prepare("PRAGMA table_info(diagnosis_claims)").all<{ name: string }>();
   const diagnosisClaimColumns = new Set(diagnosisClaimInfo.results.map((column: { name: string }) => column.name));
+  const verificationPolicyInfo = await d1.prepare("PRAGMA table_info(verification_policy_snapshots)").all<{ name: string }>();
+  const verificationPolicyColumns = new Set(verificationPolicyInfo.results.map((column: { name: string }) => column.name));
   const upgrades = [];
   if (!runColumns.has("risk_event_id")) {
     upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN risk_event_id text REFERENCES risk_events(id)"));
@@ -67,6 +69,14 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!hypothesisColumns.has("support_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN support_if text DEFAULT '' NOT NULL"));
   if (!hypothesisColumns.has("refute_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN refute_if text DEFAULT '' NOT NULL"));
   if (!diagnosisClaimColumns.has("limitation_type")) upgrades.push(d1.prepare("ALTER TABLE diagnosis_claims ADD COLUMN limitation_type text"));
+  if (!verificationPolicyColumns.has("baseline_value")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN baseline_value real"));
+  if (!verificationPolicyColumns.has("incident_observed_value")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN incident_observed_value real"));
+  if (!verificationPolicyColumns.has("direction")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN direction text"));
+  if (!verificationPolicyColumns.has("granularity_minutes")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN granularity_minutes integer"));
+  if (!verificationPolicyColumns.has("feedback_required")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN feedback_required integer DEFAULT 0 NOT NULL"));
+  if (!verificationPolicyColumns.has("feedback_minimum_sample_size")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN feedback_minimum_sample_size integer DEFAULT 5 NOT NULL"));
+  if (!verificationPolicyColumns.has("control_baseline_value")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN control_baseline_value real"));
+  if (!verificationPolicyColumns.has("minimum_improvement_threshold")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN minimum_improvement_threshold real DEFAULT 0.05 NOT NULL"));
   if (upgrades.length > 0) await d1.batch(upgrades);
   await d1.prepare("DROP INDEX IF EXISTS diagnoses_run_unique").run();
   await d1.batch(indexStatements.map((statement) => d1.prepare(statement)));

@@ -57,6 +57,13 @@
       "when": 1785203173196,
       "tag": "0007_calm_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785205277762,
+      "tag": "0008_famous_living_mummy",
+      "breakpoints": true
     }
   ]
 }

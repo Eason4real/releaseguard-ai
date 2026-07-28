@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, isNull, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, isNull, lt, notExists, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   actionCompletions,
@@ -11,6 +11,7 @@ import {
   diagnosisClaims,
   diagnosisEvidenceLinks,
   evidence,
+  feedbackRecords,
   hypotheses,
   hypothesisEvidenceLinks,
   investigationMessages,
@@ -22,6 +23,8 @@ import {
   toolResults,
   verificationPolicySnapshots,
   verificationRuns,
+  verificationEvidence,
+  verificationEvaluations,
 } from "@/db/schema";
 import { assertGenericRunTransition } from "./state";
 import { D1AnalyticsStore } from "../analytics/repository";
@@ -34,6 +37,9 @@ import type {
   ActionCompletionCommit,
   Phase4InvestigationStore,
   VerificationAttemptCommit,
+  VerificationEvaluationCommit,
+  VerificationReopenCommit,
+  VerificationRetryCommit,
 } from "./phase4-store";
 import type {
   ActionCompletion,
@@ -65,6 +71,8 @@ import type {
   InvestigationTraceEvent,
   VerificationPolicySnapshot,
   VerificationRun,
+  VerificationEvidence,
+  VerificationEvaluation,
 } from "./types";
 
 const parseJson = <T>(value: string | null, fallback: T): T => {
@@ -381,13 +389,40 @@ const mapVerificationPolicySnapshot = (
   settlingPeriodMinutes: row.settlingPeriodMinutes,
   verificationWindowMinutes: row.verificationWindowMinutes,
   metricKey: row.metricKey,
+  baselineValue: row.baselineValue,
+  incidentObservedValue: row.incidentObservedValue,
+  direction: row.direction as VerificationPolicySnapshot["direction"],
+  granularityMinutes: row.granularityMinutes,
   affectedFilters: parseJson(row.affectedFiltersJson, {}),
   controlFilters: parseJson(row.controlFiltersJson, null),
+  controlBaselineValue: row.controlBaselineValue,
   minimumSampleSize: row.minimumSampleSize,
   requiredConsecutiveBuckets: row.requiredConsecutiveBuckets,
   metricRecoveryThreshold: row.metricRecoveryThreshold,
+  minimumImprovementThreshold: row.minimumImprovementThreshold,
   feedbackTrendThreshold: row.feedbackTrendThreshold,
+  feedbackRequired: row.feedbackRequired,
+  feedbackMinimumSampleSize: row.feedbackMinimumSampleSize,
   createdAt: row.createdAt,
+});
+
+const mapVerificationEvidence = (
+  row: typeof verificationEvidence.$inferSelect,
+): VerificationEvidence => ({
+  id: row.id, runId: row.runId, verificationRunId: row.verificationRunId,
+  kind: row.kind as VerificationEvidence["kind"], source: row.source,
+  query: parseJson(row.queryJson, {}), windowStart: row.windowStart, windowEnd: row.windowEnd,
+  sampleSize: row.sampleSize, observedValue: row.observedValue, baselineValue: row.baselineValue,
+  recoveryRatio: row.recoveryRatio, qualityStatus: row.qualityStatus as VerificationEvidence["qualityStatus"],
+  details: parseJson(row.detailsJson, {}), provenance: row.provenance, createdAt: row.createdAt,
+});
+
+const mapVerificationEvaluation = (
+  row: typeof verificationEvaluations.$inferSelect,
+): VerificationEvaluation => ({
+  id: row.id, runId: row.runId, verificationRunId: row.verificationRunId,
+  clientRequestId: row.clientRequestId, outcome: row.outcome as VerificationEvaluation["outcome"],
+  reasonCode: row.reasonCode, result: parseJson(row.resultJson, {}), createdAt: row.createdAt,
 });
 
 export class D1InvestigationStore implements InvestigationStore, Phase4InvestigationStore {
@@ -1166,11 +1201,16 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
           ${policy.id}, ${policy.verificationRunId}, ${policy.runId}, ${policy.policyVersion},
           ${policy.anchorAt}, ${policy.settlingPeriodMinutes},
           ${policy.verificationWindowMinutes}, ${policy.metricKey},
+          ${policy.baselineValue}, ${policy.incidentObservedValue}, ${policy.direction},
+          ${policy.granularityMinutes},
           ${JSON.stringify(policy.affectedFilters)}, ${policy.controlFilters === null
             ? null
-            : JSON.stringify(policy.controlFilters)}, ${policy.minimumSampleSize},
+            : JSON.stringify(policy.controlFilters)}, ${policy.controlBaselineValue},
+          ${policy.minimumSampleSize},
           ${policy.requiredConsecutiveBuckets}, ${policy.metricRecoveryThreshold},
-          ${policy.feedbackTrendThreshold}, ${policy.createdAt}
+          ${policy.minimumImprovementThreshold},
+          ${policy.feedbackTrendThreshold}, ${policy.feedbackRequired ? 1 : 0},
+          ${policy.feedbackMinimumSampleSize}, ${policy.createdAt}
         FROM ${verificationRuns}
         WHERE ${verificationRuns.id} = ${verification.id}
       `),
@@ -1199,6 +1239,276 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
           eq(investigationRuns.activeIterationId, guardToken),
           eq(investigationRuns.lockVersion, input.expectedLockVersion + 1),
         )),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async queryVerificationMetricBuckets(input: {
+    metricKey: string; filters: import("../analytics/types").MetricFilters;
+    startTime: string; endTime: string;
+  }) {
+    return new D1AnalyticsStore().queryMetricBuckets(input);
+  }
+
+  async queryVerificationFeedback(input: {
+    filters: import("../analytics/types").MetricFilters; startTime: string; endTime: string;
+  }) {
+    const clauses = [gte(feedbackRecords.timestamp, input.startTime), lt(feedbackRecords.timestamp, input.endTime)];
+    if (input.filters.platform) clauses.push(eq(feedbackRecords.platform, input.filters.platform));
+    if (input.filters.appVersion) clauses.push(eq(feedbackRecords.appVersion, input.filters.appVersion));
+    if (input.filters.region) clauses.push(eq(feedbackRecords.region, input.filters.region));
+    if (input.filters.userType) clauses.push(eq(feedbackRecords.userType, input.filters.userType));
+    const rows = await (await this.dbProvider()).select().from(feedbackRecords)
+      .where(and(...clauses)).orderBy(asc(feedbackRecords.timestamp));
+    return rows.map((row) => ({
+      id: row.id, timestamp: row.timestamp, tags: parseJson<string[]>(row.tagsJson, []),
+      source: row.source, sourceReference: row.sourceReference,
+    }));
+  }
+
+  async markVerificationWaitingWindow(input: {
+    runId: string; verificationRunId: string; expectedLockVersion: number; updatedAt: string;
+  }) {
+    const db = await this.dbProvider();
+    const rows = await db.update(verificationRuns).set({ status: "WAITING_WINDOW", updatedAt: input.updatedAt })
+      .where(and(
+        eq(verificationRuns.id, input.verificationRunId), eq(verificationRuns.runId, input.runId),
+        sql`${verificationRuns.status} in ('PENDING', 'WAITING_WINDOW')`,
+        exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(and(
+          eq(investigationRuns.id, input.runId), eq(investigationRuns.status, "WAITING_VERIFICATION"),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion), isNull(investigationRuns.activeIterationId),
+        ))),
+      )).returning({ id: verificationRuns.id });
+    return Boolean(rows[0]);
+  }
+
+  async beginVerificationEvaluation(input: {
+    runId: string; verificationRunId: string; clientRequestId: string;
+    expectedLockVersion: number; startedAt: string;
+  }) {
+    const db = await this.dbProvider();
+    const guard = `VERIFICATION_EVALUATION:${input.verificationRunId}:${input.clientRequestId}`;
+    const statements = [
+      db.update(investigationRuns).set({
+        status: "VERIFYING", activeIterationId: guard,
+        lockVersion: input.expectedLockVersion + 1, updatedAt: input.startedAt,
+      }).where(and(
+        eq(investigationRuns.id, input.runId), eq(investigationRuns.status, "WAITING_VERIFICATION"),
+        eq(investigationRuns.lockVersion, input.expectedLockVersion), isNull(investigationRuns.activeIterationId),
+        exists(db.select({ id: verificationRuns.id }).from(verificationRuns).where(and(
+          eq(verificationRuns.id, input.verificationRunId), eq(verificationRuns.runId, input.runId),
+          sql`${verificationRuns.status} in ('PENDING', 'WAITING_WINDOW')`,
+        ))),
+      )).returning({ id: investigationRuns.id }),
+      db.update(verificationRuns).set({ status: "RUNNING", updatedAt: input.startedAt })
+        .where(and(eq(verificationRuns.id, input.verificationRunId), eq(verificationRuns.runId, input.runId),
+          exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(and(
+            eq(investigationRuns.id, input.runId), eq(investigationRuns.activeIterationId, guard),
+          ))))),
+      db.insert(runtimeCommands).select(sql`
+        SELECT ${`CMD-${crypto.randomUUID()}`}, ${input.runId}, ${input.clientRequestId},
+          'EVALUATE_VERIFICATION', ${input.verificationRunId}, ${input.startedAt}
+        FROM ${investigationRuns} WHERE ${investigationRuns.id} = ${input.runId}
+          AND ${investigationRuns.activeIterationId} = ${guard}
+      `),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async commitVerificationEvaluation(input: VerificationEvaluationCommit) {
+    const db = await this.dbProvider();
+    const evaluation = input.evaluation;
+    if (input.evidence.some((item) => item.runId !== evaluation.runId
+      || item.verificationRunId !== evaluation.verificationRunId)) return false;
+    const guard = `VERIFICATION_EVALUATION:${evaluation.verificationRunId}:${evaluation.clientRequestId}`;
+    const runStatus = evaluation.outcome === "INCONCLUSIVE" ? "VERIFICATION_INCONCLUSIVE" : evaluation.outcome;
+    const statements = [
+      db.update(verificationRuns).set({
+        status: "COMMITTING", updatedAt: evaluation.createdAt,
+      }).where(and(
+        eq(verificationRuns.id, evaluation.verificationRunId),
+        eq(verificationRuns.runId, evaluation.runId),
+        eq(verificationRuns.attempt, input.expectedVerificationAttempt),
+        eq(verificationRuns.status, "RUNNING"),
+        notExists(db.select({ id: verificationEvaluations.id }).from(verificationEvaluations)
+          .where(eq(verificationEvaluations.verificationRunId, evaluation.verificationRunId))),
+        exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(and(
+          eq(investigationRuns.id, evaluation.runId),
+          eq(investigationRuns.status, "VERIFYING"),
+          eq(investigationRuns.activeIterationId, guard),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion),
+        ))),
+      )).returning({ id: verificationRuns.id }),
+      db.insert(verificationEvaluations).select(sql`
+        SELECT ${evaluation.id}, ${evaluation.runId}, ${evaluation.verificationRunId},
+          ${evaluation.clientRequestId}, ${evaluation.outcome}, ${evaluation.reasonCode},
+          ${JSON.stringify(evaluation.result)}, ${evaluation.createdAt}
+        FROM ${verificationRuns} WHERE ${verificationRuns.id} = ${evaluation.verificationRunId}
+          AND ${verificationRuns.runId} = ${evaluation.runId}
+          AND ${verificationRuns.attempt} = ${input.expectedVerificationAttempt}
+          AND ${verificationRuns.status} = 'COMMITTING'
+      `),
+      ...input.evidence.map((item) => db.insert(verificationEvidence).select(sql`
+        SELECT ${item.id}, ${item.runId}, ${item.verificationRunId}, ${item.kind}, ${item.source},
+          ${JSON.stringify(item.query)}, ${item.windowStart}, ${item.windowEnd}, ${item.sampleSize},
+          ${item.observedValue}, ${item.baselineValue}, ${item.recoveryRatio}, ${item.qualityStatus},
+          ${JSON.stringify(item.details)}, ${item.provenance}, ${item.createdAt}
+        FROM ${verificationEvaluations} WHERE ${verificationEvaluations.id} = ${evaluation.id}
+      `)),
+      db.update(verificationRuns).set({ status: evaluation.outcome, updatedAt: evaluation.createdAt, completedAt: evaluation.createdAt })
+        .where(and(eq(verificationRuns.id, evaluation.verificationRunId), eq(verificationRuns.status, "COMMITTING"),
+          eq(verificationRuns.attempt, input.expectedVerificationAttempt),
+          exists(db.select({ id: verificationEvaluations.id }).from(verificationEvaluations)
+            .where(eq(verificationEvaluations.id, evaluation.id))))),
+      ...input.auditEvents.map((event) => db.insert(auditEvents).select(sql`
+        SELECT ${event.id}, ${event.runId}, ${event.proposedActionId}, ${event.approvalId},
+          ${event.toolCallId}, ${event.type}, ${event.actor}, ${JSON.stringify(event.details)}, ${event.createdAt}
+        FROM ${verificationEvaluations} WHERE ${verificationEvaluations.id} = ${evaluation.id}
+      `)),
+      db.insert(investigationTraceEvents).select(sql`
+        SELECT ${input.traceEvent.id}, ${input.traceEvent.runId}, ${input.traceEvent.iterationId},
+          ${input.traceEvent.sequence}, ${input.traceEvent.type}, ${input.traceEvent.actor},
+          ${input.traceEvent.publicSummary}, ${JSON.stringify(input.traceEvent.details)}, ${input.traceEvent.createdAt}
+        FROM ${verificationEvaluations} WHERE ${verificationEvaluations.id} = ${evaluation.id}
+      `),
+      db.update(investigationRuns).set({
+        status: runStatus, activeIterationId: null, lockVersion: input.expectedLockVersion + 1,
+        completedAt: evaluation.createdAt, updatedAt: evaluation.createdAt,
+      }).where(and(eq(investigationRuns.id, evaluation.runId), eq(investigationRuns.status, "VERIFYING"),
+        eq(investigationRuns.activeIterationId, guard), eq(investigationRuns.lockVersion, input.expectedLockVersion),
+        exists(db.select({ id: verificationRuns.id }).from(verificationRuns).where(and(
+          eq(verificationRuns.id, evaluation.verificationRunId),
+          eq(verificationRuns.runId, evaluation.runId),
+          eq(verificationRuns.attempt, input.expectedVerificationAttempt),
+          eq(verificationRuns.status, evaluation.outcome),
+          exists(db.select({ id: verificationEvaluations.id }).from(verificationEvaluations)
+            .where(and(eq(verificationEvaluations.id, evaluation.id),
+              eq(verificationEvaluations.verificationRunId, verificationRuns.id)))),
+        ))))),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async commitVerificationReopen(input: VerificationReopenCommit) {
+    const db = await this.dbProvider();
+    const commandId = `CMD-${crypto.randomUUID()}`;
+    const statements = [
+      db.update(investigationRuns).set({ status: "RUNNING", completedAt: null, stopReason: null,
+        lockVersion: input.expectedLockVersion + 1, updatedAt: input.createdAt })
+        .where(and(eq(investigationRuns.id, input.runId), eq(investigationRuns.lockVersion, input.expectedLockVersion),
+          isNull(investigationRuns.activeIterationId),
+          notExists(db.select({ id: runtimeCommands.id }).from(runtimeCommands).where(and(
+            eq(runtimeCommands.runId, input.runId),
+            eq(runtimeCommands.clientRequestId, input.clientRequestId),
+            eq(runtimeCommands.commandType, "REOPEN_VERIFICATION"),
+          ))),
+          exists(db.select({ id: verificationRuns.id }).from(verificationRuns)
+            .where(and(
+              eq(verificationRuns.id, input.verificationRunId),
+              eq(verificationRuns.runId, input.runId),
+              sql`((${verificationRuns.status} = 'PARTIALLY_RESOLVED' AND ${investigationRuns.status} = 'PARTIALLY_RESOLVED')
+                OR (${verificationRuns.status} = 'NOT_RECOVERED' AND ${investigationRuns.status} = 'NOT_RECOVERED')
+                OR (${verificationRuns.status} = 'INCONCLUSIVE' AND ${investigationRuns.status} = 'VERIFICATION_INCONCLUSIVE'))`,
+              sql`${verificationRuns.attempt} = (
+                SELECT MAX(vr_latest.attempt) FROM verification_runs vr_latest
+                WHERE vr_latest.run_id = ${input.runId}
+              )`,
+            )))))
+        .returning({ id: investigationRuns.id }),
+      db.insert(runtimeCommands).select(sql`
+        SELECT ${commandId}, ${input.runId}, ${input.clientRequestId},
+          'REOPEN_VERIFICATION', ${input.verificationRunId}, ${input.createdAt}
+        FROM ${investigationRuns} WHERE ${investigationRuns.id} = ${input.runId}
+          AND ${investigationRuns.status} = 'RUNNING'
+          AND ${investigationRuns.lockVersion} = ${input.expectedLockVersion + 1}
+      `),
+      db.insert(auditEvents).select(sql`
+        SELECT ${input.auditEvent.id}, ${input.auditEvent.runId}, ${input.auditEvent.proposedActionId},
+          ${input.auditEvent.approvalId}, ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)}, ${input.auditEvent.createdAt}
+        FROM ${runtimeCommands} WHERE ${runtimeCommands.id} = ${commandId}
+      `),
+      db.insert(investigationTraceEvents).select(sql`
+        SELECT ${input.traceEvent.id}, ${input.traceEvent.runId}, ${input.traceEvent.iterationId},
+          ${input.traceEvent.sequence}, ${input.traceEvent.type}, ${input.traceEvent.actor},
+          ${input.traceEvent.publicSummary}, ${JSON.stringify(input.traceEvent.details)}, ${input.traceEvent.createdAt}
+        FROM ${runtimeCommands} WHERE ${runtimeCommands.id} = ${commandId}
+      `),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async commitVerificationRetry(input: VerificationRetryCommit) {
+    const db = await this.dbProvider();
+    const verification = input.verificationRun;
+    const policy = input.policySnapshot;
+    const guard = `VERIFICATION_RETRY:${verification.id}`;
+    const statements = [
+      db.update(investigationRuns).set({
+        status: "WAITING_VERIFICATION", activeIterationId: guard, completedAt: null,
+        lockVersion: input.expectedLockVersion + 1, updatedAt: verification.createdAt,
+      }).where(and(
+        eq(investigationRuns.id, verification.runId), eq(investigationRuns.lockVersion, input.expectedLockVersion),
+        eq(investigationRuns.currentDiagnosisRevision, input.expectedDiagnosisRevision),
+        sql`${verification.attempt} <= 3`,
+        sql`${policy.verificationWindowMinutes} <= 480`,
+        isNull(investigationRuns.activeIterationId),
+        exists(db.select({ id: verificationRuns.id }).from(verificationRuns).where(and(
+          eq(verificationRuns.id, input.previousVerificationRunId),
+          eq(verificationRuns.runId, verification.runId),
+          sql`${verification.attempt} = ${verificationRuns.attempt} + 1`,
+          sql`${verificationRuns.attempt} = (
+            SELECT MAX(vr_latest.attempt) FROM verification_runs vr_latest
+            WHERE vr_latest.run_id = ${verification.runId}
+          )`,
+          sql`((${verificationRuns.status} = 'PARTIALLY_RESOLVED' AND ${investigationRuns.status} = 'PARTIALLY_RESOLVED')
+            OR (${verificationRuns.status} = 'NOT_RECOVERED' AND ${investigationRuns.status} = 'NOT_RECOVERED')
+            OR (${verificationRuns.status} = 'INCONCLUSIVE' AND ${investigationRuns.status} = 'VERIFICATION_INCONCLUSIVE'))`,
+        ))),
+      )).returning({ id: investigationRuns.id }),
+      db.insert(verificationRuns).select(sql`
+        SELECT ${verification.id}, ${verification.runId}, ${verification.diagnosisId},
+          ${verification.actionCompletionId}, ${verification.attempt}, ${verification.clientRequestId},
+          ${verification.status}, ${verification.anchorType}, ${verification.anchorAt},
+          ${verification.createdAt}, ${verification.updatedAt}, ${verification.completedAt}
+        FROM ${investigationRuns} WHERE ${investigationRuns.id} = ${verification.runId}
+          AND ${investigationRuns.activeIterationId} = ${guard}
+      `),
+      db.insert(verificationPolicySnapshots).select(sql`
+        SELECT ${policy.id}, ${policy.verificationRunId}, ${policy.runId}, ${policy.policyVersion},
+          ${policy.anchorAt}, ${policy.settlingPeriodMinutes}, ${policy.verificationWindowMinutes},
+          ${policy.metricKey}, ${policy.baselineValue}, ${policy.incidentObservedValue}, ${policy.direction},
+          ${policy.granularityMinutes}, ${JSON.stringify(policy.affectedFilters)},
+          ${policy.controlFilters === null ? null : JSON.stringify(policy.controlFilters)},
+          ${policy.controlBaselineValue}, ${policy.minimumSampleSize}, ${policy.requiredConsecutiveBuckets},
+          ${policy.metricRecoveryThreshold}, ${policy.minimumImprovementThreshold},
+          ${policy.feedbackTrendThreshold}, ${policy.feedbackRequired ? 1 : 0},
+          ${policy.feedbackMinimumSampleSize}, ${policy.createdAt}
+        FROM ${verificationRuns} WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.insert(runtimeCommands).select(sql`
+        SELECT ${`CMD-${crypto.randomUUID()}`}, ${verification.runId}, ${input.clientRequestId},
+          'RETRY_VERIFICATION', ${verification.id}, ${verification.createdAt}
+        FROM ${verificationRuns} WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.insert(auditEvents).select(sql`
+        SELECT ${input.auditEvent.id}, ${input.auditEvent.runId}, ${input.auditEvent.proposedActionId},
+          ${input.auditEvent.approvalId}, ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)}, ${input.auditEvent.createdAt}
+        FROM ${verificationRuns} WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.insert(investigationTraceEvents).select(sql`
+        SELECT ${input.traceEvent.id}, ${input.traceEvent.runId}, ${input.traceEvent.iterationId},
+          ${input.traceEvent.sequence}, ${input.traceEvent.type}, ${input.traceEvent.actor},
+          ${input.traceEvent.publicSummary}, ${JSON.stringify(input.traceEvent.details)}, ${input.traceEvent.createdAt}
+        FROM ${verificationRuns} WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.update(investigationRuns).set({ activeIterationId: null })
+        .where(and(eq(investigationRuns.id, verification.runId), eq(investigationRuns.activeIterationId, guard))),
     ];
     const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
     return batchChanged(results[0]);
@@ -1301,6 +1611,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
       actionCompletionRows,
       verificationRunRows,
       verificationPolicyRows,
+      verificationEvidenceRows,
+      verificationEvaluationRows,
     ] = await Promise.all([
       db.select().from(toolCalls).where(eq(toolCalls.runId, run.id)).orderBy(asc(toolCalls.orderIndex)),
       db.select().from(toolResults).where(eq(toolResults.runId, run.id)),
@@ -1321,6 +1633,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
       db.select().from(actionCompletions).where(eq(actionCompletions.runId, run.id)).orderBy(asc(actionCompletions.createdAt)),
       db.select().from(verificationRuns).where(eq(verificationRuns.runId, run.id)).orderBy(asc(verificationRuns.attempt)),
       db.select().from(verificationPolicySnapshots).where(eq(verificationPolicySnapshots.runId, run.id)).orderBy(asc(verificationPolicySnapshots.createdAt)),
+      db.select().from(verificationEvidence).where(eq(verificationEvidence.runId, run.id)).orderBy(asc(verificationEvidence.createdAt)),
+      db.select().from(verificationEvaluations).where(eq(verificationEvaluations.runId, run.id)).orderBy(asc(verificationEvaluations.createdAt)),
     ]);
     const [riskEvent, release] = await Promise.all([
       run.riskEventId ? analytics.getRiskEvent(run.riskEventId) : null,
@@ -1358,6 +1672,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
       actionCompletions: actionCompletionRows.map(mapActionCompletion),
       verificationRuns: verificationRunRows.map(mapVerificationRun),
       verificationPolicySnapshots: verificationPolicyRows.map(mapVerificationPolicySnapshot),
+      verificationEvidence: verificationEvidenceRows.map(mapVerificationEvidence),
+      verificationEvaluations: verificationEvaluationRows.map(mapVerificationEvaluation),
     };
   }
 }

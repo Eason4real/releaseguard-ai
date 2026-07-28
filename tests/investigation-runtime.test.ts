@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { drizzle } from "drizzle-orm/d1";
 import * as dbSchema from "../db/schema";
+import { investigationRuntimeSchema } from "../db/runtime-schema";
 import "./risk-detection.test";
 import "./analytics-tools.test";
 import "./retrieval.test";
 import "./phase4-scenarios.test";
 import "./hypothesis-confidence.test";
+import "./verification-evaluator.test";
 import {
   decideProposedAction,
   executeApprovedGithubAction,
@@ -38,6 +40,9 @@ import type {
   ActionCompletionCommit,
   Phase4InvestigationStore,
   VerificationAttemptCommit,
+  VerificationEvaluationCommit,
+  VerificationReopenCommit,
+  VerificationRetryCommit,
 } from "../lib/investigation/phase4-store";
 import type {
   Approval,
@@ -62,7 +67,11 @@ import type {
   InvestigationTraceEvent,
   VerificationPolicySnapshot,
   VerificationRun,
+  VerificationEvidence,
+  VerificationEvaluation,
 } from "../lib/investigation/types";
+import type { MetricFilters } from "../lib/analytics/types";
+import type { VerificationFeedbackRecord } from "../lib/investigation/verification-evaluator";
 import {
   ensureAndroid730RiskEvent,
   MemoryAnalyticsStore,
@@ -80,13 +89,18 @@ import { calculateHypothesisConfidence } from "../lib/investigation/confidence";
 import {
   confirmActionCompletion,
   createVerificationAttempt,
+  evaluateVerificationAttempt,
   listVerificationHistory,
+  reopenAfterVerification,
+  retryVerificationAttempt,
 } from "../lib/investigation/verification-runtime";
 import { handleActionCompletionPost } from "../app/api/investigations/[runId]/action-completion/route";
 import {
   handleVerificationGet,
   handleVerificationPost,
 } from "../app/api/investigations/[runId]/verifications/route";
+import { handleVerificationEvaluatePost } from
+  "../app/api/investigations/[runId]/verifications/[verificationRunId]/evaluate/route";
 
 class MemoryStore implements Phase4InvestigationStore {
   analytics = new MemoryAnalyticsStore();
@@ -110,11 +124,18 @@ class MemoryStore implements Phase4InvestigationStore {
   actionCompletions = new Map<string, ActionCompletion>();
   verificationRuns = new Map<string, VerificationRun>();
   verificationPolicies = new Map<string, VerificationPolicySnapshot>();
+  verificationEvidence = new Map<string, VerificationEvidence>();
+  verificationEvaluations = new Map<string, VerificationEvaluation>();
+  verificationFeedback: VerificationFeedbackRecord[] = [];
   commands = new Set<string>();
   failNextEvidenceAssessmentCommit = false;
+  failNextVerificationEvaluationCommit = false;
   lastGroundedFinalizationInput: GroundedFinalizationCommit | null = null;
   lastActionCompletionInput: ActionCompletionCommit | null = null;
   lastVerificationAttemptInput: VerificationAttemptCommit | null = null;
+  lastVerificationEvaluationInput: VerificationEvaluationCommit | null = null;
+  lastVerificationReopenInput: VerificationReopenCommit | null = null;
+  lastVerificationRetryInput: VerificationRetryCommit | null = null;
   failNextGroundedFinalizationAt: null | "DIAGNOSIS" | "ACTION" | "APPROVAL"
     | "SNAPSHOT" | "TOOL_CALL" | "AUDIT" | "RUN_TRANSITION" = null;
 
@@ -621,6 +642,171 @@ class MemoryStore implements Phase4InvestigationStore {
     return true;
   }
 
+  async queryVerificationMetricBuckets(input: {
+    metricKey: string; filters: MetricFilters; startTime: string; endTime: string;
+  }) {
+    return this.analytics.queryMetricBuckets(input);
+  }
+
+  async queryVerificationFeedback(input: {
+    filters: MetricFilters; startTime: string; endTime: string;
+  }) {
+    return structuredClone(this.verificationFeedback.filter((item) =>
+      item.timestamp >= input.startTime && item.timestamp < input.endTime));
+  }
+
+  async markVerificationWaitingWindow(input: {
+    runId: string; verificationRunId: string; expectedLockVersion: number; updatedAt: string;
+  }) {
+    const run = this.runs.get(input.runId);
+    const verification = this.verificationRuns.get(input.verificationRunId);
+    if (!run || run.status !== "WAITING_VERIFICATION"
+      || run.lockVersion !== input.expectedLockVersion
+      || !verification || verification.runId !== input.runId
+      || !["PENDING", "WAITING_WINDOW"].includes(verification.status)) return false;
+    this.verificationRuns.set(verification.id, {
+      ...verification, status: "WAITING_WINDOW", updatedAt: input.updatedAt,
+    });
+    return true;
+  }
+
+  async beginVerificationEvaluation(input: {
+    runId: string; verificationRunId: string; clientRequestId: string;
+    expectedLockVersion: number; startedAt: string;
+  }) {
+    const run = this.runs.get(input.runId);
+    const verification = this.verificationRuns.get(input.verificationRunId);
+    if (!run || run.status !== "WAITING_VERIFICATION" || run.activeIterationId !== null
+      || run.lockVersion !== input.expectedLockVersion
+      || !verification || verification.runId !== input.runId
+      || !["PENDING", "WAITING_WINDOW"].includes(verification.status)) return false;
+    const guard = `VERIFICATION_EVALUATION:${verification.id}:${input.clientRequestId}`;
+    const runs = structuredClone(this.runs);
+    const verifications = structuredClone(this.verificationRuns);
+    runs.set(run.id, { ...run, status: "VERIFYING", activeIterationId: guard,
+      lockVersion: run.lockVersion + 1, updatedAt: input.startedAt });
+    verifications.set(verification.id, { ...verification, status: "RUNNING", updatedAt: input.startedAt });
+    this.runs = runs;
+    this.verificationRuns = verifications;
+    return true;
+  }
+
+  async commitVerificationEvaluation(input: VerificationEvaluationCommit) {
+    if (this.failNextVerificationEvaluationCommit) {
+      this.failNextVerificationEvaluationCommit = false;
+      return false;
+    }
+    const { evaluation } = input;
+    const run = this.runs.get(evaluation.runId);
+    const verification = this.verificationRuns.get(evaluation.verificationRunId);
+    const guard = `VERIFICATION_EVALUATION:${evaluation.verificationRunId}:${evaluation.clientRequestId}`;
+    if (!run || run.status !== "VERIFYING" || run.activeIterationId !== guard
+      || run.lockVersion !== input.expectedLockVersion
+      || !verification || verification.runId !== evaluation.runId || verification.status !== "RUNNING"
+      || verification.attempt !== input.expectedVerificationAttempt
+      || this.verificationEvaluations.has(evaluation.verificationRunId)
+      || [...this.verificationEvaluations.values()].some((item) =>
+        item.runId === evaluation.runId && item.clientRequestId === evaluation.clientRequestId)
+      || input.evidence.some((item) => item.runId !== evaluation.runId
+        || item.verificationRunId !== evaluation.verificationRunId)) return false;
+    const verifications = structuredClone(this.verificationRuns);
+    const evaluations = structuredClone(this.verificationEvaluations);
+    const evidence = structuredClone(this.verificationEvidence);
+    const audits = structuredClone(this.audits);
+    const traces = structuredClone(this.traces);
+    const runs = structuredClone(this.runs);
+    evaluations.set(evaluation.verificationRunId, structuredClone(evaluation));
+    input.evidence.forEach((item) => evidence.set(item.id, structuredClone(item)));
+    input.auditEvents.forEach((item) => audits.set(item.id, structuredClone(item)));
+    traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    verifications.set(verification.id, { ...verification, status: evaluation.outcome,
+      updatedAt: evaluation.createdAt, completedAt: evaluation.createdAt });
+    const runStatus = evaluation.outcome === "INCONCLUSIVE"
+      ? "VERIFICATION_INCONCLUSIVE" : evaluation.outcome;
+    runs.set(run.id, { ...run, status: runStatus, activeIterationId: null,
+      lockVersion: run.lockVersion + 1, updatedAt: evaluation.createdAt,
+      completedAt: evaluation.createdAt });
+    this.verificationRuns = verifications;
+    this.verificationEvaluations = evaluations;
+    this.verificationEvidence = evidence;
+    this.audits = audits;
+    this.traces = traces;
+    this.runs = runs;
+    this.lastVerificationEvaluationInput = structuredClone(input);
+    return true;
+  }
+
+  async commitVerificationReopen(input: VerificationReopenCommit) {
+    const run = this.runs.get(input.runId);
+    const verification = this.verificationRuns.get(input.verificationRunId);
+    const key = `${input.runId}:REOPEN_VERIFICATION:${input.clientRequestId}`;
+    const expectedRunStatus = verification?.status === "INCONCLUSIVE"
+      ? "VERIFICATION_INCONCLUSIVE" : verification?.status;
+    const latestAttempt = Math.max(...[...this.verificationRuns.values()]
+      .filter((item) => item.runId === input.runId).map((item) => item.attempt));
+    if (!run || run.status !== expectedRunStatus
+      || run.activeIterationId !== null || run.lockVersion !== input.expectedLockVersion
+      || !verification || verification.runId !== input.runId
+      || !["PARTIALLY_RESOLVED", "NOT_RECOVERED", "INCONCLUSIVE"].includes(verification.status)
+      || verification.attempt !== latestAttempt
+      || this.commands.has(key)) return false;
+    const runs = structuredClone(this.runs);
+    const audits = structuredClone(this.audits);
+    const traces = structuredClone(this.traces);
+    const commands = structuredClone(this.commands);
+    runs.set(run.id, { ...run, status: "RUNNING", activeIterationId: null,
+      completedAt: null,
+      lockVersion: run.lockVersion + 1, updatedAt: input.createdAt });
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    commands.add(key);
+    this.runs = runs; this.audits = audits;
+    this.traces = traces; this.commands = commands;
+    this.lastVerificationReopenInput = structuredClone(input);
+    return true;
+  }
+
+  async commitVerificationRetry(input: VerificationRetryCommit) {
+    const run = this.runs.get(input.verificationRun.runId);
+    const previous = this.verificationRuns.get(input.previousVerificationRunId);
+    const key = `${input.verificationRun.runId}:RETRY_VERIFICATION:${input.clientRequestId}`;
+    const expectedRunStatus = previous?.status === "INCONCLUSIVE"
+      ? "VERIFICATION_INCONCLUSIVE" : previous?.status;
+    const latestAttempt = Math.max(...[...this.verificationRuns.values()]
+      .filter((item) => item.runId === input.verificationRun.runId).map((item) => item.attempt));
+    if (!run || run.status !== expectedRunStatus
+      || run.activeIterationId !== null || run.lockVersion !== input.expectedLockVersion
+      || run.currentDiagnosisRevision !== input.expectedDiagnosisRevision
+      || !previous || previous.runId !== run.id
+      || !["PARTIALLY_RESOLVED", "NOT_RECOVERED", "INCONCLUSIVE"].includes(previous.status)
+      || previous.attempt !== latestAttempt
+      || input.verificationRun.attempt !== previous.attempt + 1
+      || input.verificationRun.attempt > 3
+      || input.policySnapshot.verificationWindowMinutes > 480
+      || this.commands.has(key)
+      || [...this.verificationRuns.values()].some((item) => item.runId === run.id
+        && (item.attempt === input.verificationRun.attempt
+          || item.clientRequestId === input.verificationRun.clientRequestId))) return false;
+    const runs = structuredClone(this.runs);
+    const verifications = structuredClone(this.verificationRuns);
+    const policies = structuredClone(this.verificationPolicies);
+    const audits = structuredClone(this.audits);
+    const traces = structuredClone(this.traces);
+    const commands = structuredClone(this.commands);
+    runs.set(run.id, { ...run, status: "WAITING_VERIFICATION", activeIterationId: null,
+      completedAt: null, lockVersion: run.lockVersion + 1,
+      updatedAt: input.verificationRun.createdAt });
+    verifications.set(input.verificationRun.id, structuredClone(input.verificationRun));
+    policies.set(input.policySnapshot.id, structuredClone(input.policySnapshot));
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    commands.add(key);
+    this.runs = runs; this.verificationRuns = verifications; this.verificationPolicies = policies;
+    this.audits = audits; this.traces = traces; this.commands = commands;
+    this.lastVerificationRetryInput = structuredClone(input);
+    return true;
+  }
+
   async recordRuntimeCommand(input: {
     id: string;
     runId: string;
@@ -746,6 +932,12 @@ class MemoryStore implements Phase4InvestigationStore {
       verificationPolicySnapshots: structuredClone([...this.verificationPolicies.values()]
         .filter((item) => item.runId === runId)
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))),
+      verificationEvidence: structuredClone([...this.verificationEvidence.values()]
+        .filter((item) => item.runId === runId)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))),
+      verificationEvaluations: structuredClone([...this.verificationEvaluations.values()]
+        .filter((item) => item.runId === runId)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))),
     };
   }
 
@@ -771,6 +963,7 @@ class AtomicBatchD1Client {
   committedQueries: string[] = [];
   batchCalls = 0;
   failPattern: RegExp | null = null;
+  zeroChangePattern: RegExp | null = null;
 
   prepare(query: string) {
     return new AtomicBatchD1Statement(query);
@@ -786,10 +979,10 @@ class AtomicBatchD1Client {
       staged.push(statement.query);
     }
     this.committedQueries = staged;
-    return statements.map(() => ({
+    return statements.map((statement) => ({
       success: true,
       results: [],
-      meta: { changes: 1 },
+      meta: { changes: this.zeroChangePattern?.test(statement.query) ? 0 : 1 },
     }));
   }
 }
@@ -1385,7 +1578,11 @@ test("P4.3A Action verification uses effectiveAt and freezes server policy", asy
   assert.equal(result.verificationRun.actionCompletionId, completed.completion.id);
   assert.ok(["PENDING", "WAITING_WINDOW"].includes(result.verificationRun.status));
   assert.equal(result.policySnapshot.anchorAt, completed.completion.effectiveAt);
-  assert.equal(result.policySnapshot.policyVersion, "P4.3A_V1");
+  assert.equal(result.policySnapshot.policyVersion, "P4.3B_V1");
+  assert.equal(result.policySnapshot.baselineValue, completed.aggregate.riskEvent?.baselineValue);
+  assert.equal(result.policySnapshot.incidentObservedValue,
+    completed.aggregate.riskEvent?.observedValue);
+  assert.equal(result.policySnapshot.direction, completed.aggregate.riskEvent?.direction);
   assert.equal(result.policySnapshot.metricKey, completed.aggregate.riskEvent?.metricKey);
   assert.deepEqual(result.policySnapshot.affectedFilters,
     completed.aggregate.riskEvent?.filters);
@@ -1644,7 +1841,7 @@ test("P4.3A API ignores client policy and target overrides", async () => {
   assert.deepEqual(payload.policySnapshot.affectedFilters,
     completed.aggregate.riskEvent?.filters);
   assert.equal(payload.policySnapshot.controlFilters, null);
-  assert.equal(payload.policySnapshot.policyVersion, "P4.3A_V1");
+  assert.equal(payload.policySnapshot.policyVersion, "P4.3B_V1");
   assert.equal(payload.policySnapshot.verificationWindowMinutes, 120);
   assert.equal(payload.policySnapshot.minimumSampleSize,
     completed.aggregate.riskEvent?.minSampleSize);
@@ -3327,4 +3524,478 @@ test("P4.2 LLMPlanner and DeterministicPlanner implement the same decision contr
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+function seedVerificationMetric(
+  store: MemoryStore,
+  policy: VerificationPolicySnapshot,
+  value: number,
+  sampleSize = policy.minimumSampleSize,
+) {
+  store.analytics.buckets.clear();
+  const start = Date.parse(policy.anchorAt) + policy.settlingPeriodMinutes * 60_000;
+  const count = policy.verificationWindowMinutes / policy.granularityMinutes!;
+  for (let index = 0; index < count; index += 1) {
+    const bucketStart = new Date(start + index * policy.granularityMinutes! * 60_000).toISOString();
+    const bucketEnd = new Date(start + (index + 1) * policy.granularityMinutes! * 60_000).toISOString();
+    const bucket = {
+      id: `verification-${policy.verificationRunId}-${index}`,
+      metricKey: policy.metricKey, bucketStart, bucketEnd,
+      granularityMinutes: policy.granularityMinutes!, numerator: null, denominator: null,
+      value, sampleSize,
+      platform: policy.affectedFilters.platform ?? null,
+      appVersion: policy.affectedFilters.appVersion ?? null,
+      region: policy.affectedFilters.region ?? null,
+      userType: policy.affectedFilters.userType ?? null,
+      dimensionSignature: "verification-fixture", releaseId: null,
+      provenance: "deterministic_verification_fixture", createdAt: bucketStart,
+    };
+    store.analytics.buckets.set(bucket.id, bucket);
+  }
+}
+
+async function observedVerification(value: number, requestId: string) {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: `${requestId}-attempt`,
+  });
+  seedVerificationMetric(setup.store, attempt.policySnapshot, value);
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000;
+  const result = await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id, clientRequestId: requestId,
+  }, () => new Date(end + 1));
+  return { ...setup, attempt, result };
+}
+
+test("P4.3B immature window remains WAITING_WINDOW without evaluation", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-window-attempt",
+  });
+  const result = await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-window-evaluate",
+  }, () => new Date(attempt.policySnapshot.anchorAt));
+  assert.equal(result.verificationRun.status, "WAITING_WINDOW");
+  assert.equal(result.evaluation, null);
+  assert.equal((await setup.store.getAggregate(setup.runId))?.run.status, "WAITING_VERIFICATION");
+});
+
+test("P4.3B evaluation atomically persists evidence, outcome, and matching Run state", async () => {
+  const resolved = await observedVerification(0.95, "verification-resolved");
+  assert.equal(resolved.result.evaluation!.outcome, "RESOLVED");
+  assert.equal(resolved.result.verificationRun.status, "RESOLVED");
+  assert.equal(resolved.result.evidence.length, 1);
+  const aggregate = (await resolved.store.getAggregate(resolved.runId))!;
+  assert.equal(aggregate.run.status, "RESOLVED");
+  assert.equal(aggregate.run.activeIterationId, null);
+  assert.equal(aggregate.verificationEvaluations.length, 1);
+  assert.equal(aggregate.verificationEvidence.length, 1);
+});
+
+test("P4.3B evaluate is idempotent and terminal history cannot be recomputed", async () => {
+  const resolved = await observedVerification(0.95, "verification-idempotent");
+  const before = structuredClone(await resolved.store.getAggregate(resolved.runId));
+  const replay = await evaluateVerificationAttempt(resolved.store, {
+    runId: resolved.runId, verificationRunId: resolved.attempt.verificationRun.id,
+    clientRequestId: "different-terminal-request",
+  }, () => new Date("2030-01-01T00:00:00.000Z"));
+  assert.equal(replay.evaluation!.id, resolved.result.evaluation!.id);
+  assert.deepEqual(await resolved.store.getAggregate(resolved.runId), before);
+});
+
+test("P4.3B failed atomic commit leaves no evidence or terminal outcome and can resume", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-rollback-attempt",
+  });
+  seedVerificationMetric(setup.store, attempt.policySnapshot, 0.95);
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  setup.store.failNextVerificationEvaluationCommit = true;
+  await assert.rejects(evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-rollback-evaluate",
+  }, () => new Date(end)), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "VERIFICATION_EVALUATION_COMMIT_RACE");
+  const failed = (await setup.store.getAggregate(setup.runId))!;
+  assert.equal(failed.run.status, "VERIFYING");
+  assert.equal(failed.verificationEvidence.length, 0);
+  assert.equal(failed.verificationEvaluations.length, 0);
+  const recovered = await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-rollback-evaluate",
+  }, () => new Date(end));
+  assert.equal(recovered.evaluation!.outcome, "RESOLVED");
+});
+
+test("P4.3B data read failure persists deterministic INCONCLUSIVE error evidence", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-error-attempt",
+  });
+  setup.store.queryVerificationMetricBuckets = async () => {
+    throw new Error("analytics unavailable");
+  };
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  const result = await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-error-evaluate",
+  }, () => new Date(end));
+  assert.equal(result.evaluation!.outcome, "INCONCLUSIVE");
+  assert.equal(result.evaluation!.reasonCode, "REQUIRED_SIGNAL_QUERY_FAILED");
+  assert.equal(result.evidence[0].qualityStatus, "ERROR");
+  assert.equal(result.evidence[0].kind, "AFFECTED_METRIC");
+  assert.equal((await setup.store.getAggregate(setup.runId))?.run.status,
+    "VERIFICATION_INCONCLUSIVE");
+});
+
+test("P4.3B D1 evaluation commit is one atomic batch", async () => {
+  const resolved = await observedVerification(0.95, "verification-d1-evaluation");
+  const payload = resolved.store.lastVerificationEvaluationInput!;
+  assert.ok(payload);
+
+  const failedClient = new AtomicBatchD1Client();
+  failedClient.failPattern = /insert into ["`]verification_evidence["`]/i;
+  const failedStore = new D1InvestigationStore(async () =>
+    drizzle(failedClient as never, { schema: dbSchema }));
+  await assert.rejects(failedStore.commitVerificationEvaluation(structuredClone(payload)),
+    /INJECTED_D1_BATCH_FAILURE/);
+  assert.equal(failedClient.batchCalls, 1);
+  assert.deepEqual(failedClient.committedQueries, []);
+
+  const guardClient = new AtomicBatchD1Client();
+  guardClient.zeroChangePattern = /update ["`]verification_runs["`] set ["`]status["`]/i;
+  const guardStore = new D1InvestigationStore(async () =>
+    drizzle(guardClient as never, { schema: dbSchema }));
+  assert.equal(await guardStore.commitVerificationEvaluation(structuredClone(payload)), false);
+  const guardedSql = guardClient.committedQueries.join("\n");
+  assert.match(guardedSql, /COMMITTING/);
+  assert.match(guardedSql, /verification_evaluations/);
+  assert.match(guardedSql, /attempt/);
+
+  const client = new AtomicBatchD1Client();
+  const d1Store = new D1InvestigationStore(async () =>
+    drizzle(client as never, { schema: dbSchema }));
+  await d1Store.commitVerificationEvaluation(structuredClone(payload));
+  assert.equal(client.batchCalls, 1);
+  const sqlText = client.committedQueries.join("\n");
+  for (const table of ["verification_evaluations", "verification_evidence",
+    "verification_runs", "audit_events", "investigation_trace_events", "investigation_runs"]) {
+    assert.match(sqlText, new RegExp(table));
+  }
+});
+
+test("P4.3B D1 reopen and retry commits encode latest-attempt and exact-outcome guards", async () => {
+  const reopenSetup = await observedVerification(0.5, "verification-d1-reopen-source");
+  await reopenAfterVerification(reopenSetup.store, {
+    runId: reopenSetup.runId, verificationRunId: reopenSetup.result.verificationRun.id,
+    clientRequestId: "verification-d1-reopen-command",
+  });
+  const reopenClient = new AtomicBatchD1Client();
+  const reopenStore = new D1InvestigationStore(async () =>
+    drizzle(reopenClient as never, { schema: dbSchema }));
+  await reopenStore.commitVerificationReopen(
+    structuredClone(reopenSetup.store.lastVerificationReopenInput!));
+  const reopenSql = reopenClient.committedQueries.join("\n");
+  assert.match(reopenSql, /MAX\(vr_latest\.attempt\)/);
+  assert.match(reopenSql, /VERIFICATION_INCONCLUSIVE/);
+  assert.doesNotMatch(reopenSql, /agent_iterations/);
+
+  const retrySetup = await observedVerification(0.8, "verification-d1-retry-source");
+  await retryVerificationAttempt(retrySetup.store, {
+    runId: retrySetup.runId, verificationRunId: retrySetup.result.verificationRun.id,
+    clientRequestId: "verification-d1-retry-command",
+  });
+  const retryClient = new AtomicBatchD1Client();
+  const retryStore = new D1InvestigationStore(async () =>
+    drizzle(retryClient as never, { schema: dbSchema }));
+  await retryStore.commitVerificationRetry(
+    structuredClone(retrySetup.store.lastVerificationRetryInput!));
+  const retrySql = retryClient.committedQueries.join("\n");
+  assert.match(retrySql, /MAX\(vr_latest\.attempt\)/);
+  assert.match(retrySql, /<= 3/);
+  assert.match(retrySql, /<= 480/);
+});
+
+test("P4.3B runtime schema keeps verification reference columns on the policy table", () => {
+  for (const statement of investigationRuntimeSchema.filter((sql) =>
+    sql.startsWith("CREATE TABLE"))) {
+    const columnNames = [...statement.matchAll(/^\s{4}([a-z_]+)\s/mg)].map((match) => match[1]);
+    assert.equal(new Set(columnNames).size, columnNames.length, statement.slice(0, 80));
+  }
+  const policyTable = investigationRuntimeSchema.find((sql) =>
+    sql.includes("CREATE TABLE IF NOT EXISTS verification_policy_snapshots"))!;
+  for (const column of ["baseline_value", "incident_observed_value", "direction",
+    "granularity_minutes", "control_baseline_value", "feedback_required",
+    "feedback_minimum_sample_size", "minimum_improvement_threshold"]) {
+    assert.match(policyTable, new RegExp(`\\b${column}\\b`));
+  }
+  const metricTable = investigationRuntimeSchema.find((sql) =>
+    sql.includes("CREATE TABLE IF NOT EXISTS metric_buckets"))!;
+  assert.doesNotMatch(metricTable, /baseline_value|incident_observed_value/);
+});
+
+test("P4.3B evaluate API ignores client-controlled recovery inputs", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-api-attempt",
+  });
+  seedVerificationMetric(setup.store, attempt.policySnapshot, 0.5);
+  const response = await handleVerificationEvaluatePost(new Request("http://localhost/evaluate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clientRequestId: "verification-api-evaluate", outcome: "RESOLVED",
+      threshold: 0, observedValue: 1, sampleSize: 999999 }),
+  }), setup.runId, attempt.verificationRun.id, setup.store, () => new Date(
+    Date.parse(attempt.policySnapshot.anchorAt)
+      + (attempt.policySnapshot.settlingPeriodMinutes
+        + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1,
+  ));
+  const payload = await response.json() as { evaluation: VerificationEvaluation };
+  assert.equal(response.status, 200);
+  assert.equal(payload.evaluation.outcome, "NOT_RECOVERED");
+});
+
+test("P4.3B retry preserves old attempt and doubles the frozen observation window", async () => {
+  const partial = await observedVerification(0.8, "verification-retry-source");
+  const oldRun = structuredClone(partial.result.verificationRun);
+  const oldPolicy = structuredClone(partial.attempt.policySnapshot);
+  const retry = await retryVerificationAttempt(partial.store, {
+    runId: partial.runId, verificationRunId: oldRun.id, clientRequestId: "verification-retry-command",
+  });
+  assert.equal(retry.verificationRun.attempt, oldRun.attempt + 1);
+  assert.equal(retry.policySnapshot.verificationWindowMinutes,
+    oldPolicy.verificationWindowMinutes * 2);
+  assert.deepEqual(partial.store.verificationRuns.get(oldRun.id), oldRun);
+  assert.deepEqual(partial.store.verificationPolicies.get(oldPolicy.id), oldPolicy);
+  assert.equal((await partial.store.getAggregate(partial.runId))?.run.status, "WAITING_VERIFICATION");
+});
+
+test("P4.3B reopen preserves history without a synthetic PAUSED iteration and rejects RESOLVED", async () => {
+  const notRecovered = await observedVerification(0.5, "verification-reopen-source");
+  const actionsBefore = notRecovered.store.actions.size;
+  const iterationsBefore = notRecovered.store.iterations.size;
+  const historical = structuredClone(notRecovered.result.verificationRun);
+  const reopened = await reopenAfterVerification(notRecovered.store, {
+    runId: notRecovered.runId, verificationRunId: historical.id,
+    clientRequestId: "verification-reopen-command", reason: "Product metric remains degraded",
+  });
+  assert.equal(reopened?.run.status, "RUNNING");
+  assert.equal(notRecovered.store.iterations.size, iterationsBefore);
+  assert.equal(notRecovered.store.actions.size, actionsBefore);
+  assert.deepEqual(notRecovered.store.verificationRuns.get(historical.id), historical);
+  const replay = await reopenAfterVerification(notRecovered.store, {
+    runId: notRecovered.runId, verificationRunId: historical.id,
+    clientRequestId: "verification-reopen-command", reason: "Product metric remains degraded",
+  });
+  assert.equal(replay?.iterations.length, reopened?.iterations.length);
+
+  const resolved = await observedVerification(0.95, "verification-no-reopen");
+  await assert.rejects(reopenAfterVerification(resolved.store, {
+    runId: resolved.runId, verificationRunId: resolved.attempt.verificationRun.id,
+    clientRequestId: "verification-resolved-reopen",
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "RESOLVED_VERIFICATION_CANNOT_REOPEN");
+});
+
+test("P4.3B concurrent evaluators produce only one terminal evaluation", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-concurrent-attempt",
+  });
+  seedVerificationMetric(setup.store, attempt.policySnapshot, 0.95);
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  const results = await Promise.allSettled([
+    evaluateVerificationAttempt(setup.store, {
+      runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+      clientRequestId: "verification-concurrent-a",
+    }, () => new Date(end)),
+    evaluateVerificationAttempt(setup.store, {
+      runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+      clientRequestId: "verification-concurrent-b",
+    }, () => new Date(end)),
+  ]);
+  assert.equal(results.filter((item) => item.status === "fulfilled").length, 1);
+  assert.equal(results.filter((item) => item.status === "rejected").length, 1);
+  assert.equal(setup.store.verificationEvaluations.size, 1);
+});
+
+test("P4.3B control and feedback query failures retain exact signal provenance", async () => {
+  const controlSetup = await observedGroundedInvestigation();
+  const controlAttempt = await createVerificationAttempt(controlSetup.store, {
+    runId: controlSetup.runId, clientRequestId: "verification-control-error-attempt",
+  });
+  const controlPolicy = controlSetup.store.verificationPolicies.get(controlAttempt.policySnapshot.id)!;
+  controlSetup.store.verificationPolicies.set(controlPolicy.id, {
+    ...controlPolicy, controlFilters: { platform: "IOS" }, controlBaselineValue: 1,
+  });
+  seedVerificationMetric(controlSetup.store, controlPolicy, 0.95);
+  controlSetup.store.queryVerificationMetricBuckets = async (input) => {
+    if (input.filters.platform === "IOS") throw new Error("control unavailable");
+    return controlSetup.store.analytics.queryMetricBuckets(input);
+  };
+  const controlEnd = Date.parse(controlPolicy.anchorAt)
+    + (controlPolicy.settlingPeriodMinutes + controlPolicy.verificationWindowMinutes) * 60_000 + 1;
+  const controlResult = await evaluateVerificationAttempt(controlSetup.store, {
+    runId: controlSetup.runId, verificationRunId: controlAttempt.verificationRun.id,
+    clientRequestId: "verification-control-error-evaluate",
+  }, () => new Date(controlEnd));
+  assert.equal(controlResult.evaluation!.outcome, "INCONCLUSIVE");
+  assert.deepEqual(controlResult.evidence.map((item) => item.kind).sort(),
+    ["AFFECTED_METRIC", "CONTROL_METRIC"]);
+  assert.equal(controlResult.evidence.find((item) => item.kind === "CONTROL_METRIC")!.qualityStatus,
+    "ERROR");
+
+  const feedbackSetup = await observedGroundedInvestigation();
+  const feedbackAttempt = await createVerificationAttempt(feedbackSetup.store, {
+    runId: feedbackSetup.runId, clientRequestId: "verification-feedback-error-attempt",
+  });
+  const feedbackPolicy = feedbackSetup.store.verificationPolicies.get(feedbackAttempt.policySnapshot.id)!;
+  feedbackSetup.store.verificationPolicies.set(feedbackPolicy.id, { ...feedbackPolicy, feedbackRequired: true });
+  seedVerificationMetric(feedbackSetup.store, feedbackPolicy, 0.95);
+  feedbackSetup.store.queryVerificationFeedback = async (input) => {
+    if (input.endTime === feedbackPolicy.anchorAt) throw new Error("reference unavailable");
+    return [];
+  };
+  const feedbackEnd = Date.parse(feedbackPolicy.anchorAt)
+    + (feedbackPolicy.settlingPeriodMinutes + feedbackPolicy.verificationWindowMinutes) * 60_000 + 1;
+  const feedbackResult = await evaluateVerificationAttempt(feedbackSetup.store, {
+    runId: feedbackSetup.runId, verificationRunId: feedbackAttempt.verificationRun.id,
+    clientRequestId: "verification-feedback-error-evaluate",
+  }, () => new Date(feedbackEnd));
+  assert.equal(feedbackResult.evaluation!.outcome, "INCONCLUSIVE");
+  assert.equal(feedbackResult.evidence.find((item) => item.kind === "FEEDBACK_REFERENCE")!.qualityStatus,
+    "ERROR");
+  assert.ok(feedbackResult.evidence.some((item) => item.kind === "FEEDBACK_VERIFICATION"));
+  assert.equal(feedbackResult.evidence.some((item) =>
+    item.kind === "AFFECTED_METRIC" && item.qualityStatus === "ERROR"), false);
+});
+
+test("P4.3B optional feedback is not queried and cannot contaminate metric outcome", async () => {
+  const setup = await observedGroundedInvestigation();
+  const attempt = await createVerificationAttempt(setup.store, {
+    runId: setup.runId, clientRequestId: "verification-optional-feedback-attempt",
+  });
+  seedVerificationMetric(setup.store, attempt.policySnapshot, 0.95);
+  let feedbackQueries = 0;
+  setup.store.queryVerificationFeedback = async () => {
+    feedbackQueries += 1;
+    throw new Error("optional feedback unavailable");
+  };
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  const result = await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-optional-feedback-evaluate",
+  }, () => new Date(end));
+  assert.equal(result.evaluation!.outcome, "RESOLVED");
+  assert.equal(feedbackQueries, 0);
+});
+
+test("P4.3B reopen requires the latest exact outcome and FAILED is not reopenable", async () => {
+  const setup = await observedVerification(0.8, "verification-stale-reopen-source");
+  const first = setup.result.verificationRun;
+  const retry = await retryVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: first.id, clientRequestId: "verification-stale-retry",
+  });
+  seedVerificationMetric(setup.store, retry.policySnapshot, 0.8);
+  const retryEnd = Date.parse(retry.policySnapshot.anchorAt)
+    + (retry.policySnapshot.settlingPeriodMinutes
+      + retry.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: retry.verificationRun.id,
+    clientRequestId: "verification-stale-retry-evaluate",
+  }, () => new Date(retryEnd));
+  await assert.rejects(reopenAfterVerification(setup.store, {
+    runId: setup.runId, verificationRunId: first.id, clientRequestId: "verification-stale-reopen",
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "VERIFICATION_REOPEN_CONTEXT_STALE");
+  const iterationsBefore = setup.store.iterations.size;
+  const reopened = await reopenAfterVerification(setup.store, {
+    runId: setup.runId, verificationRunId: retry.verificationRun.id,
+    clientRequestId: "verification-latest-reopen",
+  });
+  assert.equal(reopened!.run.status, "RUNNING");
+  assert.equal(setup.store.iterations.size, iterationsBefore);
+
+  const failed = await observedVerification(0.5, "verification-failed-reopen-source");
+  failed.store.verificationRuns.set(failed.result.verificationRun.id, {
+    ...failed.result.verificationRun, status: "FAILED",
+  });
+  failed.store.runs.set(failed.runId, { ...(await failed.store.getAggregate(failed.runId))!.run,
+    status: "FAILED" });
+  await assert.rejects(reopenAfterVerification(failed.store, {
+    runId: failed.runId, verificationRunId: failed.result.verificationRun.id,
+    clientRequestId: "verification-failed-reopen",
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "VERIFICATION_NOT_REOPENABLE");
+});
+
+test("P4.3B retry caps attempts and observation-window growth", async () => {
+  const setup = await observedVerification(0.8, "verification-retry-cap-source");
+  const retry2 = await retryVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: setup.result.verificationRun.id,
+    clientRequestId: "verification-retry-cap-2",
+  });
+  seedVerificationMetric(setup.store, retry2.policySnapshot, 0.8);
+  const end2 = Date.parse(retry2.policySnapshot.anchorAt)
+    + (retry2.policySnapshot.settlingPeriodMinutes
+      + retry2.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: retry2.verificationRun.id,
+    clientRequestId: "verification-retry-cap-evaluate-2",
+  }, () => new Date(end2));
+  const retry3 = await retryVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: retry2.verificationRun.id,
+    clientRequestId: "verification-retry-cap-3",
+  });
+  seedVerificationMetric(setup.store, retry3.policySnapshot, 0.8);
+  const end3 = Date.parse(retry3.policySnapshot.anchorAt)
+    + (retry3.policySnapshot.settlingPeriodMinutes
+      + retry3.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  await evaluateVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: retry3.verificationRun.id,
+    clientRequestId: "verification-retry-cap-evaluate-3",
+  }, () => new Date(end3));
+  await assert.rejects(retryVerificationAttempt(setup.store, {
+    runId: setup.runId, verificationRunId: retry3.verificationRun.id,
+    clientRequestId: "verification-retry-cap-4",
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "VERIFICATION_ATTEMPT_LIMIT_REACHED");
+
+  const windowSetup = await observedVerification(0.8, "verification-window-cap-source");
+  const policy = windowSetup.store.verificationPolicies.get(windowSetup.attempt.policySnapshot.id)!;
+  windowSetup.store.verificationPolicies.set(policy.id, { ...policy, verificationWindowMinutes: 300 });
+  await assert.rejects(retryVerificationAttempt(windowSetup.store, {
+    runId: windowSetup.runId, verificationRunId: windowSetup.result.verificationRun.id,
+    clientRequestId: "verification-window-cap-retry",
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "VERIFICATION_WINDOW_LIMIT_REACHED");
+});
+
+test("P4.3B OBSERVE and Action attempts share the same deterministic evaluator", async () => {
+  const observed = await observedVerification(0.95, "verification-observe-shared");
+  const action = await completedFixtureAction("verification-action-completion-shared");
+  const attempt = await createVerificationAttempt(action.store, {
+    runId: action.aggregate.run.id, clientRequestId: "verification-action-shared-attempt",
+  });
+  seedVerificationMetric(action.store, attempt.policySnapshot, 0.95);
+  const end = Date.parse(attempt.policySnapshot.anchorAt)
+    + (attempt.policySnapshot.settlingPeriodMinutes
+      + attempt.policySnapshot.verificationWindowMinutes) * 60_000 + 1;
+  const evaluated = await evaluateVerificationAttempt(action.store, {
+    runId: action.aggregate.run.id, verificationRunId: attempt.verificationRun.id,
+    clientRequestId: "verification-action-shared-evaluate",
+  }, () => new Date(end));
+  assert.equal(observed.result.evaluation!.outcome, "RESOLVED");
+  assert.equal(evaluated.evaluation!.outcome, "RESOLVED");
+  assert.equal(observed.result.evidence[0].provenance, evaluated.evidence[0].provenance);
 });

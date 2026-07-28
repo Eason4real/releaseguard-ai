@@ -6,6 +6,11 @@ export const RUN_STATUSES = [
   "ACTION_EXECUTING",
   "WAITING_ACTION_COMPLETION",
   "WAITING_VERIFICATION",
+  "VERIFYING",
+  "RESOLVED",
+  "PARTIALLY_RESOLVED",
+  "NOT_RECOVERED",
+  "VERIFICATION_INCONCLUSIVE",
   "CLOSED_NO_ACTION",
   "INCONCLUSIVE",
   "FAILED",
@@ -210,6 +215,10 @@ export type AuditEventType =
   | "ACTION_FAILED"
   | "ACTION_COMPLETION_CONFIRMED"
   | "VERIFICATION_ATTEMPT_CREATED"
+  | "VERIFICATION_EVALUATION_STARTED"
+  | "VERIFICATION_EVALUATED"
+  | "VERIFICATION_RETRY_CREATED"
+  | "VERIFICATION_REOPENED"
   | "APPROVAL_WITHDRAWN"
   | "INVESTIGATION_REOPENED"
   | "RUN_STATE_CHANGED";
@@ -408,12 +417,57 @@ export type VerificationPolicySnapshot = {
   settlingPeriodMinutes: number;
   verificationWindowMinutes: number;
   metricKey: string;
+  baselineValue: number | null;
+  incidentObservedValue: number | null;
+  direction: "DOWN" | "UP" | null;
+  granularityMinutes: number | null;
   affectedFilters: import("../analytics/types").MetricFilters;
   controlFilters: import("../analytics/types").MetricFilters | null;
+  controlBaselineValue: number | null;
   minimumSampleSize: number;
   requiredConsecutiveBuckets: number;
   metricRecoveryThreshold: number;
+  minimumImprovementThreshold: number;
   feedbackTrendThreshold: number;
+  feedbackRequired: boolean;
+  feedbackMinimumSampleSize: number;
+  createdAt: string;
+};
+
+export type VerificationEvidenceKind = "AFFECTED_METRIC" | "CONTROL_METRIC"
+  | "FEEDBACK_REFERENCE" | "FEEDBACK_VERIFICATION";
+export type VerificationEvidenceQuality =
+  | "SUFFICIENT" | "INSUFFICIENT" | "INVALID_DATA" | "EMPTY" | "ERROR";
+
+export type VerificationEvidence = {
+  id: string;
+  runId: string;
+  verificationRunId: string;
+  kind: VerificationEvidenceKind;
+  source: string;
+  query: Record<string, unknown>;
+  windowStart: string;
+  windowEnd: string;
+  sampleSize: number;
+  observedValue: number | null;
+  baselineValue: number | null;
+  recoveryRatio: number | null;
+  qualityStatus: VerificationEvidenceQuality;
+  details: Record<string, unknown>;
+  provenance: string;
+  createdAt: string;
+};
+
+export type VerificationOutcome = "RESOLVED" | "PARTIALLY_RESOLVED" | "NOT_RECOVERED" | "INCONCLUSIVE";
+
+export type VerificationEvaluation = {
+  id: string;
+  runId: string;
+  verificationRunId: string;
+  clientRequestId: string;
+  outcome: VerificationOutcome;
+  reasonCode: string;
+  result: Record<string, unknown>;
   createdAt: string;
 };
 
@@ -442,6 +496,8 @@ export type InvestigationAggregate = {
   actionCompletions: ActionCompletion[];
   verificationRuns: VerificationRun[];
   verificationPolicySnapshots: VerificationPolicySnapshot[];
+  verificationEvidence: VerificationEvidence[];
+  verificationEvaluations: VerificationEvaluation[];
 };
 
 export type LegacyInvestigationResponse = {
