@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, exists, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, isNull, notExists, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  actionCompletions,
   agentIterations,
   approvalSnapshots,
   approvals,
@@ -19,16 +20,23 @@ import {
   runtimeCommands,
   toolCalls,
   toolResults,
+  verificationPolicySnapshots,
+  verificationRuns,
 } from "@/db/schema";
-import { assertRunTransition } from "./state";
+import { assertGenericRunTransition } from "./state";
 import { D1AnalyticsStore } from "../analytics/repository";
 import type { InvestigationStore, RunTransitionPatch } from "./store";
 import {
   assertGroundedFinalizationCommit,
   type GroundedFinalizationCommit,
-  type Phase3InvestigationStore,
 } from "./phase3-store";
 import type {
+  ActionCompletionCommit,
+  Phase4InvestigationStore,
+  VerificationAttemptCommit,
+} from "./phase4-store";
+import type {
+  ActionCompletion,
   Approval,
   ApprovalSnapshot,
   ApprovalStatus,
@@ -55,6 +63,8 @@ import type {
   Hypothesis,
   HypothesisEvidenceLink,
   InvestigationTraceEvent,
+  VerificationPolicySnapshot,
+  VerificationRun,
 } from "./types";
 
 const parseJson = <T>(value: string | null, fallback: T): T => {
@@ -64,6 +74,11 @@ const parseJson = <T>(value: string | null, fallback: T): T => {
   } catch {
     return fallback;
   }
+};
+
+const batchChanged = (result: unknown) => {
+  if (Array.isArray(result)) return result.length > 0;
+  return Boolean((result as { meta?: { changes?: number } } | null)?.meta?.changes);
 };
 
 const mapRun = (row: typeof investigationRuns.$inferSelect): InvestigationRun => ({
@@ -321,8 +336,62 @@ const mapApprovalSnapshot = (
   withdrawnAt: row.withdrawnAt,
 });
 
-export class D1InvestigationStore implements InvestigationStore, Phase3InvestigationStore {
-  constructor(private readonly finalizationDbProvider: typeof getDb = getDb) {}
+const mapActionCompletion = (
+  row: typeof actionCompletions.$inferSelect,
+): ActionCompletion => ({
+  id: row.id,
+  runId: row.runId,
+  proposedActionId: row.proposedActionId,
+  approvalId: row.approvalId,
+  diagnosisId: row.diagnosisId,
+  revision: row.revision,
+  clientRequestId: row.clientRequestId,
+  effectiveAt: row.effectiveAt,
+  changeReference: row.changeReference,
+  note: row.note,
+  confirmedBy: row.confirmedBy,
+  createdAt: row.createdAt,
+});
+
+const mapVerificationRun = (
+  row: typeof verificationRuns.$inferSelect,
+): VerificationRun => ({
+  id: row.id,
+  runId: row.runId,
+  diagnosisId: row.diagnosisId,
+  actionCompletionId: row.actionCompletionId,
+  attempt: row.attempt,
+  clientRequestId: row.clientRequestId,
+  status: row.status as VerificationRun["status"],
+  anchorType: row.anchorType as VerificationRun["anchorType"],
+  anchorAt: row.anchorAt,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  completedAt: row.completedAt,
+});
+
+const mapVerificationPolicySnapshot = (
+  row: typeof verificationPolicySnapshots.$inferSelect,
+): VerificationPolicySnapshot => ({
+  id: row.id,
+  verificationRunId: row.verificationRunId,
+  runId: row.runId,
+  policyVersion: row.policyVersion,
+  anchorAt: row.anchorAt,
+  settlingPeriodMinutes: row.settlingPeriodMinutes,
+  verificationWindowMinutes: row.verificationWindowMinutes,
+  metricKey: row.metricKey,
+  affectedFilters: parseJson(row.affectedFiltersJson, {}),
+  controlFilters: parseJson(row.controlFiltersJson, null),
+  minimumSampleSize: row.minimumSampleSize,
+  requiredConsecutiveBuckets: row.requiredConsecutiveBuckets,
+  metricRecoveryThreshold: row.metricRecoveryThreshold,
+  feedbackTrendThreshold: row.feedbackTrendThreshold,
+  createdAt: row.createdAt,
+});
+
+export class D1InvestigationStore implements InvestigationStore, Phase4InvestigationStore {
+  constructor(private readonly dbProvider: typeof getDb = getDb) {}
 
   async createRun(run: InvestigationRun) {
     await (await getDb()).insert(investigationRuns).values(run);
@@ -341,7 +410,7 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       .limit(1);
     if (!current[0]) throw new Error(`InvestigationRun not found: ${runId}`);
     const from = current[0].status as InvestigationRunStatus;
-    assertRunTransition(from, to);
+    assertGenericRunTransition(from, to);
     const updatedAt = new Date().toISOString();
     const result = await db
       .update(investigationRuns)
@@ -420,7 +489,7 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
 
   async finalizeGroundedInvestigation(input: GroundedFinalizationCommit) {
     assertGroundedFinalizationCommit(input);
-    const db = await this.finalizationDbProvider();
+    const db = await this.dbProvider();
     const diagnosis = input.diagnosis;
     const guardToken = `FINALIZE:${diagnosis.id}`;
     const selectedHypothesisStillCurrent = exists(
@@ -896,6 +965,245 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
     return Boolean(result[0]);
   }
 
+  async commitActionCompletion(input: ActionCompletionCommit) {
+    const db = await this.dbProvider();
+    const completion = input.completion;
+    const guardToken = `ACTION_COMPLETION:${completion.id}`;
+    const actionContextStillCurrent = exists(
+      db.select({ id: proposedActions.id })
+        .from(proposedActions)
+        .innerJoin(approvals, and(
+          eq(approvals.id, completion.approvalId),
+          eq(approvals.proposedActionId, proposedActions.id),
+        ))
+        .innerJoin(diagnoses, and(
+          eq(diagnoses.id, completion.diagnosisId),
+          eq(diagnoses.runId, completion.runId),
+        ))
+        .innerJoin(toolCalls, and(
+          eq(toolCalls.proposedActionId, proposedActions.id),
+          eq(toolCalls.approvalId, approvals.id),
+        ))
+        .where(and(
+          eq(proposedActions.id, completion.proposedActionId),
+          eq(proposedActions.runId, completion.runId),
+          eq(proposedActions.diagnosisId, diagnoses.id),
+          eq(proposedActions.status, "SUCCEEDED"),
+          eq(proposedActions.revision, completion.revision),
+          eq(approvals.runId, completion.runId),
+          eq(approvals.status, "APPROVED"),
+          eq(approvals.decision, "APPROVE"),
+          eq(approvals.revision, completion.revision),
+          eq(diagnoses.revision, completion.revision),
+          eq(diagnoses.groundingStatus, "GROUNDED"),
+          eq(toolCalls.status, "SUCCESS"),
+          eq(toolCalls.completedAt, input.expectedActionCompletedAt),
+        )),
+    );
+    const statements = [
+      db.update(investigationRuns)
+        .set({
+          status: "WAITING_VERIFICATION",
+          activeIterationId: guardToken,
+          lockVersion: input.expectedLockVersion + 1,
+          completedAt: null,
+          updatedAt: completion.createdAt,
+        })
+        .where(and(
+          eq(investigationRuns.id, completion.runId),
+          eq(investigationRuns.status, "WAITING_ACTION_COMPLETION"),
+          eq(investigationRuns.currentDiagnosisRevision, completion.revision),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion),
+          isNull(investigationRuns.activeIterationId),
+          actionContextStillCurrent,
+        ))
+        .returning({ id: investigationRuns.id }),
+      db.insert(actionCompletions).select(sql`
+        SELECT
+          ${completion.id}, ${completion.runId}, ${completion.proposedActionId},
+          ${completion.approvalId}, ${completion.diagnosisId}, ${completion.revision},
+          ${completion.clientRequestId}, ${completion.effectiveAt},
+          ${completion.changeReference}, ${completion.note}, ${completion.confirmedBy},
+          ${completion.createdAt}
+        FROM ${investigationRuns}
+        WHERE ${investigationRuns.id} = ${completion.runId}
+          AND ${investigationRuns.status} = 'WAITING_VERIFICATION'
+          AND ${investigationRuns.activeIterationId} = ${guardToken}
+          AND ${investigationRuns.lockVersion} = ${input.expectedLockVersion + 1}
+      `),
+      ...input.auditEvents.map((event) => db.insert(auditEvents).select(sql`
+          SELECT
+            ${event.id}, ${event.runId}, ${event.proposedActionId}, ${event.approvalId},
+            ${event.toolCallId}, ${event.type}, ${event.actor},
+            ${JSON.stringify(event.details)}, ${event.createdAt}
+          FROM ${actionCompletions}
+          WHERE ${actionCompletions.id} = ${completion.id}
+        `)),
+      db.insert(investigationTraceEvents).select(sql`
+        SELECT
+          ${input.traceEvent.id}, ${input.traceEvent.runId}, ${input.traceEvent.iterationId},
+          ${input.traceEvent.sequence}, ${input.traceEvent.type}, ${input.traceEvent.actor},
+          ${input.traceEvent.publicSummary}, ${JSON.stringify(input.traceEvent.details)},
+          ${input.traceEvent.createdAt}
+        FROM ${actionCompletions}
+        WHERE ${actionCompletions.id} = ${completion.id}
+      `),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null, updatedAt: completion.createdAt })
+        .where(and(
+          eq(investigationRuns.id, completion.runId),
+          eq(investigationRuns.activeIterationId, guardToken),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion + 1),
+        )),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async commitVerificationAttempt(input: VerificationAttemptCommit) {
+    const db = await this.dbProvider();
+    const verification = input.verificationRun;
+    const policy = input.policySnapshot;
+    if (
+      policy.verificationRunId !== verification.id
+      || policy.runId !== verification.runId
+      || policy.anchorAt !== verification.anchorAt
+      || !policy.metricKey.trim()
+      || (verification.anchorType === "OBSERVE_DIAGNOSIS"
+        ? verification.actionCompletionId !== null
+        : verification.actionCompletionId === null)
+    ) return false;
+    const guardToken = `VERIFICATION_ATTEMPT:${verification.id}`;
+    const currentDiagnosisStillValid = exists(
+      db.select({ id: diagnoses.id })
+        .from(diagnoses)
+        .where(and(
+          eq(diagnoses.id, verification.diagnosisId),
+          eq(diagnoses.runId, verification.runId),
+          eq(diagnoses.groundingStatus, "GROUNDED"),
+          eq(diagnoses.revision, input.expectedDiagnosisRevision),
+        )),
+    );
+    const noActiveVerification = notExists(
+      db.select({ id: verificationRuns.id })
+        .from(verificationRuns)
+        .where(and(
+          eq(verificationRuns.runId, verification.runId),
+          sql`${verificationRuns.status} in ('PENDING', 'WAITING_WINDOW', 'RUNNING')`,
+        )),
+    );
+    const verificationSourceStillValid = verification.anchorType === "OBSERVE_DIAGNOSIS"
+      ? exists(
+          db.select({ id: diagnoses.id })
+            .from(diagnoses)
+            .where(and(
+              eq(diagnoses.id, verification.diagnosisId),
+              eq(diagnoses.runId, verification.runId),
+              eq(diagnoses.revision, input.expectedDiagnosisRevision),
+              eq(diagnoses.disposition, "OBSERVE"),
+              eq(diagnoses.createdAt, verification.anchorAt),
+            )),
+        )
+      : exists(
+          db.select({ id: actionCompletions.id })
+            .from(actionCompletions)
+            .innerJoin(proposedActions, and(
+              eq(proposedActions.id, actionCompletions.proposedActionId),
+              eq(proposedActions.runId, actionCompletions.runId),
+            ))
+            .innerJoin(approvals, and(
+              eq(approvals.id, actionCompletions.approvalId),
+              eq(approvals.proposedActionId, proposedActions.id),
+            ))
+            .where(and(
+              eq(actionCompletions.id, verification.actionCompletionId ?? ""),
+              eq(actionCompletions.runId, verification.runId),
+              eq(actionCompletions.diagnosisId, verification.diagnosisId),
+              eq(actionCompletions.revision, input.expectedDiagnosisRevision),
+              eq(actionCompletions.effectiveAt, verification.anchorAt),
+              eq(proposedActions.diagnosisId, verification.diagnosisId),
+              eq(proposedActions.revision, input.expectedDiagnosisRevision),
+              eq(proposedActions.status, "SUCCEEDED"),
+              eq(approvals.runId, verification.runId),
+              eq(approvals.revision, input.expectedDiagnosisRevision),
+              eq(approvals.status, "APPROVED"),
+              eq(approvals.decision, "APPROVE"),
+            )),
+        );
+    const statements = [
+      db.update(investigationRuns)
+        .set({
+          activeIterationId: guardToken,
+          lockVersion: input.expectedLockVersion + 1,
+          updatedAt: verification.createdAt,
+        })
+        .where(and(
+          eq(investigationRuns.id, verification.runId),
+          eq(investigationRuns.status, "WAITING_VERIFICATION"),
+          eq(investigationRuns.currentDiagnosisRevision, input.expectedDiagnosisRevision),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion),
+          isNull(investigationRuns.activeIterationId),
+          currentDiagnosisStillValid,
+          verificationSourceStillValid,
+          noActiveVerification,
+        ))
+        .returning({ id: investigationRuns.id }),
+      db.insert(verificationRuns).select(sql`
+        SELECT
+          ${verification.id}, ${verification.runId}, ${verification.diagnosisId},
+          ${verification.actionCompletionId}, ${verification.attempt},
+          ${verification.clientRequestId}, ${verification.status}, ${verification.anchorType},
+          ${verification.anchorAt}, ${verification.createdAt}, ${verification.updatedAt},
+          ${verification.completedAt}
+        FROM ${investigationRuns}
+        WHERE ${investigationRuns.id} = ${verification.runId}
+          AND ${investigationRuns.status} = 'WAITING_VERIFICATION'
+          AND ${investigationRuns.activeIterationId} = ${guardToken}
+          AND ${investigationRuns.lockVersion} = ${input.expectedLockVersion + 1}
+      `),
+      db.insert(verificationPolicySnapshots).select(sql`
+        SELECT
+          ${policy.id}, ${policy.verificationRunId}, ${policy.runId}, ${policy.policyVersion},
+          ${policy.anchorAt}, ${policy.settlingPeriodMinutes},
+          ${policy.verificationWindowMinutes}, ${policy.metricKey},
+          ${JSON.stringify(policy.affectedFilters)}, ${policy.controlFilters === null
+            ? null
+            : JSON.stringify(policy.controlFilters)}, ${policy.minimumSampleSize},
+          ${policy.requiredConsecutiveBuckets}, ${policy.metricRecoveryThreshold},
+          ${policy.feedbackTrendThreshold}, ${policy.createdAt}
+        FROM ${verificationRuns}
+        WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.insert(auditEvents).select(sql`
+        SELECT
+          ${input.auditEvent.id}, ${input.auditEvent.runId},
+          ${input.auditEvent.proposedActionId}, ${input.auditEvent.approvalId},
+          ${input.auditEvent.toolCallId}, ${input.auditEvent.type}, ${input.auditEvent.actor},
+          ${JSON.stringify(input.auditEvent.details)}, ${input.auditEvent.createdAt}
+        FROM ${verificationRuns}
+        WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.insert(investigationTraceEvents).select(sql`
+        SELECT
+          ${input.traceEvent.id}, ${input.traceEvent.runId}, ${input.traceEvent.iterationId},
+          ${input.traceEvent.sequence}, ${input.traceEvent.type}, ${input.traceEvent.actor},
+          ${input.traceEvent.publicSummary}, ${JSON.stringify(input.traceEvent.details)},
+          ${input.traceEvent.createdAt}
+        FROM ${verificationRuns}
+        WHERE ${verificationRuns.id} = ${verification.id}
+      `),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null, updatedAt: verification.createdAt })
+        .where(and(
+          eq(investigationRuns.id, verification.runId),
+          eq(investigationRuns.activeIterationId, guardToken),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion + 1),
+        )),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
   async recordRuntimeCommand(input: {
     id: string;
     runId: string;
@@ -990,6 +1298,9 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       diagnosisClaimLinkRows,
       diagnosisLinkRows,
       snapshotRows,
+      actionCompletionRows,
+      verificationRunRows,
+      verificationPolicyRows,
     ] = await Promise.all([
       db.select().from(toolCalls).where(eq(toolCalls.runId, run.id)).orderBy(asc(toolCalls.orderIndex)),
       db.select().from(toolResults).where(eq(toolResults.runId, run.id)),
@@ -1007,6 +1318,9 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       db.select().from(diagnosisClaimEvidenceLinks).where(eq(diagnosisClaimEvidenceLinks.runId, run.id)).orderBy(asc(diagnosisClaimEvidenceLinks.createdAt)),
       db.select().from(diagnosisEvidenceLinks).where(eq(diagnosisEvidenceLinks.runId, run.id)).orderBy(asc(diagnosisEvidenceLinks.createdAt)),
       db.select().from(approvalSnapshots).where(eq(approvalSnapshots.runId, run.id)).orderBy(asc(approvalSnapshots.revision)),
+      db.select().from(actionCompletions).where(eq(actionCompletions.runId, run.id)).orderBy(asc(actionCompletions.createdAt)),
+      db.select().from(verificationRuns).where(eq(verificationRuns.runId, run.id)).orderBy(asc(verificationRuns.attempt)),
+      db.select().from(verificationPolicySnapshots).where(eq(verificationPolicySnapshots.runId, run.id)).orderBy(asc(verificationPolicySnapshots.createdAt)),
     ]);
     const [riskEvent, release] = await Promise.all([
       run.riskEventId ? analytics.getRiskEvent(run.riskEventId) : null,
@@ -1041,6 +1355,9 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       diagnosisClaimEvidenceLinks: diagnosisClaimLinkRows.map(mapDiagnosisClaimEvidenceLink),
       diagnosisEvidenceLinks: diagnosisLinkRows.map(mapDiagnosisLink),
       approvalSnapshots: snapshotRows.map(mapApprovalSnapshot),
+      actionCompletions: actionCompletionRows.map(mapActionCompletion),
+      verificationRuns: verificationRunRows.map(mapVerificationRun),
+      verificationPolicySnapshots: verificationPolicyRows.map(mapVerificationPolicySnapshot),
     };
   }
 }

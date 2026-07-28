@@ -43,8 +43,12 @@ export async function submitInvestigationMessage(
 ) {
   let aggregate = await store.getAggregate(input.runId);
   if (!aggregate) throw new InvestigationChatError("RUN_NOT_FOUND", "调查不存在。", 404);
-  if (aggregate.run.status === "WAITING_VERIFICATION" || aggregate.run.status === "CLOSED_NO_ACTION") {
-    throw new InvestigationChatError("RUN_READ_ONLY", "该调查已经进入只读终态。", 409);
+  if (
+    aggregate.run.status === "WAITING_ACTION_COMPLETION"
+    || aggregate.run.status === "WAITING_VERIFICATION"
+    || aggregate.run.status === "CLOSED_NO_ACTION"
+  ) {
+    throw new InvestigationChatError("RUN_READ_ONLY", "该调查当前处于只读阶段，不能继续调查。", 409);
   }
   if (aggregate.run.status === "WAITING_APPROVAL" && input.intent !== "EXPLAIN") {
     throw new InvestigationChatError(

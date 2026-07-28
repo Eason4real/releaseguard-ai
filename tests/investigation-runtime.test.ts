@@ -23,15 +23,22 @@ import type {
   InvestigationPlanner,
   PlannerContext,
 } from "../lib/investigation/planner";
-import { assertRunTransition } from "../lib/investigation/state";
+import {
+  assertGenericRunTransition,
+  assertRunTransition,
+} from "../lib/investigation/state";
 import { POST as githubIssueRoute } from "../app/api/github-issue/route";
 import { handleInvestigatePost } from "../app/api/investigate/route";
 import type { RunTransitionPatch } from "../lib/investigation/store";
 import {
   assertGroundedFinalizationCommit,
   type GroundedFinalizationCommit,
-  type Phase3InvestigationStore,
 } from "../lib/investigation/phase3-store";
+import type {
+  ActionCompletionCommit,
+  Phase4InvestigationStore,
+  VerificationAttemptCommit,
+} from "../lib/investigation/phase4-store";
 import type {
   Approval,
   AuditEvent,
@@ -47,11 +54,14 @@ import type {
   ToolResult,
   AgentIteration,
   ApprovalSnapshot,
+  ActionCompletion,
   DiagnosisEvidenceLink,
   Hypothesis,
   HypothesisEvidenceLink,
   InvestigationMessage,
   InvestigationTraceEvent,
+  VerificationPolicySnapshot,
+  VerificationRun,
 } from "../lib/investigation/types";
 import {
   ensureAndroid730RiskEvent,
@@ -67,8 +77,18 @@ import {
   InMemoryIncidentRetriever,
 } from "../lib/retrieval/local-retrievers";
 import { calculateHypothesisConfidence } from "../lib/investigation/confidence";
+import {
+  confirmActionCompletion,
+  createVerificationAttempt,
+  listVerificationHistory,
+} from "../lib/investigation/verification-runtime";
+import { handleActionCompletionPost } from "../app/api/investigations/[runId]/action-completion/route";
+import {
+  handleVerificationGet,
+  handleVerificationPost,
+} from "../app/api/investigations/[runId]/verifications/route";
 
-class MemoryStore implements Phase3InvestigationStore {
+class MemoryStore implements Phase4InvestigationStore {
   analytics = new MemoryAnalyticsStore();
   runs = new Map<string, InvestigationRun>();
   calls = new Map<string, ToolCall>();
@@ -87,9 +107,14 @@ class MemoryStore implements Phase3InvestigationStore {
   messages = new Map<string, InvestigationMessage>();
   diagnosisLinks = new Map<string, DiagnosisEvidenceLink>();
   snapshots = new Map<string, ApprovalSnapshot>();
+  actionCompletions = new Map<string, ActionCompletion>();
+  verificationRuns = new Map<string, VerificationRun>();
+  verificationPolicies = new Map<string, VerificationPolicySnapshot>();
   commands = new Set<string>();
   failNextEvidenceAssessmentCommit = false;
   lastGroundedFinalizationInput: GroundedFinalizationCommit | null = null;
+  lastActionCompletionInput: ActionCompletionCommit | null = null;
+  lastVerificationAttemptInput: VerificationAttemptCommit | null = null;
   failNextGroundedFinalizationAt: null | "DIAGNOSIS" | "ACTION" | "APPROVAL"
     | "SNAPSHOT" | "TOOL_CALL" | "AUDIT" | "RUN_TRANSITION" = null;
 
@@ -100,7 +125,7 @@ class MemoryStore implements Phase3InvestigationStore {
   async transitionRun(runId: string, to: InvestigationRunStatus, patch: RunTransitionPatch = {}) {
     const run = this.runs.get(runId);
     if (!run) throw new Error("Run not found");
-    assertRunTransition(run.status, to);
+    assertGenericRunTransition(run.status, to);
     const now = new Date().toISOString();
     this.runs.set(runId, { ...run, ...patch, status: to, updatedAt: now });
     const event: AuditEvent = {
@@ -460,6 +485,142 @@ class MemoryStore implements Phase3InvestigationStore {
     return true;
   }
 
+  async commitActionCompletion(input: ActionCompletionCommit) {
+    const completion = input.completion;
+    const run = this.runs.get(completion.runId);
+    const diagnosis = this.diagnoses.get(completion.diagnosisId);
+    const action = this.actions.get(completion.proposedActionId);
+    const approval = this.approvals.get(completion.approvalId);
+    const call = [...this.calls.values()].find((item) =>
+      item.proposedActionId === completion.proposedActionId
+      && item.approvalId === completion.approvalId);
+    if (
+      !run
+      || run.status !== "WAITING_ACTION_COMPLETION"
+      || run.activeIterationId !== null
+      || run.lockVersion !== input.expectedLockVersion
+      || run.currentDiagnosisRevision !== completion.revision
+      || !diagnosis
+      || diagnosis.runId !== completion.runId
+      || diagnosis.revision !== completion.revision
+      || diagnosis.groundingStatus !== "GROUNDED"
+      || !action
+      || action.status !== "SUCCEEDED"
+      || action.diagnosisId !== diagnosis.id
+      || action.revision !== completion.revision
+      || !approval
+      || approval.status !== "APPROVED"
+      || approval.decision !== "APPROVE"
+      || approval.proposedActionId !== action.id
+      || approval.revision !== completion.revision
+      || !call
+      || call.status !== "SUCCESS"
+      || call.completedAt !== input.expectedActionCompletedAt
+      || [...this.actionCompletions.values()].some((item) =>
+        item.runId === completion.runId
+        && (item.clientRequestId === completion.clientRequestId
+          || item.proposedActionId === completion.proposedActionId))
+    ) return false;
+
+    const completions = structuredClone(this.actionCompletions);
+    const audits = structuredClone(this.audits);
+    const traces = structuredClone(this.traces);
+    const runs = structuredClone(this.runs);
+    completions.set(completion.id, structuredClone(completion));
+    input.auditEvents.forEach((event) => audits.set(event.id, structuredClone(event)));
+    traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    runs.set(run.id, {
+      ...run,
+      status: "WAITING_VERIFICATION",
+      activeIterationId: null,
+      lockVersion: input.expectedLockVersion + 1,
+      completedAt: null,
+      updatedAt: completion.createdAt,
+    });
+    this.actionCompletions = completions;
+    this.audits = audits;
+    this.traces = traces;
+    this.runs = runs;
+    this.lastActionCompletionInput = structuredClone(input);
+    return true;
+  }
+
+  async commitVerificationAttempt(input: VerificationAttemptCommit) {
+    const verification = input.verificationRun;
+    const run = this.runs.get(verification.runId);
+    const diagnosis = this.diagnoses.get(verification.diagnosisId);
+    const completion = verification.actionCompletionId
+      ? this.actionCompletions.get(verification.actionCompletionId)
+      : null;
+    const action = completion ? this.actions.get(completion.proposedActionId) : null;
+    const approval = completion ? this.approvals.get(completion.approvalId) : null;
+    const sourceValid = verification.anchorType === "OBSERVE_DIAGNOSIS"
+      ? verification.actionCompletionId === null
+        && diagnosis?.disposition === "OBSERVE"
+        && diagnosis.createdAt === verification.anchorAt
+      : Boolean(
+          completion
+          && completion.runId === verification.runId
+          && completion.diagnosisId === verification.diagnosisId
+          && completion.revision === input.expectedDiagnosisRevision
+          && completion.effectiveAt === verification.anchorAt
+          && action?.diagnosisId === verification.diagnosisId
+          && action.revision === input.expectedDiagnosisRevision
+          && action.status === "SUCCEEDED"
+          && approval?.proposedActionId === action.id
+          && approval.revision === input.expectedDiagnosisRevision
+          && approval.status === "APPROVED"
+          && approval.decision === "APPROVE",
+        );
+    const hasActive = [...this.verificationRuns.values()].some((item) =>
+      item.runId === verification.runId
+      && ["PENDING", "WAITING_WINDOW", "RUNNING"].includes(item.status));
+    const duplicate = [...this.verificationRuns.values()].some((item) =>
+      item.runId === verification.runId
+      && (item.clientRequestId === verification.clientRequestId
+        || item.attempt === verification.attempt));
+    if (
+      !run
+      || run.status !== "WAITING_VERIFICATION"
+      || run.activeIterationId !== null
+      || run.lockVersion !== input.expectedLockVersion
+      || run.currentDiagnosisRevision !== input.expectedDiagnosisRevision
+      || !diagnosis
+      || diagnosis.runId !== verification.runId
+      || diagnosis.revision !== input.expectedDiagnosisRevision
+      || diagnosis.groundingStatus !== "GROUNDED"
+      || input.policySnapshot.verificationRunId !== verification.id
+      || input.policySnapshot.runId !== verification.runId
+      || input.policySnapshot.anchorAt !== verification.anchorAt
+      || !input.policySnapshot.metricKey.trim()
+      || !sourceValid
+      || hasActive
+      || duplicate
+    ) return false;
+
+    const verificationRuns = structuredClone(this.verificationRuns);
+    const policies = structuredClone(this.verificationPolicies);
+    const audits = structuredClone(this.audits);
+    const traces = structuredClone(this.traces);
+    const runs = structuredClone(this.runs);
+    verificationRuns.set(verification.id, structuredClone(verification));
+    policies.set(input.policySnapshot.id, structuredClone(input.policySnapshot));
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    runs.set(run.id, {
+      ...run,
+      lockVersion: input.expectedLockVersion + 1,
+      updatedAt: verification.createdAt,
+    });
+    this.verificationRuns = verificationRuns;
+    this.verificationPolicies = policies;
+    this.audits = audits;
+    this.traces = traces;
+    this.runs = runs;
+    this.lastVerificationAttemptInput = structuredClone(input);
+    return true;
+  }
+
   async recordRuntimeCommand(input: {
     id: string;
     runId: string;
@@ -576,6 +737,15 @@ class MemoryStore implements Phase3InvestigationStore {
       approvalSnapshots: structuredClone([...this.snapshots.values()]
         .filter((item) => item.runId === runId)
         .sort((left, right) => left.revision - right.revision)),
+      actionCompletions: structuredClone([...this.actionCompletions.values()]
+        .filter((item) => item.runId === runId)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))),
+      verificationRuns: structuredClone([...this.verificationRuns.values()]
+        .filter((item) => item.runId === runId)
+        .sort((left, right) => left.attempt - right.attempt)),
+      verificationPolicySnapshots: structuredClone([...this.verificationPolicies.values()]
+        .filter((item) => item.runId === runId)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))),
     };
   }
 
@@ -628,6 +798,56 @@ const fixture = () => runFixtureInvestigation(
   new MemoryStore(),
   "为什么 Android 7.3.0 发布后，优惠券领取成功率突然下降？",
 );
+
+async function executedFixtureAction(store = new MemoryStore()) {
+  const initial = await runFixtureInvestigation(store, "P4.3A action completion case");
+  const actionId = initial.proposedAction!.id;
+  await decideProposedAction(store, {
+    runId: initial.run.id,
+    proposedActionId: actionId,
+    decision: "APPROVE",
+    reason: "批准创建受控工作项",
+    targetOwner: "example",
+    targetRepo: "releaseguard-demo",
+  });
+  let githubCalls = 0;
+  await executeApprovedGithubAction(store, {
+    runId: initial.run.id,
+    proposedActionId: actionId,
+    token: "test-token",
+  }, async (_input, init) => {
+    githubCalls += 1;
+    if (!init?.method) return Response.json([]);
+    return Response.json({
+      number: 93,
+      title: "[P1] ReleaseGuard follow-up",
+      html_url: "https://github.com/example/releaseguard-demo/issues/93",
+      created_at: "2026-07-28T01:00:00.000Z",
+    }, { status: 201 });
+  });
+  const aggregate = (await store.getAggregate(initial.run.id))!;
+  const actionCall = aggregate.toolCalls.find((item) => item.proposedActionId === actionId)!;
+  return { store, aggregate, actionId, actionCall, githubCalls };
+}
+
+const afterInstant = (value: string, milliseconds = 1_000) =>
+  new Date(Date.parse(value) + milliseconds).toISOString();
+
+async function completedFixtureAction(clientRequestId = `completion-${crypto.randomUUID()}`) {
+  const executed = await executedFixtureAction();
+  const completion = await confirmActionCompletion(executed.store, {
+    runId: executed.aggregate.run.id,
+    clientRequestId,
+    effectiveAt: afterInstant(executed.actionCall.completedAt!),
+    changeReference: "deploy/releaseguard-2026-07-28",
+    note: "变更已完成发布。",
+  });
+  return {
+    ...executed,
+    completion,
+    aggregate: (await executed.store.getAggregate(executed.aggregate.run.id))!,
+  };
+}
 
 const hypothesis = (
   runId: string,
@@ -827,6 +1047,18 @@ function groundedFinalizeDecision(
   };
 }
 
+async function observedGroundedInvestigation() {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.disposition = "OBSERVE";
+  const aggregate = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: setup.store.analytics,
+  });
+  return { ...setup, aggregate: aggregate! };
+}
+
 test("Android fixture creates a persisted Approval and waiting Action ToolCall", async () => {
   const store = new MemoryStore();
   const aggregate = await runFixtureInvestigation(
@@ -921,7 +1153,7 @@ test("POST /api/investigate instantiates DeterministicPlanner and completes the 
   assert.ok(payload.investigation.approval);
 });
 
-test("Case A: approve executes the frozen action and reaches WAITING_VERIFICATION", async () => {
+test("Case A: approve executes the frozen action and reaches WAITING_ACTION_COMPLETION", async () => {
   const store = new MemoryStore();
   const initial = await runFixtureInvestigation(store, "Android case");
   const actionId = initial.proposedAction!.id;
@@ -954,7 +1186,8 @@ test("Case A: approve executes the frozen action and reaches WAITING_VERIFICATIO
   assert.equal(calls, 2);
 
   const completed = await store.getAggregate(initial.run.id);
-  assert.equal(completed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(completed?.run.status, "WAITING_ACTION_COMPLETION");
+  assert.equal(completed?.run.completedAt, null);
   assert.equal(completed?.approval?.status, "APPROVED");
   assert.equal(completed?.proposedAction?.status, "SUCCEEDED");
   const actionCall = completed?.toolCalls.find((call) => call.proposedActionId === actionId);
@@ -973,6 +1206,644 @@ test("Case A: approve executes the frozen action and reaches WAITING_VERIFICATIO
       error instanceof RuntimeRequestError && error.code === "ACTION_ALREADY_EXECUTED",
   );
   assert.equal(calls, 2, "replayed execution must not call GitHub again");
+});
+
+test("P4.3A confirms Action completion and atomically enters WAITING_VERIFICATION", async () => {
+  const executed = await executedFixtureAction();
+  const completion = await confirmActionCompletion(executed.store, {
+    runId: executed.aggregate.run.id,
+    clientRequestId: "action-completion-success",
+    effectiveAt: afterInstant(executed.actionCall.completedAt!),
+    changeReference: "deploy/android-7.3.0-hotfix",
+    note: "生产发布已完成。",
+  });
+  const completed = await executed.store.getAggregate(executed.aggregate.run.id);
+  assert.equal(completed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(completed?.run.completedAt, null);
+  assert.equal(completed?.actionCompletions.length, 1);
+  assert.equal(completed?.actionCompletions[0].id, completion.id);
+  assert.equal(completion.confirmedBy, "Product Manager · Workspace Owner");
+  assert.ok(completed?.auditEvents.some((event) =>
+    event.type === "ACTION_COMPLETION_CONFIRMED"));
+  assert.ok(completed?.auditEvents.some((event) =>
+    event.type === "RUN_STATE_CHANGED"
+    && event.details.from === "WAITING_ACTION_COMPLETION"
+    && event.details.to === "WAITING_VERIFICATION"));
+  assert.ok(completed?.traceEvents.some((event) =>
+    event.type === "ACTION_COMPLETION_CONFIRMED"));
+});
+
+test("P4.3A generic transition cannot bypass ActionCompletion", async () => {
+  const executed = await executedFixtureAction();
+  await assert.rejects(
+    executed.store.transitionRun(executed.aggregate.run.id, "WAITING_VERIFICATION"),
+    /Protected InvestigationRun transition requires commitActionCompletion/,
+  );
+  const blocked = await executed.store.getAggregate(executed.aggregate.run.id);
+  assert.equal(blocked?.run.status, "WAITING_ACTION_COMPLETION");
+  assert.equal(blocked?.actionCompletions.length, 0);
+
+  await confirmActionCompletion(executed.store, {
+    runId: executed.aggregate.run.id,
+    clientRequestId: "completion-after-protected-transition",
+    effectiveAt: afterInstant(executed.actionCall.completedAt!),
+    changeReference: "deploy/protected-transition",
+  });
+  const completed = await executed.store.getAggregate(executed.aggregate.run.id);
+  assert.equal(completed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(completed?.actionCompletions.length, 1);
+  assert.doesNotThrow(() =>
+    assertGenericRunTransition("RUNNING", "WAITING_VERIFICATION"));
+});
+
+test("P4.3A rejects completion without successful Action or approved revision", async () => {
+  const approvedStore = new MemoryStore();
+  const approved = await runFixtureInvestigation(approvedStore, "approved but not executed");
+  await decideProposedAction(approvedStore, {
+    runId: approved.run.id,
+    proposedActionId: approved.proposedAction!.id,
+    decision: "APPROVE",
+    targetOwner: "example",
+    targetRepo: "releaseguard-demo",
+  });
+  const approvedRun = approvedStore.runs.get(approved.run.id)!;
+  approvedStore.runs.set(approvedRun.id, {
+    ...approvedRun,
+    status: "WAITING_ACTION_COMPLETION",
+  });
+  await assert.rejects(
+    confirmActionCompletion(approvedStore, {
+      runId: approved.run.id,
+      clientRequestId: "completion-without-success",
+      effectiveAt: new Date().toISOString(),
+      changeReference: "deploy/not-executed",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "ACTION_COMPLETION_CONTEXT_INVALID",
+  );
+
+  const unapprovedStore = new MemoryStore();
+  const unapproved = await runFixtureInvestigation(unapprovedStore, "unapproved completion");
+  const unapprovedRun = unapprovedStore.runs.get(unapproved.run.id)!;
+  const unapprovedAction = unapprovedStore.actions.get(unapproved.proposedAction!.id)!;
+  unapprovedStore.runs.set(unapprovedRun.id, {
+    ...unapprovedRun,
+    status: "WAITING_ACTION_COMPLETION",
+  });
+  unapprovedStore.actions.set(unapprovedAction.id, {
+    ...unapprovedAction,
+    status: "SUCCEEDED",
+  });
+  await assert.rejects(
+    confirmActionCompletion(unapprovedStore, {
+      runId: unapproved.run.id,
+      clientRequestId: "completion-without-approval",
+      effectiveAt: new Date().toISOString(),
+      changeReference: "deploy/unapproved",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "ACTION_COMPLETION_CONTEXT_INVALID",
+  );
+});
+
+test("P4.3A rejects stale revision and effectiveAt before Action completion", async () => {
+  const stale = await executedFixtureAction();
+  const staleRun = stale.store.runs.get(stale.aggregate.run.id)!;
+  stale.store.runs.set(staleRun.id, {
+    ...staleRun,
+    currentDiagnosisRevision: staleRun.currentDiagnosisRevision + 1,
+  });
+  await assert.rejects(
+    confirmActionCompletion(stale.store, {
+      runId: stale.aggregate.run.id,
+      clientRequestId: "stale-completion",
+      effectiveAt: afterInstant(stale.actionCall.completedAt!),
+      changeReference: "deploy/stale",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "CURRENT_GROUNDED_DIAGNOSIS_REQUIRED",
+  );
+
+  const early = await executedFixtureAction();
+  await assert.rejects(
+    confirmActionCompletion(early.store, {
+      runId: early.aggregate.run.id,
+      clientRequestId: "early-completion",
+      effectiveAt: afterInstant(early.actionCall.completedAt!, -60_000),
+      changeReference: "deploy/too-early",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "EFFECTIVE_AT_BEFORE_ACTION",
+  );
+});
+
+test("P4.3A Action completion is idempotent, concurrent-safe, and never re-executes GitHub", async () => {
+  const sequential = await executedFixtureAction();
+  const input = {
+    runId: sequential.aggregate.run.id,
+    clientRequestId: "completion-idempotent",
+    effectiveAt: afterInstant(sequential.actionCall.completedAt!),
+    changeReference: "deploy/idempotent",
+  };
+  const first = await confirmActionCompletion(sequential.store, input);
+  const replay = await confirmActionCompletion(sequential.store, input);
+  assert.equal(replay.id, first.id);
+  assert.equal(sequential.store.actionCompletions.size, 1);
+  assert.equal(sequential.githubCalls, 2);
+
+  const concurrent = await executedFixtureAction();
+  const attempts = await Promise.allSettled([
+    confirmActionCompletion(concurrent.store, {
+      runId: concurrent.aggregate.run.id,
+      clientRequestId: "completion-race-a",
+      effectiveAt: afterInstant(concurrent.actionCall.completedAt!),
+      changeReference: "deploy/race-a",
+    }),
+    confirmActionCompletion(concurrent.store, {
+      runId: concurrent.aggregate.run.id,
+      clientRequestId: "completion-race-b",
+      effectiveAt: afterInstant(concurrent.actionCall.completedAt!),
+      changeReference: "deploy/race-b",
+    }),
+  ]);
+  assert.equal(attempts.filter((item) => item.status === "fulfilled").length, 1);
+  assert.equal(attempts.filter((item) => item.status === "rejected").length, 1);
+  assert.equal(concurrent.store.actionCompletions.size, 1);
+  assert.equal((await concurrent.store.getAggregate(concurrent.aggregate.run.id))?.run.status,
+    "WAITING_VERIFICATION");
+  assert.equal(concurrent.githubCalls, 2);
+});
+
+test("P4.3A Action verification uses effectiveAt and freezes server policy", async () => {
+  const completed = await completedFixtureAction("completion-for-verification");
+  const result = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-action-1",
+  });
+  assert.equal(result.verificationRun.anchorType, "ACTION_COMPLETION");
+  assert.equal(result.verificationRun.anchorAt, completed.completion.effectiveAt);
+  assert.equal(result.verificationRun.actionCompletionId, completed.completion.id);
+  assert.ok(["PENDING", "WAITING_WINDOW"].includes(result.verificationRun.status));
+  assert.equal(result.policySnapshot.anchorAt, completed.completion.effectiveAt);
+  assert.equal(result.policySnapshot.policyVersion, "P4.3A_V1");
+  assert.equal(result.policySnapshot.metricKey, completed.aggregate.riskEvent?.metricKey);
+  assert.deepEqual(result.policySnapshot.affectedFilters,
+    completed.aggregate.riskEvent?.filters);
+  assert.equal(result.policySnapshot.controlFilters, null);
+  assert.notEqual(result.policySnapshot.metricKey,
+    completed.aggregate.diagnosis?.affectedMetrics[0]);
+  assert.equal(result.policySnapshot.minimumSampleSize,
+    completed.aggregate.riskEvent?.minSampleSize);
+  const persisted = (await completed.store.getAggregate(completed.aggregate.run.id))!;
+  const audit = persisted.auditEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  const trace = persisted.traceEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  assert.equal(audit?.proposedActionId, completed.aggregate.proposedAction?.id);
+  assert.equal(audit?.approvalId, completed.aggregate.approval?.id);
+  assert.equal(audit?.details.actionCompletionId, completed.completion.id);
+  assert.equal(trace?.details.actionCompletionId, completed.completion.id);
+});
+
+test("P4.3A OBSERVE verification needs no ActionCompletion and anchors to Diagnosis", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.disposition = "OBSERVE";
+  const observed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: setup.store.analytics,
+  });
+  const result = await createVerificationAttempt(setup.store, {
+    runId: setup.runId,
+    clientRequestId: "verification-observe-1",
+  });
+  assert.equal(observed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(observed?.actionCompletions.length, 0);
+  assert.equal(observed?.proposedActions.length, 0);
+  assert.equal(observed?.approvals.length, 0);
+  assert.equal(result.verificationRun.anchorType, "OBSERVE_DIAGNOSIS");
+  assert.equal(result.verificationRun.anchorAt, observed?.diagnosis?.createdAt);
+  assert.equal(result.verificationRun.actionCompletionId, null);
+  assert.deepEqual(result.policySnapshot.affectedFilters, observed?.riskEvent?.filters);
+});
+
+test("P4.3A OBSERVE revision ignores a superseded Action from the previous revision", async () => {
+  const store = new MemoryStore();
+  const first = await runFixtureInvestigation(store, "OBSERVE revision after superseded Action");
+  await continueInvestigation(store, {
+    runId: first.run.id,
+    clientRequestId: "verification-observe-revision-continue",
+    reason: "新证据表明无需外部 Action，改为持续观察。",
+  });
+  const reopened = (await store.getAggregate(first.run.id))!;
+  const decision = groundedFinalizeDecision(reopened);
+  decision.disposition = "OBSERVE";
+  const observed = await runAgentLoop(store, {
+    runId: first.run.id,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: store.analytics,
+  });
+
+  assert.equal(observed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(observed?.proposedActions.length, 1);
+  assert.equal(observed?.proposedAction?.status, "SUPERSEDED");
+  assert.equal(observed?.diagnosis?.disposition, "OBSERVE");
+  const result = await createVerificationAttempt(store, {
+    runId: first.run.id,
+    clientRequestId: "verification-observe-revision-1",
+  });
+  assert.equal(result.verificationRun.anchorType, "OBSERVE_DIAGNOSIS");
+  assert.equal(result.verificationRun.anchorAt, observed?.diagnosis?.createdAt);
+  assert.equal(result.verificationRun.actionCompletionId, null);
+  const persisted = (await store.getAggregate(first.run.id))!;
+  const audit = persisted.auditEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  const trace = persisted.traceEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  assert.equal(audit?.proposedActionId, null);
+  assert.equal(audit?.approvalId, null);
+  assert.equal(audit?.details.actionCompletionId, null);
+  assert.equal(trace?.details.proposedActionId, null);
+  assert.equal(trace?.details.approvalId, null);
+  assert.equal(trace?.details.actionCompletionId, null);
+  assert.ok(persisted.proposedActions.some((item) => item.id === first.proposedAction?.id));
+  assert.ok(persisted.approvals.some((item) => item.id === first.approval?.id));
+});
+
+test("P4.3A Action verification binds only the current Diagnosis revision", async () => {
+  const store = new MemoryStore();
+  const first = await runFixtureInvestigation(store, "Action revision source context");
+  await continueInvestigation(store, {
+    runId: first.run.id,
+    clientRequestId: "verification-action-revision-continue",
+    reason: "补充证据后生成新的 Action revision。",
+  });
+  const second = await submitInvestigationMessage(store, {
+    runId: first.run.id,
+    clientRequestId: "verification-action-revision-hypothesis",
+    intent: "ADD_HYPOTHESIS",
+    content: "异常可能主要集中在 Android 7.3.0 新用户。",
+    planner: new DeterministicInvestigationPlanner(),
+    analytics: store.analytics,
+  });
+  assert.equal(second?.diagnosis?.revision, 2);
+  assert.notEqual(second?.proposedAction?.id, first.proposedAction?.id);
+  const event = store.analytics.events.get(second!.riskEvent!.id)!;
+  store.analytics.events.set(event.id, {
+    ...event,
+    filters: { ...event.filters, userType: "NEW" },
+  });
+  await decideProposedAction(store, {
+    runId: first.run.id,
+    proposedActionId: second!.proposedAction!.id,
+    decision: "APPROVE",
+    targetOwner: "example",
+    targetRepo: "releaseguard-demo",
+  });
+  await executeApprovedGithubAction(store, {
+    runId: first.run.id,
+    proposedActionId: second!.proposedAction!.id,
+    token: "test-token",
+  }, async (_input, init) => {
+    if (!init?.method) return Response.json([]);
+    return Response.json({
+      number: 94,
+      title: "Revision 2 follow-up",
+      html_url: "https://github.com/example/releaseguard-demo/issues/94",
+      created_at: "2026-07-28T02:00:00.000Z",
+    }, { status: 201 });
+  });
+  const executed = (await store.getAggregate(first.run.id))!;
+  const actionCall = executed.toolCalls.find((item) =>
+    item.proposedActionId === second!.proposedAction!.id)!;
+  const completion = await confirmActionCompletion(store, {
+    runId: first.run.id,
+    clientRequestId: "completion-action-revision-2",
+    effectiveAt: afterInstant(actionCall.completedAt!),
+    changeReference: "deploy/revision-2",
+  });
+  await createVerificationAttempt(store, {
+    runId: first.run.id,
+    clientRequestId: "verification-action-revision-2",
+  });
+  const persisted = (await store.getAggregate(first.run.id))!;
+  const audit = persisted.auditEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  const trace = persisted.traceEvents.find((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED");
+  assert.equal(completion.revision, 2);
+  assert.equal(audit?.proposedActionId, second?.proposedAction?.id);
+  assert.equal(audit?.approvalId, second?.approval?.id);
+  assert.equal(audit?.details.actionCompletionId, completion.id);
+  assert.equal(trace?.details.diagnosisRevision, 2);
+  assert.notEqual(audit?.proposedActionId, first.proposedAction?.id);
+  assert.notEqual(audit?.approvalId, first.approval?.id);
+});
+
+test("P4.3A gates Verification creation and enforces one active attempt", async () => {
+  const store = new MemoryStore();
+  const pending = await runFixtureInvestigation(store, "not waiting verification");
+  await assert.rejects(
+    createVerificationAttempt(store, {
+      runId: pending.run.id,
+      clientRequestId: "verification-too-early",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "RUN_NOT_WAITING_VERIFICATION",
+  );
+
+  const completed = await completedFixtureAction("completion-active-verification");
+  const first = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-active-1",
+  });
+  const replay = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-active-1",
+  });
+  assert.equal(replay.verificationRun.id, first.verificationRun.id);
+  await assert.rejects(
+    createVerificationAttempt(completed.store, {
+      runId: completed.aggregate.run.id,
+      clientRequestId: "verification-active-2",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "ACTIVE_VERIFICATION_EXISTS",
+  );
+});
+
+test("P4.3A concurrent Verification creation produces one active attempt", async () => {
+  const completed = await completedFixtureAction("completion-verification-race");
+  const results = await Promise.allSettled([
+    createVerificationAttempt(completed.store, {
+      runId: completed.aggregate.run.id,
+      clientRequestId: "verification-race-a",
+    }),
+    createVerificationAttempt(completed.store, {
+      runId: completed.aggregate.run.id,
+      clientRequestId: "verification-race-b",
+    }),
+  ]);
+  assert.equal(results.filter((item) => item.status === "fulfilled").length, 1);
+  assert.equal(results.filter((item) => item.status === "rejected").length, 1);
+  assert.equal(completed.store.verificationRuns.size, 1);
+  assert.equal(completed.store.verificationPolicies.size, 1);
+});
+
+test("P4.3A preserves completed Verification history when a later attempt is created", async () => {
+  const completed = await completedFixtureAction("completion-history");
+  const first = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-history-1",
+  });
+  const completedAt = "2026-07-28T08:00:00.000Z";
+  completed.store.verificationRuns.set(first.verificationRun.id, {
+    ...first.verificationRun,
+    status: "RESOLVED",
+    completedAt,
+    updatedAt: completedAt,
+  });
+  const immutableFirst = structuredClone(completed.store.verificationRuns.get(first.verificationRun.id));
+  const second = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-history-2",
+  });
+  assert.equal(second.verificationRun.attempt, 2);
+  assert.deepEqual(completed.store.verificationRuns.get(first.verificationRun.id), immutableFirst);
+  assert.equal((await listVerificationHistory(completed.store, completed.aggregate.run.id)).length, 2);
+});
+
+test("P4.3A API ignores client policy and target overrides", async () => {
+  const completed = await completedFixtureAction("completion-policy-api");
+  const response = await handleVerificationPost(new Request(
+    `http://localhost/api/investigations/${completed.aggregate.run.id}/verifications`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientRequestId: "verification-policy-api",
+        anchorAt: "1999-01-01T00:00:00.000Z",
+        metricKey: "attacker_metric",
+        affectedFilters: { region: "ATTACKER" },
+        controlFilters: { userType: "ATTACKER" },
+        policyVersion: "attacker-policy",
+        verificationWindowMinutes: 1,
+        minimumSampleSize: 1,
+        metricRecoveryThreshold: 0,
+      }),
+    },
+  ), completed.aggregate.run.id, completed.store);
+  const payload = await response.json() as {
+    verificationRun: VerificationRun;
+    policySnapshot: VerificationPolicySnapshot;
+  };
+  assert.equal(response.status, 200);
+  assert.equal(payload.verificationRun.anchorAt, completed.completion.effectiveAt);
+  assert.equal(payload.policySnapshot.metricKey, completed.aggregate.riskEvent?.metricKey);
+  assert.deepEqual(payload.policySnapshot.affectedFilters,
+    completed.aggregate.riskEvent?.filters);
+  assert.equal(payload.policySnapshot.controlFilters, null);
+  assert.equal(payload.policySnapshot.policyVersion, "P4.3A_V1");
+  assert.equal(payload.policySnapshot.verificationWindowMinutes, 120);
+  assert.equal(payload.policySnapshot.minimumSampleSize,
+    completed.aggregate.riskEvent?.minSampleSize);
+  assert.equal(payload.policySnapshot.metricRecoveryThreshold, 0.9);
+  const historyResponse = await handleVerificationGet(completed.aggregate.run.id, completed.store);
+  const history = await historyResponse.json() as { verifications: unknown[] };
+  assert.equal(history.verifications.length, 1);
+});
+
+test("P4.3A rejects unresolved canonical metric without partial Verification state", async () => {
+  const observed = await observedGroundedInvestigation();
+  const run = observed.store.runs.get(observed.runId)!;
+  observed.store.runs.set(run.id, { ...run, riskEventId: null });
+  for (const [id, call] of observed.store.calls) {
+    if (call.name === "query_metric" || call.name === "segment_metric") {
+      observed.store.calls.set(id, {
+        ...call,
+        arguments: { ...call.arguments, metric_key: "" },
+      });
+    }
+  }
+  for (const [id, claim] of observed.store.diagnosisClaims) {
+    if (claim.diagnosisId === observed.aggregate.diagnosis?.id
+      && claim.type === "AFFECTED_SEGMENT") {
+      observed.store.diagnosisClaims.delete(id);
+    }
+  }
+
+  await assert.rejects(
+    createVerificationAttempt(observed.store, {
+      runId: observed.runId,
+      clientRequestId: "verification-unresolved-metric",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "VERIFICATION_TARGET_UNRESOLVED",
+  );
+  assert.equal(observed.store.verificationRuns.size, 0);
+  assert.equal(observed.store.verificationPolicies.size, 0);
+  assert.equal([...observed.store.audits.values()].filter((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED").length, 0);
+});
+
+test("P4.3A rejects natural-language segment without canonical filters", async () => {
+  const observed = await observedGroundedInvestigation();
+  const run = observed.store.runs.get(observed.runId)!;
+  observed.store.runs.set(run.id, { ...run, riskEventId: null });
+  await assert.rejects(
+    createVerificationAttempt(observed.store, {
+      runId: observed.runId,
+      clientRequestId: "verification-unresolved-segment",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "VERIFICATION_TARGET_UNRESOLVED",
+  );
+  assert.equal(observed.store.verificationRuns.size, 0);
+  assert.equal(observed.store.verificationPolicies.size, 0);
+});
+
+test("P4.3A rejects a segment dimension missing from RiskEvent filters", async () => {
+  const observed = await observedGroundedInvestigation();
+  const event = observed.store.analytics.events.get(observed.aggregate.riskEvent!.id)!;
+  observed.store.analytics.events.set(event.id, {
+    ...event,
+    filters: { platform: "Android" },
+  });
+
+  await assert.rejects(
+    createVerificationAttempt(observed.store, {
+      runId: observed.runId,
+      clientRequestId: "verification-partial-segment-filters",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "VERIFICATION_TARGET_UNRESOLVED",
+  );
+  assert.equal(observed.store.verificationRuns.size, 0);
+  assert.equal(observed.store.verificationPolicies.size, 0);
+  assert.equal([...observed.store.audits.values()].filter((event) =>
+    event.type === "VERIFICATION_ATTEMPT_CREATED").length, 0);
+});
+
+test("P4.3A Verification Policy snapshot remains immutable and executable", async () => {
+  const completed = await completedFixtureAction("completion-policy-immutable");
+  const first = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-policy-immutable",
+  });
+  const frozen = structuredClone(first.policySnapshot);
+  const event = completed.store.analytics.events.get(completed.aggregate.riskEvent!.id)!;
+  completed.store.analytics.events.set(event.id, {
+    ...event,
+    metricKey: "mutated_metric",
+    filters: { region: "MUTATED" },
+    minSampleSize: 1,
+  });
+  const replay = await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-policy-immutable",
+  });
+  assert.deepEqual(replay.policySnapshot, frozen);
+  assert.equal(frozen.metricKey, completed.aggregate.riskEvent?.metricKey);
+  assert.deepEqual(frozen.affectedFilters, completed.aggregate.riskEvent?.filters);
+  assert.equal(frozen.controlFilters, null);
+  assert.deepEqual(
+    { metricKey: frozen.metricKey, filters: frozen.affectedFilters },
+    {
+      metricKey: completed.aggregate.riskEvent?.metricKey,
+      filters: completed.aggregate.riskEvent?.filters,
+    },
+  );
+});
+
+test("P4.3A action-completion API persists server actor and immutable record", async () => {
+  const executed = await executedFixtureAction();
+  const response = await handleActionCompletionPost(new Request(
+    `http://localhost/api/investigations/${executed.aggregate.run.id}/action-completion`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientRequestId: "completion-api",
+        effectiveAt: afterInstant(executed.actionCall.completedAt!),
+        changeReference: "deploy/api-confirmed",
+        note: "API confirmation",
+        confirmedBy: "attacker",
+      }),
+    },
+  ), executed.aggregate.run.id, executed.store);
+  const payload = await response.json() as { actionCompletion: ActionCompletion };
+  assert.equal(response.status, 200);
+  assert.equal(payload.actionCompletion.confirmedBy, "Product Manager · Workspace Owner");
+  assert.equal(executed.store.actionCompletions.size, 1);
+});
+
+test("P4.3A legacy Action Run never fabricates effectiveAt", async () => {
+  const legacy = await executedFixtureAction();
+  await assert.rejects(
+    legacy.store.transitionRun(legacy.aggregate.run.id, "WAITING_VERIFICATION"),
+    /Protected InvestigationRun transition requires commitActionCompletion/,
+  );
+  const run = legacy.store.runs.get(legacy.aggregate.run.id)!;
+  const diagnosis = legacy.store.diagnoses.get(legacy.aggregate.diagnosis!.id)!;
+  legacy.store.runs.set(run.id, { ...run, status: "WAITING_VERIFICATION" });
+  legacy.store.diagnoses.set(diagnosis.id, {
+    ...diagnosis,
+    groundingStatus: "LEGACY_UNVERIFIED",
+  });
+  await assert.rejects(
+    createVerificationAttempt(legacy.store, {
+      runId: legacy.aggregate.run.id,
+      clientRequestId: "legacy-verification",
+    }),
+    (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "LEGACY_ACTION_AWAITING_EFFECTIVE_TIME",
+  );
+  assert.equal(legacy.store.actionCompletions.size, 0);
+  assert.equal(legacy.store.verificationRuns.size, 0);
+});
+
+test("P4.3A D1 completion and Verification creation each use one atomic batch", async () => {
+  const completed = await completedFixtureAction("completion-d1-contract");
+  await createVerificationAttempt(completed.store, {
+    runId: completed.aggregate.run.id,
+    clientRequestId: "verification-d1-contract",
+  });
+  assert.ok(completed.store.lastActionCompletionInput);
+  assert.ok(completed.store.lastVerificationAttemptInput);
+
+  const failedClient = new AtomicBatchD1Client();
+  failedClient.failPattern = /insert into ["`]action_completions["`]/i;
+  const failedDb = drizzle(failedClient as never, { schema: dbSchema });
+  const failedStore = new D1InvestigationStore(async () => failedDb);
+  await assert.rejects(
+    failedStore.commitActionCompletion(
+      structuredClone(completed.store.lastActionCompletionInput),
+    ),
+    /INJECTED_D1_BATCH_FAILURE/,
+  );
+  assert.equal(failedClient.batchCalls, 1);
+  assert.deepEqual(failedClient.committedQueries, []);
+
+  const client = new AtomicBatchD1Client();
+  const db = drizzle(client as never, { schema: dbSchema });
+  const d1Store = new D1InvestigationStore(async () => db);
+  await d1Store.commitActionCompletion(
+    structuredClone(completed.store.lastActionCompletionInput),
+  );
+  await d1Store.commitVerificationAttempt(
+    structuredClone(completed.store.lastVerificationAttemptInput),
+  );
+  assert.equal(client.batchCalls, 2);
+  const sqlText = client.committedQueries.join("\n");
+  for (const table of [
+    "action_completions",
+    "verification_runs",
+    "verification_policy_snapshots",
+    "audit_events",
+    "investigation_trace_events",
+    "investigation_runs",
+  ]) assert.match(sqlText, new RegExp(table));
 });
 
 test("Case B: rejection is persisted and never calls GitHub", async () => {
@@ -1118,6 +1989,13 @@ test("invalid InvestigationRun transitions are rejected", () => {
   );
   assert.throws(
     () => assertRunTransition("RUNNING", "CLOSED_NO_ACTION"),
+    /Invalid InvestigationRun transition/,
+  );
+  assert.doesNotThrow(
+    () => assertRunTransition("ACTION_EXECUTING", "WAITING_ACTION_COMPLETION"),
+  );
+  assert.throws(
+    () => assertRunTransition("ACTION_EXECUTING", "WAITING_VERIFICATION"),
     /Invalid InvestigationRun transition/,
   );
   assert.throws(

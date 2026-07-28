@@ -5,7 +5,8 @@ const allowedTransitions: Record<InvestigationRunStatus, InvestigationRunStatus[
   RUNNING: ["WAITING_HUMAN_INPUT", "WAITING_APPROVAL", "WAITING_VERIFICATION", "INCONCLUSIVE", "FAILED"],
   WAITING_HUMAN_INPUT: ["RUNNING", "INCONCLUSIVE", "FAILED"],
   WAITING_APPROVAL: ["RUNNING", "ACTION_EXECUTING", "CLOSED_NO_ACTION", "FAILED"],
-  ACTION_EXECUTING: ["WAITING_VERIFICATION", "FAILED"],
+  ACTION_EXECUTING: ["WAITING_ACTION_COMPLETION", "FAILED"],
+  WAITING_ACTION_COMPLETION: ["WAITING_VERIFICATION"],
   WAITING_VERIFICATION: [],
   CLOSED_NO_ACTION: [],
   INCONCLUSIVE: [],
@@ -26,6 +27,19 @@ export function assertRunTransition(
   if (!canTransitionRun(from, to)) {
     throw new Error(`Invalid InvestigationRun transition: ${from} -> ${to}`);
   }
+}
+
+export function assertGenericRunTransition(
+  from: InvestigationRunStatus,
+  to: InvestigationRunStatus,
+) {
+  if (from === "WAITING_ACTION_COMPLETION" && to === "WAITING_VERIFICATION") {
+    throw new Error(
+      "Protected InvestigationRun transition requires commitActionCompletion: "
+      + `${from} -> ${to}`,
+    );
+  }
+  assertRunTransition(from, to);
 }
 
 export function canonicalize(value: unknown): string {

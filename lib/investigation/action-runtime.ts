@@ -318,7 +318,8 @@ export async function executeApprovedGithubAction(
     input.proposedActionId,
   );
   if (
-    context.aggregate.run.status === "WAITING_VERIFICATION"
+    (context.aggregate.run.status === "WAITING_ACTION_COMPLETION"
+      || context.aggregate.run.status === "WAITING_VERIFICATION")
     && context.action.status === "SUCCEEDED"
     && context.call.status === "SUCCESS"
     && context.call.result?.status === "SUCCESS"
@@ -421,7 +422,7 @@ export async function executeApprovedGithubAction(
       details: { ...output },
       createdAt: completedAt,
     })]);
-    await store.transitionRun(input.runId, "WAITING_VERIFICATION");
+    await store.transitionRun(input.runId, "WAITING_ACTION_COMPLETION");
     return output;
   } catch (error) {
     const runtimeError = error instanceof RuntimeRequestError

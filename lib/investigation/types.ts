@@ -4,6 +4,7 @@ export const RUN_STATUSES = [
   "WAITING_HUMAN_INPUT",
   "WAITING_APPROVAL",
   "ACTION_EXECUTING",
+  "WAITING_ACTION_COMPLETION",
   "WAITING_VERIFICATION",
   "CLOSED_NO_ACTION",
   "INCONCLUSIVE",
@@ -207,6 +208,8 @@ export type AuditEventType =
   | "ACTION_EXECUTION_STARTED"
   | "ACTION_SUCCEEDED"
   | "ACTION_FAILED"
+  | "ACTION_COMPLETION_CONFIRMED"
+  | "VERIFICATION_ATTEMPT_CREATED"
   | "APPROVAL_WITHDRAWN"
   | "INVESTIGATION_REOPENED"
   | "RUN_STATE_CHANGED";
@@ -352,6 +355,68 @@ export type ApprovalSnapshot = {
   withdrawnAt: string | null;
 };
 
+export type ActionCompletion = {
+  id: string;
+  runId: string;
+  proposedActionId: string;
+  approvalId: string;
+  diagnosisId: string;
+  revision: number;
+  clientRequestId: string;
+  effectiveAt: string;
+  changeReference: string;
+  note: string | null;
+  confirmedBy: string;
+  createdAt: string;
+};
+
+export const VERIFICATION_RUN_STATUSES = [
+  "PENDING",
+  "WAITING_WINDOW",
+  "RUNNING",
+  "RESOLVED",
+  "PARTIALLY_RESOLVED",
+  "NOT_RECOVERED",
+  "INCONCLUSIVE",
+  "FAILED",
+] as const;
+
+export type VerificationRunStatus = (typeof VERIFICATION_RUN_STATUSES)[number];
+export type VerificationAnchorType = "ACTION_COMPLETION" | "OBSERVE_DIAGNOSIS";
+
+export type VerificationRun = {
+  id: string;
+  runId: string;
+  diagnosisId: string;
+  actionCompletionId: string | null;
+  attempt: number;
+  clientRequestId: string;
+  status: VerificationRunStatus;
+  anchorType: VerificationAnchorType;
+  anchorAt: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+export type VerificationPolicySnapshot = {
+  id: string;
+  verificationRunId: string;
+  runId: string;
+  policyVersion: string;
+  anchorAt: string;
+  settlingPeriodMinutes: number;
+  verificationWindowMinutes: number;
+  metricKey: string;
+  affectedFilters: import("../analytics/types").MetricFilters;
+  controlFilters: import("../analytics/types").MetricFilters | null;
+  minimumSampleSize: number;
+  requiredConsecutiveBuckets: number;
+  metricRecoveryThreshold: number;
+  feedbackTrendThreshold: number;
+  createdAt: string;
+};
+
 export type InvestigationAggregate = {
   run: InvestigationRun;
   riskEvent: import("../analytics/types").RiskEvent | null;
@@ -374,6 +439,9 @@ export type InvestigationAggregate = {
   diagnosisClaimEvidenceLinks: DiagnosisClaimEvidenceLink[];
   diagnosisEvidenceLinks: DiagnosisEvidenceLink[];
   approvalSnapshots: ApprovalSnapshot[];
+  actionCompletions: ActionCompletion[];
+  verificationRuns: VerificationRun[];
+  verificationPolicySnapshots: VerificationPolicySnapshot[];
 };
 
 export type LegacyInvestigationResponse = {

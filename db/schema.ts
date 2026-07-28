@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const releases = sqliteTable("releases", {
@@ -377,6 +378,67 @@ export const runtimeCommands = sqliteTable("runtime_commands", {
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("runtime_commands_request_unique").on(table.runId, table.commandType, table.clientRequestId),
+]);
+
+export const actionCompletions = sqliteTable("action_completions", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  proposedActionId: text("proposed_action_id").notNull().references(() => proposedActions.id, { onDelete: "cascade" }),
+  approvalId: text("approval_id").notNull().references(() => approvals.id, { onDelete: "cascade" }),
+  diagnosisId: text("diagnosis_id").notNull().references(() => diagnoses.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  clientRequestId: text("client_request_id").notNull(),
+  effectiveAt: text("effective_at").notNull(),
+  changeReference: text("change_reference").notNull(),
+  note: text("note"),
+  confirmedBy: text("confirmed_by").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("action_completions_run_request_unique").on(table.runId, table.clientRequestId),
+  uniqueIndex("action_completions_action_unique").on(table.proposedActionId),
+  index("action_completions_run_idx").on(table.runId, table.createdAt),
+]);
+
+export const verificationRuns = sqliteTable("verification_runs", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  diagnosisId: text("diagnosis_id").notNull().references(() => diagnoses.id, { onDelete: "cascade" }),
+  actionCompletionId: text("action_completion_id").references(() => actionCompletions.id),
+  attempt: integer("attempt").notNull(),
+  clientRequestId: text("client_request_id").notNull(),
+  status: text("status").notNull(),
+  anchorType: text("anchor_type").notNull(),
+  anchorAt: text("anchor_at").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  completedAt: text("completed_at"),
+}, (table) => [
+  uniqueIndex("verification_runs_attempt_unique").on(table.runId, table.attempt),
+  uniqueIndex("verification_runs_request_unique").on(table.runId, table.clientRequestId),
+  uniqueIndex("verification_runs_active_unique").on(table.runId)
+    .where(sql`${table.status} in ('PENDING', 'WAITING_WINDOW', 'RUNNING')`),
+  index("verification_runs_history_idx").on(table.runId, table.createdAt),
+]);
+
+export const verificationPolicySnapshots = sqliteTable("verification_policy_snapshots", {
+  id: text("id").primaryKey(),
+  verificationRunId: text("verification_run_id").notNull().references(() => verificationRuns.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  policyVersion: text("policy_version").notNull(),
+  anchorAt: text("anchor_at").notNull(),
+  settlingPeriodMinutes: integer("settling_period_minutes").notNull(),
+  verificationWindowMinutes: integer("verification_window_minutes").notNull(),
+  metricKey: text("metric_key").notNull(),
+  affectedFiltersJson: text("affected_filters_json").notNull(),
+  controlFiltersJson: text("control_filters_json"),
+  minimumSampleSize: integer("minimum_sample_size").notNull(),
+  requiredConsecutiveBuckets: integer("required_consecutive_buckets").notNull(),
+  metricRecoveryThreshold: real("metric_recovery_threshold").notNull(),
+  feedbackTrendThreshold: real("feedback_trend_threshold").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("verification_policy_run_unique").on(table.verificationRunId),
+  index("verification_policy_history_idx").on(table.runId, table.createdAt),
 ]);
 
 export const feedbackRecords = sqliteTable("feedback_records", {
