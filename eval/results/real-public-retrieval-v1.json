@@ -1,0 +1,16 @@
+{
+  "corpusVersion": "real-public-postmortems-app-v1",
+  "manifestHash": "cddd2fedebb585f94427d6ffcb25da930a001ceead882151d22c0d2a3f6c1bf7",
+  "queryCount": 27,
+  "results": {
+    "BM25": { "recallAt1": 0.963, "recallAt3": 1, "recallAt5": 1, "mrr": 0.9753 },
+    "VECTOR": { "recallAt1": 0.5185, "recallAt3": 0.7778, "recallAt5": 0.8148, "mrr": 0.663 },
+    "HYBRID_RRF": { "recallAt1": 0.7407, "recallAt3": 0.8889, "recallAt5": 0.9259, "mrr": 0.8262 }
+  },
+  "provenanceCompleteness": 1,
+  "corpusLeakage": 0,
+  "falseSimilarityRate": 0,
+  "mechanismRecallAt3": 0.9259,
+  "crossCompanyRecallAt3": 0.8571,
+  "failureCaseIds": ["REAL-20", "REAL-21"]
+}

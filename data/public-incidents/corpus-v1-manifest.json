@@ -1,0 +1,1562 @@
+{
+  "schemaVersion": "2",
+  "corpusVersion": "real-public-postmortems-app-v1",
+  "createdAt": "2026-07-28T12:00:00.000Z",
+  "incidentCount": 42,
+  "companies": [
+    "Amazon",
+    "BBC Online",
+    "Buildkite",
+    "CircleCI",
+    "Cloudflare",
+    "CrowdStrike",
+    "Datadog",
+    "Fastly",
+    "FirstEnergy / General Electric",
+    "GitHub",
+    "Gitlab",
+    "Google",
+    "Honeycomb",
+    "Kickstarter",
+    "Netflix",
+    "Razorpay",
+    "Salesforce",
+    "Slack",
+    "Spotify",
+    "Square",
+    "Stackdriver",
+    "Tarsnap",
+    "Turso",
+    "WebKit code repository",
+    "Zerodha",
+    "incident.io"
+  ],
+  "mechanisms": [
+    "AUTHENTICATION_OR_PERMISSION",
+    "CACHE_FAILURE",
+    "CAPACITY_EXHAUSTION",
+    "CASCADING_FAILURE",
+    "CONFIGURATION_PROPAGATION",
+    "DATABASE_OVERLOAD",
+    "DATA_CORRUPTION_OR_LOSS",
+    "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+    "DEPLOYMENT_OR_RELEASE_REGRESSION",
+    "NETWORK_OR_DNS",
+    "OBSERVABILITY_FAILURE",
+    "QUEUE_OR_WORKER_FAILURE"
+  ],
+  "categories": [
+    "automation",
+    "cascading-failure",
+    "cloud",
+    "config-change",
+    "hardware",
+    "security"
+  ],
+  "ingestionVersion": "public-incidents-v1",
+  "snapshotVersion": "postmortems-app-snapshot-v1",
+  "sourceProvider": "POSTMORTEMS_APP",
+  "datasetLicense": {
+    "provider": "POSTMORTEMS_APP",
+    "name": "GPL-3.0",
+    "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+  },
+  "records": [
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "402733d3-31ee-4ca3-b769-0a9cdf7dd59f",
+      "sourceRecordId": "402733d3-31ee-4ca3-b769-0a9cdf7dd59f",
+      "revision": 1,
+      "title": "GitHub Actions and Codespaces outage of February 2026",
+      "company": "GitHub",
+      "incidentDate": "2026-02-02T18:35:00.000Z",
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "OBSERVABILITY_FAILURE",
+        "CONFIGURATION_PROPAGATION",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/402733d3-31ee-4ca3-b769-0a9cdf7dd59f",
+      "originalSourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-february-2026",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-february-2026"
+      },
+      "sourcePayloadHash": "3f3c185da659fcda7e8f2dd4c016c05e7b0ec091ad7bfd2b18c7c6469a6c4bb9",
+      "contentHash": "ce2342f65c635c87cb4415135972ad0f823f10f8947e69fc3ddf22f1f2535a7e",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "24be1eec-6da2-4825-853c-4b2561bdd422",
+      "sourceRecordId": "24be1eec-6da2-4825-853c-4b2561bdd422",
+      "revision": 1,
+      "title": "Cloudflare systemwide outage, November 18, 2025",
+      "company": "Cloudflare",
+      "incidentDate": "2025-11-18T11:20:00.000Z",
+      "categories": [
+        "automation",
+        "config-change"
+      ],
+      "mechanisms": [
+        "CONFIGURATION_PROPAGATION",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/24be1eec-6da2-4825-853c-4b2561bdd422",
+      "originalSourceUrl": "https://blog.cloudflare.com/18-november-2025-outage",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://blog.cloudflare.com/18-november-2025-outage"
+      },
+      "sourcePayloadHash": "fad5ae964a0dd586f980d0af1a4c8c91a7528b48122b45f13c49eb4929cd79ad",
+      "contentHash": "42e573febfc6879e367504eb517a2850599052c18d54f56a6e1bf4182079a586",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "a50e7b06-2f2c-4d13-a340-9a1e7eed59d7",
+      "sourceRecordId": "a50e7b06-2f2c-4d13-a340-9a1e7eed59d7",
+      "revision": 1,
+      "title": "Slack’s Incident on 2-22-22",
+      "company": "Slack",
+      "incidentDate": "2022-02-22T14:00:00.000Z",
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "CACHE_FAILURE",
+        "DATABASE_OVERLOAD",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/a50e7b06-2f2c-4d13-a340-9a1e7eed59d7",
+      "originalSourceUrl": "https://slack.engineering/slacks-incident-on-2-22-22",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://slack.engineering/slacks-incident-on-2-22-22"
+      },
+      "sourcePayloadHash": "f2c58559936126aa46b889e75db60a1ac36ebd5da6a455b939d8ed331c253b55",
+      "contentHash": "277930abe0bc1681b63b1d1900be214d5841432398d27c359f28832676aa767d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "f70ce67c-0944-422e-b0bd-be38f0edb0cd",
+      "sourceRecordId": "f70ce67c-0944-422e-b0bd-be38f0edb0cd",
+      "revision": 1,
+      "title": "GitLab.com database outage of January 31, 2017",
+      "company": "Gitlab",
+      "incidentDate": "2017-01-31T23:30:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change",
+        "hardware"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "DATA_CORRUPTION_OR_LOSS"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/f70ce67c-0944-422e-b0bd-be38f0edb0cd",
+      "originalSourceUrl": "https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31"
+      },
+      "sourcePayloadHash": "84aee60910a75c3b43723ce422614a96cbc0ec514fad56a57cb087807ffb49b8",
+      "contentHash": "d6a0eabcb6443a817e965381be4e4a6e53604ffc7e9c5b9bf7657c74b28bef5d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "b3ecf309-d821-44e9-9755-b49540b6a90c",
+      "sourceRecordId": "b3ecf309-d821-44e9-9755-b49540b6a90c",
+      "revision": 1,
+      "title": "Honeycomb total outage on July 25th, 2023",
+      "company": "Honeycomb",
+      "incidentDate": "2023-07-25T13:40:00.000Z",
+      "categories": [
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "CACHE_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/b3ecf309-d821-44e9-9755-b49540b6a90c",
+      "originalSourceUrl": "https://honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down"
+      },
+      "sourcePayloadHash": "638596ec991b67c268ea40a644ff96170b3c52a103f545cd77910a773184bbf4",
+      "contentHash": "47a0bb26cbca4dd8da31c66bc135de1655a1f07221d5a8cccd623bf4ed3739b9",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "029b4a8e-0332-4b91-abc3-5f84bdf70094",
+      "sourceRecordId": "029b4a8e-0332-4b91-abc3-5f84bdf70094",
+      "revision": 1,
+      "title": "Intermittent downtime from repeated crashes",
+      "company": "incident.io",
+      "incidentDate": "2022-11-18T15:40:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "QUEUE_OR_WORKER_FAILURE",
+        "OBSERVABILITY_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/029b4a8e-0332-4b91-abc3-5f84bdf70094",
+      "originalSourceUrl": "https://incident.io/blog/intermittent-downtime",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://incident.io/blog/intermittent-downtime"
+      },
+      "sourcePayloadHash": "f61d65c457a70819a3f28f4939e2684a65284d3be46e1c04f511b1ed893d5c9c",
+      "contentHash": "28785fdff11a2447845ecbdb22ad3f27322eeecaa96c38505f283fee8cb60d14",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "20834b0c-3811-4447-bcfe-2e60eeeb6251",
+      "sourceRecordId": "20834b0c-3811-4447-bcfe-2e60eeeb6251",
+      "revision": 1,
+      "title": "Fastly global outage of June 8, 2021",
+      "company": "Fastly",
+      "incidentDate": "2021-06-08T09:47:00.000Z",
+      "categories": [
+        "automation",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DEPLOYMENT_OR_RELEASE_REGRESSION",
+        "CONFIGURATION_PROPAGATION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/20834b0c-3811-4447-bcfe-2e60eeeb6251",
+      "originalSourceUrl": "https://fastly.com/blog/summary-of-june-8-outage",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://fastly.com/blog/summary-of-june-8-outage"
+      },
+      "sourcePayloadHash": "a3c414bc62836a7d69ecf46b6cbc39817eeafc31163847d17bbeb1823f1502a5",
+      "contentHash": "d0a3497394443b501b9c034e1e0260a66289781f6bd43615be5c25d8524ac49e",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "fccb0ca5-3db5-4481-98ba-af8f26528a93",
+      "sourceRecordId": "fccb0ca5-3db5-4481-98ba-af8f26528a93",
+      "revision": 1,
+      "title": "CrowdStrike Falcon Content Update Incident of July 2024",
+      "company": "CrowdStrike",
+      "incidentDate": "2024-07-19T04:09:00.000Z",
+      "categories": [
+        "automation",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "DEPLOYMENT_OR_RELEASE_REGRESSION",
+        "DATA_CORRUPTION_OR_LOSS"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/fccb0ca5-3db5-4481-98ba-af8f26528a93",
+      "originalSourceUrl": "https://crowdstrike.com/falcon-content-update-remediation-and-guidance-hub",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://crowdstrike.com/falcon-content-update-remediation-and-guidance-hub"
+      },
+      "sourcePayloadHash": "558be305d9f55e09c731039b476e121d32b852f77bf85d68ce65cbb97b091f0a",
+      "contentHash": "be774986c041113f20b54e3c61cff3bd6e4c10e59634445d74388d95cffac398",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "d5b64671-0716-4332-ba81-cec110c5baec",
+      "sourceRecordId": "d5b64671-0716-4332-ba81-cec110c5baec",
+      "revision": 1,
+      "title": "CircleCI jobs stuck in \"not running\" state on November 8, 2021",
+      "company": "CircleCI",
+      "incidentDate": "2021-11-08T18:50:00.000Z",
+      "categories": [
+        "cascading-failure",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DEPLOYMENT_OR_RELEASE_REGRESSION",
+        "QUEUE_OR_WORKER_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/d5b64671-0716-4332-ba81-cec110c5baec",
+      "originalSourceUrl": "https://discuss.circleci.com/t/incident-report-november-8-2021-jobs-stuck-in-a-not-running-state/41890",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://discuss.circleci.com/t/incident-report-november-8-2021-jobs-stuck-in-a-not-running-state/41890"
+      },
+      "sourcePayloadHash": "e0b0f9a31f03c3474600ebaf847cbe01755524827ed25d307950041508e65250",
+      "contentHash": "698372fc92501ba173e87f41799b1c14d1144425a43da0c08fc8085657d6ef94",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "22e646c4-198c-4985-bb8e-e64e8a13d68e",
+      "sourceRecordId": "22e646c4-198c-4985-bb8e-e64e8a13d68e",
+      "revision": 1,
+      "title": "Delay in starting Docker Jobs. Machine & remote Docker environments blocked",
+      "company": "CircleCI",
+      "incidentDate": "2021-05-21T13:30:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+        "QUEUE_OR_WORKER_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/22e646c4-198c-4985-bb8e-e64e8a13d68e",
+      "originalSourceUrl": "https://discuss.circleci.com/t/postmortem-may-21-2021-delay-in-starting-docker-jobs-machine-remote-docker-environments-blocked/40274",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://discuss.circleci.com/t/postmortem-may-21-2021-delay-in-starting-docker-jobs-machine-remote-docker-environments-blocked/40274"
+      },
+      "sourcePayloadHash": "4be4831fe48cbabda3892f977dbb401f90919a3003056c5509c6f21193c765c2",
+      "contentHash": "87c4fbfdc9195fb77a374237c618f8dbef49467f571f7cdc68ddb89b7a1ee4ce",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "14024599-5ca4-479d-a537-d36c393f97a6",
+      "sourceRecordId": "14024599-5ca4-479d-a537-d36c393f97a6",
+      "revision": 1,
+      "title": "CircleCI Workflow Delay Incidents March 26 - April 10, 2019",
+      "company": "CircleCI",
+      "incidentDate": "2019-03-26T21:29:00.000Z",
+      "categories": [
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "QUEUE_OR_WORKER_FAILURE",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/14024599-5ca4-479d-a537-d36c393f97a6",
+      "originalSourceUrl": "https://discuss.circleci.com/t/postmortem-march-26-april-10-workflow-delay-incidents/30060",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://discuss.circleci.com/t/postmortem-march-26-april-10-workflow-delay-incidents/30060"
+      },
+      "sourcePayloadHash": "2ffe9afb4551ede93567dc281ebeecd754905a8cd48afdf8924e71060de538d8",
+      "contentHash": "9d8f5b5b71ab0d5e5ef1dcf8e4213e80e284b6b297d1b4e704a5ede28e00688d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "dc34b433-0ddd-45dd-85bf-cfa6d8cce764",
+      "sourceRecordId": "dc34b433-0ddd-45dd-85bf-cfa6d8cce764",
+      "revision": 1,
+      "title": "CircleCI Linux build queue backing up October 2015",
+      "company": "CircleCI",
+      "incidentDate": "2015-10-14T20:17:00.000Z",
+      "categories": [
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "QUEUE_OR_WORKER_FAILURE",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/dc34b433-0ddd-45dd-85bf-cfa6d8cce764",
+      "originalSourceUrl": "https://status.circleci.com/incidents/8rklh3qqckp1",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://status.circleci.com/incidents/8rklh3qqckp1"
+      },
+      "sourcePayloadHash": "35ce612ed58ddb08fa42affbdac833fc28e9440d35adbbf4c6e72cf291156ef4",
+      "contentHash": "19a8c8bcaaf6cfc181ab5d289bd6e158f2f4795bd9670754fbc9b4a325809b5f",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "f9f4ba4c-686c-46a4-982c-8dc21bd8a448",
+      "sourceRecordId": "f9f4ba4c-686c-46a4-982c-8dc21bd8a448",
+      "revision": 1,
+      "title": "incident.io database outage due to PGAudit",
+      "company": "incident.io",
+      "incidentDate": "2025-04-09T14:16:00.000Z",
+      "categories": [
+        "cascading-failure"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "DEPLOYMENT_OR_RELEASE_REGRESSION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/f9f4ba4c-686c-46a4-982c-8dc21bd8a448",
+      "originalSourceUrl": "https://status.incident.io/incidents/01JRDFKAGE07YYDY0KZR137BX3/write-up",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://status.incident.io/incidents/01JRDFKAGE07YYDY0KZR137BX3/write-up"
+      },
+      "sourcePayloadHash": "e311d41c7ea5f578f0b28a6c3f79042a00ed457c1a5b24abe0cdfe9599d05227",
+      "contentHash": "6bdb173fd30c23a5cd41ff9da07b333a1395bbf8ff7193a79db55b6daf0657db",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "34b4a47b-a3d6-4bda-acc9-57b621f53468",
+      "sourceRecordId": "34b4a47b-a3d6-4bda-acc9-57b621f53468",
+      "revision": 1,
+      "title": "Incident.io intermittent database connection pool timeouts",
+      "company": "incident.io",
+      "incidentDate": null,
+      "categories": [
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/34b4a47b-a3d6-4bda-acc9-57b621f53468",
+      "originalSourceUrl": "https://incident.io/blog/database-performance",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://incident.io/blog/database-performance"
+      },
+      "sourcePayloadHash": "7d3bfb1b9633d6e86c17a9c6ace603f6104b890f81bdf77686908c787786deb3",
+      "contentHash": "49fbbc2f2817cdc92122b88ea0ec6d52f237fdcc48f0318e41bb050a44480345",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "eb95646f-90c2-4efe-b89e-060debafa0fc",
+      "sourceRecordId": "eb95646f-90c2-4efe-b89e-060debafa0fc",
+      "revision": 1,
+      "title": "incident.io GKE Dataplane V2 `anetd` CPU saturation causes connection timeouts",
+      "company": "incident.io",
+      "incidentDate": null,
+      "categories": [
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/eb95646f-90c2-4efe-b89e-060debafa0fc",
+      "originalSourceUrl": "https://incident.io/blog/clouds-caches-and-connection-conundrums",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://incident.io/blog/clouds-caches-and-connection-conundrums"
+      },
+      "sourcePayloadHash": "114ef261fd55fa43183e86c886de359677c80108461f536cc14d2fc499629276",
+      "contentHash": "a4f8bd5fe011e40c1fdcfa5fd426518a8996343c3d269c57a40c45506ac3c737",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e9248be4-2e55-481e-bde1-f53f60667e21",
+      "sourceRecordId": "e9248be4-2e55-481e-bde1-f53f60667e21",
+      "revision": 1,
+      "title": "Amazon EC2 DNS Resolution Issues in AP-NORTHEAST-2",
+      "company": "Amazon",
+      "incidentDate": "2018-11-21T23:19:00.000Z",
+      "categories": [
+        "cloud"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CONFIGURATION_PROPAGATION",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e9248be4-2e55-481e-bde1-f53f60667e21",
+      "originalSourceUrl": "https://aws.amazon.com/message/74876-2",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://aws.amazon.com/message/74876-2"
+      },
+      "sourcePayloadHash": "e526bf0457258810ede0e93b36b9557a38bd6b17bd922cdcdb760f693f1a93d0",
+      "contentHash": "6d75e39567db2fbedd2d666c0b17f91722c6ed7a7e237656aaec8bf8231021e2",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "36858814-a276-4723-8bd2-ce1d46236417",
+      "sourceRecordId": "36858814-a276-4723-8bd2-ce1d46236417",
+      "revision": 1,
+      "title": "Amazon DynamoDB US-EAST-1 outage of October 2025",
+      "company": "Amazon",
+      "incidentDate": "2025-10-20T06:48:00.000Z",
+      "categories": [
+        "automation",
+        "cloud"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/36858814-a276-4723-8bd2-ce1d46236417",
+      "originalSourceUrl": "https://aws.amazon.com/message/101925",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://aws.amazon.com/message/101925"
+      },
+      "sourcePayloadHash": "beac52a9d64aad92b2b5421819a290aa207554d3d871645d25a90e98fa86c786",
+      "contentHash": "d0de58e05901880de454d90bb00b20b7dfc4ba00f46d0ebfc134003a780fe34c",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "d9ae38c1-c5da-4138-9919-5fc5e21a70a9",
+      "sourceRecordId": "d9ae38c1-c5da-4138-9919-5fc5e21a70a9",
+      "revision": 1,
+      "title": "Google Compute Engine global connectivity loss April 2016",
+      "company": "Google",
+      "incidentDate": "2016-04-12T01:25:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CONFIGURATION_PROPAGATION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/d9ae38c1-c5da-4138-9919-5fc5e21a70a9",
+      "originalSourceUrl": "https://status.cloud.google.com/incident/compute/16007",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://status.cloud.google.com/incident/compute/16007"
+      },
+      "sourcePayloadHash": "7b42ba7737e1fc10c80540d35b2bccca0cc615a9e4245422d0fe02434e6a0a83",
+      "contentHash": "39c7bcfc452ded777768b0badb07f1d8770e893367a7e42d5131d533bb583f3b",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e16b28f3-b6d4-449b-ae93-cc8a4d074163",
+      "sourceRecordId": "e16b28f3-b6d4-449b-ae93-cc8a4d074163",
+      "revision": 1,
+      "title": "Cloudflare outage on July 17, 2020",
+      "company": "Cloudflare",
+      "incidentDate": "2020-07-17T21:12:00.000Z",
+      "categories": [
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e16b28f3-b6d4-449b-ae93-cc8a4d074163",
+      "originalSourceUrl": "https://blog.cloudflare.com/cloudflare-outage-on-july-17-2020",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://blog.cloudflare.com/cloudflare-outage-on-july-17-2020"
+      },
+      "sourcePayloadHash": "6e0ec7a1484b3fa7a05e7e13890a75caee90e97d4a4a0c7b268450303ce0ac28",
+      "contentHash": "cc0da1ffe43e54df7fa8b1d4aa2eda0d45aaf759100a4ac0d5af24c8d0463e7b",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "32b081c5-bfd7-4986-82e6-9e9cd7740c95",
+      "sourceRecordId": "32b081c5-bfd7-4986-82e6-9e9cd7740c95",
+      "revision": 1,
+      "title": "Partial Cloudflare outage on October 25, 2022",
+      "company": "Cloudflare",
+      "incidentDate": "2022-10-25T08:40:00.000Z",
+      "categories": [],
+      "mechanisms": [
+        "CACHE_FAILURE",
+        "DEPLOYMENT_OR_RELEASE_REGRESSION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/32b081c5-bfd7-4986-82e6-9e9cd7740c95",
+      "originalSourceUrl": "https://blog.cloudflare.com/partial-cloudflare-outage-on-october-25-2022",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://blog.cloudflare.com/partial-cloudflare-outage-on-october-25-2022"
+      },
+      "sourcePayloadHash": "9ddb53ae361d006727f9af9b34f576c47fb6da603547d493d1a9fc2534f1e22f",
+      "contentHash": "893a2c5dde0556357d1c2793d81965d476dbfa50ff77850c0c8fa1895a0d3ee4",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "f98d88c2-febd-4e0d-a4c0-06547bfc3e65",
+      "sourceRecordId": "f98d88c2-febd-4e0d-a4c0-06547bfc3e65",
+      "revision": 1,
+      "title": "BBC Online outage on Saturday 19th July 2014",
+      "company": "BBC Online",
+      "incidentDate": "2014-07-19T08:30:00.000Z",
+      "categories": [],
+      "mechanisms": [
+        "CACHE_FAILURE",
+        "DATABASE_OVERLOAD"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/f98d88c2-febd-4e0d-a4c0-06547bfc3e65",
+      "originalSourceUrl": "http://bbc.co.uk/blogs/internet/entries/a37b0470-47d4-3991-82bb-a7d5b8803771",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "http://bbc.co.uk/blogs/internet/entries/a37b0470-47d4-3991-82bb-a7d5b8803771"
+      },
+      "sourcePayloadHash": "4920d553dcad05d49c96045d2e96f58d54b19b55fc801d8267b3c5859c865c2e",
+      "contentHash": "feecefb29c354ffedff8f456cda704dcc690a61862a6dc0f063959da5f90020a",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e696c413-9af6-4e51-b073-51edbdb1ed2a",
+      "sourceRecordId": "e696c413-9af6-4e51-b073-51edbdb1ed2a",
+      "revision": 1,
+      "title": "GitHub availability incidents in February and March 2026",
+      "company": "GitHub",
+      "incidentDate": null,
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "cloud",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "CACHE_FAILURE",
+        "DATABASE_OVERLOAD",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e696c413-9af6-4e51-b073-51edbdb1ed2a",
+      "originalSourceUrl": "https://github.blog/news-insights/company-news/addressing-githubs-recent-availability-issues-2",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://github.blog/news-insights/company-news/addressing-githubs-recent-availability-issues-2"
+      },
+      "sourcePayloadHash": "a081b1979ea6eac683b668a8ff3d829c8de0d15927e96d2bd5a8cffbf537710c",
+      "contentHash": "385746d81dbb3c5ec34219c299fe05e6e969e62a0c4dce4bf28983740b8bea65",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e7d7aa93-81f7-4338-9c0b-6e6c0dcefdcb",
+      "sourceRecordId": "e7d7aa93-81f7-4338-9c0b-6e6c0dcefdcb",
+      "revision": 1,
+      "title": "Tarsnap outage 2016-07-24",
+      "company": "Tarsnap",
+      "incidentDate": "2016-07-24T10:15:19.000Z",
+      "categories": [
+        "cloud"
+      ],
+      "mechanisms": [
+        "CAPACITY_EXHAUSTION",
+        "OBSERVABILITY_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e7d7aa93-81f7-4338-9c0b-6e6c0dcefdcb",
+      "originalSourceUrl": "http://mail.tarsnap.com/tarsnap-announce/msg00035.html",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "http://mail.tarsnap.com/tarsnap-announce/msg00035.html"
+      },
+      "sourcePayloadHash": "b268d8e0f51f799154d2c843724c4911a2e678088f2d9b234ae1ee037f3d4c4c",
+      "contentHash": "874b9874749933cc8c91a66c7f3743453e8e6d92b5354314ce679518249a1693",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "30bde82e-27e3-48da-873b-499ddc119a8f",
+      "sourceRecordId": "30bde82e-27e3-48da-873b-499ddc119a8f",
+      "revision": 1,
+      "title": "Stackdriver Intelligent Monitoring application outage on October 23, 2013",
+      "company": "Stackdriver",
+      "incidentDate": "2013-10-23T13:45:00.000Z",
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "QUEUE_OR_WORKER_FAILURE",
+        "CASCADING_FAILURE",
+        "OBSERVABILITY_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/30bde82e-27e3-48da-873b-499ddc119a8f",
+      "originalSourceUrl": "https://stackdriver.com/post-mortem-october-23-stackdriver-outage",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://stackdriver.com/post-mortem-october-23-stackdriver-outage"
+      },
+      "sourcePayloadHash": "cb442af6d1232194737fcb599769d62a78cf5820ee4a6230ec6f09751778de43",
+      "contentHash": "a6a83d735414dd2d3798c1d9b05f4770e3a312fde772faf08118dbc6d4430708",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "cc1e5d23-573c-450c-9e61-ce71ffc91318",
+      "sourceRecordId": "cc1e5d23-573c-450c-9e61-ce71ffc91318",
+      "revision": 1,
+      "title": "Datadog Infrastructure Connectivity Issue March 2023",
+      "company": "Datadog",
+      "incidentDate": "2023-03-08T06:00:00.000Z",
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "cloud",
+        "security"
+      ],
+      "mechanisms": [
+        "DEPLOYMENT_OR_RELEASE_REGRESSION",
+        "NETWORK_OR_DNS"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/cc1e5d23-573c-450c-9e61-ce71ffc91318",
+      "originalSourceUrl": "https://datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue"
+      },
+      "sourcePayloadHash": "02f06b53883ecc5e706c61f4cb44ae172706041a2ca799fe48489c01ae05b865",
+      "contentHash": "dc7e2a2e1b6bb716a5bd1ba99e9f3e429f196fc6e0c7079b798594b6cb558c8b",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "0787bc22-cd28-42d0-a0b2-71610a38a78f",
+      "sourceRecordId": "0787bc22-cd28-42d0-a0b2-71610a38a78f",
+      "revision": 1,
+      "title": "GitHub.com outage of December 2012",
+      "company": "GitHub",
+      "incidentDate": "2012-12-22T20:15:00.000Z",
+      "categories": [
+        "automation",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "NETWORK_OR_DNS",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/0787bc22-cd28-42d0-a0b2-71610a38a78f",
+      "originalSourceUrl": "https://github.blog/news-insights/the-library/downtime-last-saturday",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://github.blog/news-insights/the-library/downtime-last-saturday"
+      },
+      "sourcePayloadHash": "1426cbf54d6a99970e5e50d900e3955463b527d12dce91956eb4fa4914b64029",
+      "contentHash": "59d4d3abcbce11244bfed8747090f4577c6cbaf668db12a11ad4ee204e65a3aa",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e44dd5d3-5105-45ed-9582-f9041a7cfdb9",
+      "sourceRecordId": "e44dd5d3-5105-45ed-9582-f9041a7cfdb9",
+      "revision": 1,
+      "title": "Amazon EC2 and EBS Issues in Tokyo (AP-NORTHEAST-1) on August 23, 2019",
+      "company": "Amazon",
+      "incidentDate": "2019-08-23T03:36:00.000Z",
+      "categories": [
+        "automation",
+        "cloud"
+      ],
+      "mechanisms": [
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e44dd5d3-5105-45ed-9582-f9041a7cfdb9",
+      "originalSourceUrl": "https://aws.amazon.com/message/56489",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://aws.amazon.com/message/56489"
+      },
+      "sourcePayloadHash": "8f5588557115bcd712e378e61a5c5cfe69eb08238762038ca1cecb0138d54a2a",
+      "contentHash": "a6234cb8e9607067132a180b0d103d4da108a287a4f1d2f7a1fe2d3ea7cf276b",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "300cba9e-d50d-45c4-86fd-0142c6cb9101",
+      "sourceRecordId": "300cba9e-d50d-45c4-86fd-0142c6cb9101",
+      "revision": 1,
+      "title": "Netflix's response to October 2012 AWS EBS degradation",
+      "company": "Netflix",
+      "incidentDate": "2012-10-22T08:30:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/300cba9e-d50d-45c4-86fd-0142c6cb9101",
+      "originalSourceUrl": "https://netflixtechblog.com/post-mortem-of-october-22-2012-aws-degradation-efcee3ab40d5",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://netflixtechblog.com/post-mortem-of-october-22-2012-aws-degradation-efcee3ab40d5"
+      },
+      "sourcePayloadHash": "04dfd1ad08d8cca12797aa0d99afdcc333a9fd94a8b6a5e2c16cdb142586c388",
+      "contentHash": "cd1671e42ceff2fdb3ccb674c8379851cd9af412468537051136361ef70244a9",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "090ac94f-65d7-49cc-9e5d-1c8c000b2042",
+      "sourceRecordId": "090ac94f-65d7-49cc-9e5d-1c8c000b2042",
+      "revision": 1,
+      "title": "Zerodha Order Management System overload on August 29, 2019",
+      "company": "Zerodha",
+      "incidentDate": "2019-08-29T04:30:00.000Z",
+      "categories": [
+        "cloud"
+      ],
+      "mechanisms": [
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+        "CAPACITY_EXHAUSTION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/090ac94f-65d7-49cc-9e5d-1c8c000b2042",
+      "originalSourceUrl": "https://zerodha.com/marketintel/bulletin/229363/post-mortem-of-technical-issue-august-29-2019",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://zerodha.com/marketintel/bulletin/229363/post-mortem-of-technical-issue-august-29-2019"
+      },
+      "sourcePayloadHash": "3b72aaae41c8af6648b320ea451f6f0a0da526f2bf187fed723b075338f1dbfa",
+      "contentHash": "ddf748f08ee9b73d9af59096fae78db6c025ad69f9059c5a69fb04a137093377",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "0d5441d3-c69a-4a0a-ab5f-c5ef6e7cc774",
+      "sourceRecordId": "0d5441d3-c69a-4a0a-ab5f-c5ef6e7cc774",
+      "revision": 1,
+      "title": "Razorpay RDS Multi-AZ Failover and Data Loss in December 2019",
+      "company": "Razorpay",
+      "incidentDate": null,
+      "categories": [
+        "cloud",
+        "hardware",
+        "security"
+      ],
+      "mechanisms": [
+        "DATA_CORRUPTION_OR_LOSS",
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/0d5441d3-c69a-4a0a-ab5f-c5ef6e7cc774",
+      "originalSourceUrl": "https://razorpay.com/blog/day-of-rds-multi-az-failover",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://razorpay.com/blog/day-of-rds-multi-az-failover"
+      },
+      "sourcePayloadHash": "75d11171e6bfb1aa06a92ebd7b4b13e208918d00b06ad6884bbf45779d9e8bc9",
+      "contentHash": "945201c30d5177bbcc9e062dcb79611a77c21f0c135cfd7a15d204947d9d2410",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "2349ef07-ccb1-421c-94f8-68952f1a4058",
+      "sourceRecordId": "2349ef07-ccb1-421c-94f8-68952f1a4058",
+      "revision": 1,
+      "title": "Turso free tier data leak and loss",
+      "company": "Turso",
+      "incidentDate": "2023-12-01T00:00:00.000Z",
+      "categories": [
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATA_CORRUPTION_OR_LOSS",
+        "AUTHENTICATION_OR_PERMISSION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/2349ef07-ccb1-421c-94f8-68952f1a4058",
+      "originalSourceUrl": "https://blog.turso.tech/incident-2023-12-04-data-leak-and-loss-in-some-free-tier-databases-7cba5bc7",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://blog.turso.tech/incident-2023-12-04-data-leak-and-loss-in-some-free-tier-databases-7cba5bc7"
+      },
+      "sourcePayloadHash": "79f8fab1549595ba1f81ed94d8c8e4d90381d98839eea54dce23779d32d78a5d",
+      "contentHash": "ad7a5bf86e2714d27becfb2379a95be4c2ffe75a4075ac7fb1202a5e02aefccc",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "0dfe934b-9234-4383-9d1c-de9b860a43d1",
+      "sourceRecordId": "0dfe934b-9234-4383-9d1c-de9b860a43d1",
+      "revision": 1,
+      "title": "Subversion SHA1 Collision Affects WebKit Repository",
+      "company": "WebKit code repository",
+      "incidentDate": null,
+      "categories": [
+        "automation",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATA_CORRUPTION_OR_LOSS"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/0dfe934b-9234-4383-9d1c-de9b860a43d1",
+      "originalSourceUrl": "https://digital.ai/catalyst-blog/subversion-sha1-collision-problem-statement-prevention-and-remediation-options",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://digital.ai/catalyst-blog/subversion-sha1-collision-problem-statement-prevention-and-remediation-options"
+      },
+      "sourcePayloadHash": "b06f5340fbd79aacc63cebda6fea30b1d7924a3965f2782b1a62ee37bad0b229",
+      "contentHash": "c3c68b22de0c581e76d8395981116593459fbc33db45574b791e28df54c477cb",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "27672984-d1e8-4a31-b08c-75c8c54e6314",
+      "sourceRecordId": "27672984-d1e8-4a31-b08c-75c8c54e6314",
+      "revision": 1,
+      "title": "Salesforce Service Disruption September 20, 2023",
+      "company": "Salesforce",
+      "incidentDate": "2023-09-20T14:48:00.000Z",
+      "categories": [],
+      "mechanisms": [
+        "AUTHENTICATION_OR_PERMISSION",
+        "CONFIGURATION_PROPAGATION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/27672984-d1e8-4a31-b08c-75c8c54e6314",
+      "originalSourceUrl": "https://help.salesforce.com/s/articleView?id=000396429&type=1",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://help.salesforce.com/s/articleView?id=000396429&type=1"
+      },
+      "sourcePayloadHash": "68d7417b76fb86745be69fc71df27d408e696303a5ef5859b8d92b54042ff120",
+      "contentHash": "e350747dcf17c7a109453b4f97045a10a2e62d1cce6e2dedba69e0ea9792730d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "d6db1e76-af37-435c-83e9-e7c7cabfaf0f",
+      "sourceRecordId": "d6db1e76-af37-435c-83e9-e7c7cabfaf0f",
+      "revision": 1,
+      "title": "Square service disruption of March 16, 2017",
+      "company": "Square",
+      "incidentDate": "2017-03-16T17:02:00.000Z",
+      "categories": [
+        "cloud",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "AUTHENTICATION_OR_PERMISSION",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/d6db1e76-af37-435c-83e9-e7c7cabfaf0f",
+      "originalSourceUrl": "https://medium.com/square-corner-blog/incident-summary-2017-03-16-2f65be39297",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://medium.com/square-corner-blog/incident-summary-2017-03-16-2f65be39297"
+      },
+      "sourcePayloadHash": "168757997af037fd40284e631ab2e451921135a982dd49629de5b5cb36d644f5",
+      "contentHash": "66ef1ed24b4c3f680aea723f6325cd509f8a3a4664d6430ae5d697c564941b70",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "217ee689-0975-41e9-9080-0d89838812d7",
+      "sourceRecordId": "217ee689-0975-41e9-9080-0d89838812d7",
+      "revision": 1,
+      "title": "Amazon Kinesis Data Streams US-EAST-1 Degradation July 2024",
+      "company": "Amazon",
+      "incidentDate": "2024-07-30T21:45:00.000Z",
+      "categories": [
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "CAPACITY_EXHAUSTION",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/217ee689-0975-41e9-9080-0d89838812d7",
+      "originalSourceUrl": "https://aws.amazon.com/message/073024",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://aws.amazon.com/message/073024"
+      },
+      "sourcePayloadHash": "650be1a7c298ae02a77c75bda1e8c56c2280097cef1afe0b9bf7d3e961116d80",
+      "contentHash": "8cbdf72e4c6be72c8728d6f8799a63b267460180b45814f404664b05367c60ad",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "d17fe136-eb00-44f8-8147-e3dc22358cba",
+      "sourceRecordId": "d17fe136-eb00-44f8-8147-e3dc22358cba",
+      "revision": 1,
+      "title": "Spotify Popcount service outage of April 2013",
+      "company": "Spotify",
+      "incidentDate": "2013-04-27T20:00:00.000Z",
+      "categories": [],
+      "mechanisms": [
+        "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/d17fe136-eb00-44f8-8147-e3dc22358cba",
+      "originalSourceUrl": "https://labs.spotify.com/2013/06/04/incident-management-at-spotify",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://labs.spotify.com/2013/06/04/incident-management-at-spotify"
+      },
+      "sourcePayloadHash": "201de59cde195505d90ee517e0ac8523473edb9ef57d181bebc6a0347bdb9071",
+      "contentHash": "258972d0599dca8336b19f36528d4584fd3116455910e85edab10c5bc731f825",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "3435a88e-1b33-447e-9b4e-fda0625db87f",
+      "sourceRecordId": "3435a88e-1b33-447e-9b4e-fda0625db87f",
+      "revision": 1,
+      "title": "Northeast blackout of 2003",
+      "company": "FirstEnergy / General Electric",
+      "incidentDate": "2003-08-14T20:10:00.000Z",
+      "categories": [
+        "cascading-failure",
+        "hardware",
+        "security"
+      ],
+      "mechanisms": [
+        "OBSERVABILITY_FAILURE",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/3435a88e-1b33-447e-9b4e-fda0625db87f",
+      "originalSourceUrl": "https://en.wikipedia.org/wiki/Northeast_blackout_of_2003",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://en.wikipedia.org/wiki/Northeast_blackout_of_2003"
+      },
+      "sourcePayloadHash": "9af26f1a8c5958cbb1056c2826d7726a93c1eb826228e56ab841d7d7e607d463",
+      "contentHash": "b4f6e32b86d0e38863dfb3b351124733d8dfeee5911b4a660f7e511e640f0824",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e242d62d-32f3-4bc0-b4e9-5a0a15a82863",
+      "sourceRecordId": "e242d62d-32f3-4bc0-b4e9-5a0a15a82863",
+      "revision": 1,
+      "title": "GitHub Actions and Pages impacted by scoped token INT32 overflow",
+      "company": "GitHub",
+      "incidentDate": "2021-05-16T07:17:00.000Z",
+      "categories": [
+        "automation",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "CAPACITY_EXHAUSTION",
+        "AUTHENTICATION_OR_PERMISSION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e242d62d-32f3-4bc0-b4e9-5a0a15a82863",
+      "originalSourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-may-2021",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-may-2021"
+      },
+      "sourcePayloadHash": "ec828311dddad67af21260b5de69f14b0781af2c97633945268d7575d7433925",
+      "contentHash": "ced24050e0f1e20f3c9c40d51b35bc0ed4b8599ddf6c49b5fdf6fc82ce2fc5cb",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "d44e5d9b-5c18-4cbe-b624-46bb9a311b84",
+      "sourceRecordId": "d44e5d9b-5c18-4cbe-b624-46bb9a311b84",
+      "revision": 1,
+      "title": "Kickstarter MySQL replication failure",
+      "company": "Kickstarter",
+      "incidentDate": "2013-03-07T00:00:00.000Z",
+      "categories": [
+        "cloud"
+      ],
+      "mechanisms": [
+        "DATA_CORRUPTION_OR_LOSS",
+        "DATABASE_OVERLOAD"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/d44e5d9b-5c18-4cbe-b624-46bb9a311b84",
+      "originalSourceUrl": "https://kickstarter.engineering/the-day-the-replication-died-e543ba45f262",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://kickstarter.engineering/the-day-the-replication-died-e543ba45f262"
+      },
+      "sourcePayloadHash": "1c5b7635cf374c4028bb1542431603a963b3d2d3a51c0eb320fd529802da6713",
+      "contentHash": "8caa7096f3e0c86d672c4ea47c4c96c81fef464e06c20aa2fd1030d98ff71c72",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "c990285e-31b4-48e1-b535-bf18869268ad",
+      "sourceRecordId": "c990285e-31b4-48e1-b535-bf18869268ad",
+      "revision": 1,
+      "title": "Buildkite outage of August 22nd, 2016",
+      "company": "Buildkite",
+      "incidentDate": "2016-08-22T17:21:00.000Z",
+      "categories": [
+        "automation",
+        "cascading-failure",
+        "cloud",
+        "config-change"
+      ],
+      "mechanisms": [
+        "DATABASE_OVERLOAD",
+        "CAPACITY_EXHAUSTION",
+        "CASCADING_FAILURE"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/c990285e-31b4-48e1-b535-bf18869268ad",
+      "originalSourceUrl": "https://building.buildkite.com/outage-post-mortem-for-august-23rd-82b619a3679b",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://building.buildkite.com/outage-post-mortem-for-august-23rd-82b619a3679b"
+      },
+      "sourcePayloadHash": "190ccc8ec325f8b386e07681464c8401da501d40440e86c7ace9e52af923ac14",
+      "contentHash": "69b735af59c531e4237edc98438ed84d1692779ab86f44e8d4922710ea3f165d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e81a4a73-8808-42da-9841-9bd4fcc8b9be",
+      "sourceRecordId": "e81a4a73-8808-42da-9841-9bd4fcc8b9be",
+      "revision": 1,
+      "title": "Cloudflare service token incident on January 24, 2023",
+      "company": "Cloudflare",
+      "incidentDate": "2023-01-24T16:55:00.000Z",
+      "categories": [
+        "automation",
+        "cloud",
+        "config-change",
+        "hardware",
+        "security"
+      ],
+      "mechanisms": [
+        "DEPLOYMENT_OR_RELEASE_REGRESSION",
+        "AUTHENTICATION_OR_PERMISSION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/e81a4a73-8808-42da-9841-9bd4fcc8b9be",
+      "originalSourceUrl": "https://blog.cloudflare.com/cloudflare-incident-on-january-24th-2023",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://blog.cloudflare.com/cloudflare-incident-on-january-24th-2023"
+      },
+      "sourcePayloadHash": "6ee1df920dd4c563b054e214844f53310af2b673696f638d9fab950c0398915f",
+      "contentHash": "ecf98a19acb2daffad9aa40fca93a4087a983f861df42162526fb347e0f9bb4e",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "27ad61bb-5843-4164-bb8f-3c8def55d77c",
+      "sourceRecordId": "27ad61bb-5843-4164-bb8f-3c8def55d77c",
+      "revision": 1,
+      "title": "GitHub background job system degraded availability October 2020",
+      "company": "GitHub",
+      "incidentDate": "2020-10-09T21:30:00.000Z",
+      "categories": [
+        "automation",
+        "config-change",
+        "security"
+      ],
+      "mechanisms": [
+        "QUEUE_OR_WORKER_FAILURE",
+        "CASCADING_FAILURE",
+        "CONFIGURATION_PROPAGATION"
+      ],
+      "sourceUrl": "https://postmortems.app/postmortem/27ad61bb-5843-4164-bb8f-3c8def55d77c",
+      "originalSourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-october-2020",
+      "datasetLicense": {
+        "provider": "POSTMORTEMS_APP",
+        "name": "GPL-3.0",
+        "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+      },
+      "originalContentRights": {
+        "status": "SOURCE_SPECIFIC",
+        "licenseName": null,
+        "licenseUrl": null,
+        "sourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-october-2020"
+      },
+      "sourcePayloadHash": "bd99216927b073f909b1da0346f142fbe3c327baf56474e83f761e094cce927d",
+      "contentHash": "8d925f30bb03166f2729e553dabe974551a6bfddd513e4ccf58fcd334e17d99d",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    }
+  ],
+  "rejectedCandidates": [
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "04f5afd8-09fc-4314-9c60-7f942faca125",
+      "sourceRecordId": "04f5afd8-09fc-4314-9c60-7f942faca125",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "06ceee47-94f1-400b-bf58-7482d740d5e6",
+      "sourceRecordId": "06ceee47-94f1-400b-bf58-7482d740d5e6",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "0afb9162-9810-4b29-b5f3-d2f41508aede",
+      "sourceRecordId": "0afb9162-9810-4b29-b5f3-d2f41508aede",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "23713fc8-675d-4de9-9127-7950f10c6131",
+      "sourceRecordId": "23713fc8-675d-4de9-9127-7950f10c6131",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "24049f4d-af54-4622-b0fd-a291117c7bc9",
+      "sourceRecordId": "24049f4d-af54-4622-b0fd-a291117c7bc9",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "2552ccf5-4e03-40b1-a1fa-354a34bfa5fe",
+      "sourceRecordId": "2552ccf5-4e03-40b1-a1fa-354a34bfa5fe",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e78185fe-c16e-4f5f-9c44-785b99850ff5",
+      "sourceRecordId": "e78185fe-c16e-4f5f-9c44-785b99850ff5",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "e83c06be-7df9-484d-8de6-342ae21d87c4",
+      "sourceRecordId": "e83c06be-7df9-484d-8de6-342ae21d87c4",
+      "reason": "MISSING_TITLE_AND_TECHNICAL_SUMMARY"
+    }
+  ],
+  "manifestHash": "cddd2fedebb585f94427d6ffcb25da930a001ceead882151d22c0d2a3f6c1bf7"
+}

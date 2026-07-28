@@ -1,6 +1,7 @@
 import {
   PUBLIC_INCIDENT_INGESTION_VERSION,
   type PostmortemsAppRecord,
+  type PublicIncidentMechanism,
   type PublicIncidentSourceSnapshot,
   type RealPublicIncident,
 } from "./types";
@@ -66,12 +67,14 @@ const stableContent = (value: Omit<RealPublicIncident, "contentHash" | "retrieve
   incidentDateEnd: value.incidentDateEnd,
   publishedAt: value.publishedAt,
   categories: [...value.categories].sort(),
+  ...(value.mechanisms.length > 0 ? { mechanisms: [...value.mechanisms].sort() } : {}),
   products: [...value.products].sort(),
   sourceSummary: value.sourceSummary,
 });
 
 export async function normalizePostmortemsAppRecord(
   snapshot: PublicIncidentSourceSnapshot,
+  mechanisms: PublicIncidentMechanism[] = [],
 ): Promise<RealPublicIncident> {
   if (snapshot.sourceProvider !== "POSTMORTEMS_APP") throw new Error("INVALID_SOURCE_PROVIDER");
   if (!Number.isFinite(Date.parse(snapshot.retrievedAt))) throw new Error("INVALID_RETRIEVED_AT");
@@ -103,6 +106,7 @@ export async function normalizePostmortemsAppRecord(
     incidentDateEnd: normalizedDate(record.EndTime),
     publishedAt: normalizedDate(record.SourcePublishedAt),
     categories: strings(record.Categories),
+    mechanisms: [...new Set(mechanisms)].sort(),
     products,
     sourceUrl: canonicalizeUrl(`https://postmortems.app/postmortem/${sourceRecordId}`),
     originalSourceUrl,

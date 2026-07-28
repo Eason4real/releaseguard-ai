@@ -136,6 +136,7 @@ type ChunkMetadata = {
   sourceProvider?: string;
   company?: string;
   categories?: string[];
+  mechanisms?: string[];
   incidentDateStart?: string | null;
   originalSourceUrl?: string;
 };
@@ -374,6 +375,8 @@ export class D1IncidentRetriever implements IncidentRetriever {
             sourceRecordId: document.sourceRecordId ?? undefined,
             company: metadata.company,
             incidentDateStart: metadata.incidentDateStart,
+            categories: metadata.categories,
+            mechanisms: metadata.mechanisms,
             sourceUrl: document.sourceUrl ?? undefined,
             originalSourceUrl: document.originalSourceUrl ?? undefined,
             datasetLicense: document.datasetLicenseName && document.datasetLicenseUrl ? {

@@ -17,6 +17,7 @@ import {
   type PreparedPublicIncident,
   type PublicIncidentImportAttempt,
   type PublicIncidentImportReport,
+  type PublicIncidentMechanism,
   type PublicIncidentRevision,
   type PublicIncidentSource,
   type RealPublicIncident,
@@ -290,6 +291,7 @@ const publicMetadata = (incident: RealPublicIncident) => ({
   userTypes: [] as string[], components: incident.products, severity: "",
   corpusType: incident.corpusType, sourceProvider: incident.sourceProvider,
   sourceRecordId: incident.sourceRecordId, company: incident.company, categories: incident.categories,
+  mechanisms: incident.mechanisms,
   incidentDateStart: incident.incidentDateStart, incidentDateEnd: incident.incidentDateEnd,
   sourceUrl: incident.sourceUrl, originalSourceUrl: incident.originalSourceUrl,
   datasetLicense: incident.datasetLicense, originalContentRights: incident.originalContentRights,
@@ -387,6 +389,7 @@ export async function importPublicIncidentCorpus(input: {
   store: PublicIncidentStore;
   embeddingProvider: EmbeddingProvider;
   vectorBackend: string;
+  curationMechanisms?: Readonly<Record<string, PublicIncidentMechanism[]>>;
   dryRun?: boolean;
 }): Promise<PublicIncidentImportReport> {
   const report = emptyReport(Boolean(input.dryRun));
@@ -405,7 +408,10 @@ export async function importPublicIncidentCorpus(input: {
   for (const snapshot of snapshots) {
     let incident: RealPublicIncident;
     try {
-      incident = await normalizePostmortemsAppRecord(snapshot);
+      incident = await normalizePostmortemsAppRecord(
+        snapshot,
+        input.curationMechanisms?.[snapshot.sourceRecordId] ?? [],
+      );
     } catch (error) {
       report.rejected += 1;
       report.rejections.push({ sourceRecordId: snapshot.sourceRecordId, reason: boundedMessage(error) });

@@ -5,6 +5,7 @@ import { InMemoryIncidentRetriever } from "../lib/retrieval/local-retrievers";
 import { PostmortemsAppSource } from "../lib/retrieval/public-incidents/postmortems-app";
 import { MemoryPublicIncidentStore, importPublicIncidentCorpus } from "../lib/retrieval/public-incidents/pipeline";
 import type {
+  PublicIncidentMechanism,
   PublicIncidentImportReport,
   PublicIncidentSnapshotFile,
   PublicIncidentSource,
@@ -32,8 +33,14 @@ try {
   if (args.has("--d1")) {
     throw new Error("HOSTED_IMPORT_REQUIRES_WORKER_RUNTIME");
   }
-  const sourcePath = resolve(projectRoot, "data/public-incidents/smoke-source.json");
+  const sourcePath = resolve(projectRoot, "data/public-incidents/curated-source-v1.json");
+  const manifestPath = resolve(projectRoot, "data/public-incidents/corpus-v1-manifest.json");
   const snapshotFile = JSON.parse(await readFile(sourcePath, "utf8")) as PublicIncidentSnapshotFile;
+  const corpusManifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+    records: Array<{ sourceId: string; mechanisms: PublicIncidentMechanism[] }>;
+  };
+  const curationMechanisms = Object.fromEntries(corpusManifest.records.map((record) =>
+    [record.sourceId, record.mechanisms]));
   const ids = snapshotFile.records.map((record) => record.sourceRecordId);
   const frozenSource: PublicIncidentSource = {
     provider: "POSTMORTEMS_APP",
@@ -54,13 +61,14 @@ try {
     store,
     embeddingProvider: new DeterministicEmbeddingProvider(),
     vectorBackend: "LOCAL",
+    curationMechanisms,
     dryRun,
   });
 
   if (!dryRun && report.completed > 0) {
     const cacheDirectory = resolve(projectRoot, "data/public-incidents/cache");
     await mkdir(cacheDirectory, { recursive: true });
-    await writeFile(resolve(cacheDirectory, "smoke-index.json"), JSON.stringify({
+    await writeFile(resolve(cacheDirectory, "curated-v1-index.json"), JSON.stringify({
       generatedAt: new Date().toISOString(),
       retrievalBackend: "FALLBACK",
       corpusType: "REAL_PUBLIC",
@@ -87,6 +95,7 @@ try {
       store,
       embeddingProvider: new DeterministicEmbeddingProvider(),
       vectorBackend: "LOCAL",
+      curationMechanisms,
     });
     idempotencySmoke = {
       unchanged: retry.unchanged,

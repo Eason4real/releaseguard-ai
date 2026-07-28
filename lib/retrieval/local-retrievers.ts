@@ -96,6 +96,7 @@ export class InMemoryIncidentRetriever implements IncidentRetriever {
         severity: "",
         company: incident.company,
         categories: incident.categories,
+        mechanisms: incident.mechanisms,
       },
       provenance: {
         source: "Public Historical Incident Corpus",
@@ -105,6 +106,8 @@ export class InMemoryIncidentRetriever implements IncidentRetriever {
         sourceRecordId: incident.sourceRecordId,
         company: incident.company,
         incidentDateStart: incident.incidentDateStart,
+        categories: incident.categories,
+        mechanisms: incident.mechanisms,
         sourceUrl: incident.sourceUrl,
         originalSourceUrl: incident.originalSourceUrl,
         datasetLicense: incident.datasetLicense,

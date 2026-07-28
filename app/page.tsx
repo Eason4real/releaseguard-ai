@@ -298,6 +298,31 @@ function GroundedDiagnosisPanel({ investigation }: { investigation: Investigatio
   </section>;
 }
 
+function RealPublicHistoricalMemory({ investigation }: { investigation: InvestigationResult }) {
+  const call = investigation.investigation.toolCalls.find((item) =>
+    item.name === "search_similar_incidents" && item.result?.status === "SUCCESS");
+  const output = call?.result?.output;
+  const matches = output && typeof output === "object" && Array.isArray((output as { matches?: unknown[] }).matches)
+    ? (output as { matches: Array<Record<string, unknown>> }).matches : [];
+  const publicMatches = matches.filter((item) => {
+    const provenance = item.provenance;
+    return provenance && typeof provenance === "object"
+      && (provenance as Record<string, unknown>).corpusType === "REAL_PUBLIC";
+  });
+  if (publicMatches.length === 0) return null;
+  return <section className="panel grounded-diagnosis" aria-label="Real public historical memory">
+    <div className="panel-heading"><div><span className="section-kicker">REAL PUBLIC HISTORICAL MEMORY</span><h2>公开历史事故参考</h2></div><span className="pending-pill">Historical clue only</span></div>
+    <div className="claim-list">{publicMatches.map((item) => {
+      const provenance = item.provenance as Record<string, unknown>;
+      const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : {};
+      const categories = Array.isArray(provenance.categories) ? provenance.categories : Array.isArray(metadata.categories) ? metadata.categories : [];
+      const mechanisms = Array.isArray(provenance.mechanisms) ? provenance.mechanisms : Array.isArray(metadata.mechanisms) ? metadata.mechanisms : [];
+      const source = typeof provenance.originalSourceUrl === "string" ? provenance.originalSourceUrl : null;
+      return <article key={String(item.incidentId)}><div><b>{String(provenance.company ?? "Public source")}</b><span>{String(provenance.incidentDateStart ?? "Date unavailable").slice(0, 10)}</span><em>{String(provenance.corpusVersion ?? "Unknown corpus")}</em></div><p>{String(item.title ?? "Historical incident")}</p><small>Mechanism / category: {[...mechanisms, ...categories].join(" · ") || "Source classification unavailable"}</small>{source && <a href={source} target="_blank" rel="noreferrer">Original source</a>}</article>;
+    })}</div>
+  </section>;
+}
+
 function VerificationPanel({ investigation, onAction }: {
   investigation: InvestigationResult;
   onAction: (action: "retry" | "reopen", verificationRunId: string) => Promise<void>;
@@ -424,6 +449,7 @@ function Incident({ stage, onView, onAdvance, onSubmitApproval, hasApprovalSnaps
       </article>
     </section>}
     {live && <GroundedDiagnosisPanel investigation={investigation} />}
+    {live && <RealPublicHistoricalMemory investigation={investigation} />}
     {live && <VerificationPanel investigation={investigation} onAction={onVerificationAction} />}
     <EvidenceStrip onView={onView} items={runEvidence} /></div>;
 }

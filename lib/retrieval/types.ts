@@ -58,6 +58,8 @@ export type IncidentMatch = {
     sourceRecordId?: string;
     company?: string;
     incidentDateStart?: string | null;
+    categories?: string[];
+    mechanisms?: string[];
     sourceUrl?: string;
     originalSourceUrl?: string;
     datasetLicense?: { provider: string; name: string; url: string };

@@ -4,6 +4,23 @@ export const PUBLIC_INCIDENT_INGESTION_VERSION = "public-incidents-v1";
 export const PUBLIC_INCIDENT_SNAPSHOT_VERSION = "postmortems-app-snapshot-v1";
 export const REAL_PUBLIC_CORPUS_VERSION = "real-public-postmortems-app-v1";
 
+export const PUBLIC_INCIDENT_MECHANISMS = [
+  "DEPLOYMENT_OR_RELEASE_REGRESSION",
+  "CONFIGURATION_PROPAGATION",
+  "DATABASE_OVERLOAD",
+  "CACHE_FAILURE",
+  "QUEUE_OR_WORKER_FAILURE",
+  "DEPENDENCY_OR_THIRD_PARTY_OUTAGE",
+  "NETWORK_OR_DNS",
+  "CAPACITY_EXHAUSTION",
+  "DATA_CORRUPTION_OR_LOSS",
+  "AUTHENTICATION_OR_PERMISSION",
+  "CASCADING_FAILURE",
+  "OBSERVABILITY_FAILURE",
+] as const;
+
+export type PublicIncidentMechanism = typeof PUBLIC_INCIDENT_MECHANISMS[number];
+
 export type PublicIncidentSourceProvider = "POSTMORTEMS_APP";
 export type OriginalRightsStatus = "KNOWN_LICENSE" | "SOURCE_SPECIFIC" | "UNKNOWN";
 
@@ -65,6 +82,7 @@ export type RealPublicIncident = {
   incidentDateEnd: string | null;
   publishedAt: string | null;
   categories: string[];
+  mechanisms: PublicIncidentMechanism[];
   products: string[];
   sourceUrl: string;
   originalSourceUrl: string;
@@ -89,6 +107,8 @@ export type RealPublicIncident = {
 export type PublicIncidentManifestEntry = {
   sourceProvider: PublicIncidentSourceProvider;
   sourceId: string;
+  sourceRecordId?: string;
+  revision?: number;
   title: string;
   company: string;
   sourceUrl: string;
@@ -98,6 +118,7 @@ export type PublicIncidentManifestEntry = {
   sourcePayloadHash: string;
   contentHash: string;
   snapshotVersion: string;
+  mechanisms?: PublicIncidentMechanism[];
   ingestionStatus: "ACCEPTED" | "REJECTED" | "DUPLICATE";
 };
 

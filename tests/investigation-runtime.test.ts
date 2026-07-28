@@ -12,6 +12,7 @@ import "./phase4-ui.test";
 import "./hypothesis-confidence.test";
 import "./verification-evaluator.test";
 import "./public-incident-corpus.test";
+import "./real-public-corpus-v1.test";
 import {
   decideProposedAction,
   executeApprovedGithubAction,

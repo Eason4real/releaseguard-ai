@@ -1,5 +1,7 @@
 # Real-world public incident corpus
 
+The Upgrade B curated release is documented in [real-public-corpus-v1.md](./real-public-corpus-v1.md). The default public-corpus import now reads the frozen 42-incident snapshot; the original six-record smoke snapshot remains as focused Upgrade A regression coverage.
+
 ReleaseGuard supports three distinct corpus identities:
 
 - `FIXTURE`: deterministic ReleaseGuard scenarios used by CI, regression tests, and evals.
