@@ -1,6 +1,9 @@
 import type {
+  DiagnosisDisposition,
   EvidenceRelation,
   HypothesisStatus,
+  InvestigationRunStatus,
+  VerificationOutcome,
 } from "../../lib/investigation/types";
 
 export type Phase4ScenarioId =
@@ -40,6 +43,13 @@ export type Phase4ScenarioGroundTruth = {
   evidence: ScenarioEvidence[];
   requiredTools: string[];
   forbiddenTools: string[];
+  acceptableSelectedHypotheses: string[];
+  expectedDiagnosis: string | null;
+  expectedDisposition: DiagnosisDisposition | null;
+  actionRequired: boolean;
+  expectedVerificationOutcome: VerificationOutcome | null;
+  expectedFinalState: InvestigationRunStatus;
+  failureConditions: string[];
 };
 
 export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
@@ -113,6 +123,15 @@ export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
     ],
     requiredTools: ["get_release", "query_metric", "segment_metric", "search_user_feedback"],
     forbiddenTools: ["create_github_issue", "rollback_release"],
+    acceptableSelectedHypotheses: ["release-retry-regression"],
+    expectedDiagnosis: "Android 8.4.0 的立即重试改动与幂等锁生命周期冲突。",
+    expectedDisposition: "FIX",
+    actionRequired: true,
+    expectedVerificationOutcome: "RESOLVED",
+    expectedFinalState: "RESOLVED",
+    failureConditions: [
+      "仅凭发布时间归因", "缺失机制证据", "绕过 Approval 执行 Action", "验证未恢复却关闭事件",
+    ],
   },
   {
     id: "third-party-outage",
@@ -184,6 +203,15 @@ export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
     ],
     requiredTools: ["get_release", "query_metric", "segment_metric", "search_user_feedback"],
     forbiddenTools: ["rollback_release", "disable_feature_flag"],
+    acceptableSelectedHypotheses: ["provider-outage"],
+    expectedDiagnosis: "US 第三方支付提供商发生区域性故障。",
+    expectedDisposition: "ESCALATE",
+    actionRequired: true,
+    expectedVerificationOutcome: "NOT_RECOVERED",
+    expectedFinalState: "NOT_RECOVERED",
+    failureConditions: [
+      "错误归因客户端发布", "忽略跨版本反证", "自动执行 rollback", "未恢复却标记 RESOLVED",
+    ],
   },
   {
     id: "natural-fluctuation",
@@ -235,6 +263,15 @@ export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
     ],
     requiredTools: ["query_metric", "segment_metric", "search_user_feedback"],
     forbiddenTools: ["create_github_issue", "rollback_release"],
+    acceptableSelectedHypotheses: ["campaign-traffic"],
+    expectedDiagnosis: "营销活动带来预期的自然流量增长。",
+    expectedDisposition: "OBSERVE",
+    actionRequired: false,
+    expectedVerificationOutcome: "RESOLVED",
+    expectedFinalState: "RESOLVED",
+    failureConditions: [
+      "把 RiskEvent 等同产品事故", "创建不必要 Action", "忽略稳定质量指标", "观察后不验证",
+    ],
   },
   {
     id: "missing-insufficient-data",
@@ -286,6 +323,15 @@ export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
     ],
     requiredTools: ["get_release", "query_metric", "segment_metric", "search_user_feedback"],
     forbiddenTools: ["create_github_issue", "rollback_release"],
+    acceptableSelectedHypotheses: [],
+    expectedDiagnosis: null,
+    expectedDisposition: null,
+    actionRequired: false,
+    expectedVerificationOutcome: null,
+    expectedFinalState: "INCONCLUSIVE",
+    failureConditions: [
+      "用历史记忆补齐当前事实", "形成伪高置信 Diagnosis", "创建 Action", "伪造 Verification",
+    ],
   },
   {
     id: "historical-memory-trap",
@@ -357,5 +403,14 @@ export const phase4ScenarioGroundTruth: readonly Phase4ScenarioGroundTruth[] = [
     ],
     requiredTools: ["query_metric", "segment_metric", "search_user_feedback", "search_similar_incidents"],
     forbiddenTools: ["rollback_release", "disable_feature_flag"],
+    acceptableSelectedHypotheses: ["inventory-eligibility"],
+    expectedDiagnosis: "US 新用户库存或资格配置不足。",
+    expectedDisposition: "FIX",
+    actionRequired: true,
+    expectedVerificationOutcome: "PARTIALLY_RESOLVED",
+    expectedFinalState: "PARTIALLY_RESOLVED",
+    failureConditions: [
+      "被相似历史事故锚定", "把 RAG 当当前机制证据", "忽略当前分群反证", "错误归因发布",
+    ],
   },
 ] as const;

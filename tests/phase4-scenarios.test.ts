@@ -26,6 +26,8 @@ test("Phase 4 ground truth defines five isolated adversarial scenarios", () => {
       scenario.requiredTools.some((tool) => scenario.forbiddenTools.includes(tool)),
       false,
     );
+    assert.ok(scenario.failureConditions.length > 0);
+    assert.equal(scenario.expectedDiagnosis === null, scenario.acceptableSelectedHypotheses.length === 0);
   }
 });
 
