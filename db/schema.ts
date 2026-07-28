@@ -158,6 +158,9 @@ export const evidence = sqliteTable("evidence", {
 export const diagnoses = sqliteTable("diagnoses", {
   id: text("id").primaryKey(),
   runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  selectedHypothesisId: text("selected_hypothesis_id"),
+  groundingStatus: text("grounding_status").notNull().default("LEGACY_UNVERIFIED"),
+  disposition: text("disposition"),
   rootCause: text("root_cause").notNull(),
   summary: text("summary").notNull(),
   causalChainJson: text("causal_chain_json").notNull(),
@@ -319,6 +322,33 @@ export const diagnosisEvidenceLinks = sqliteTable("diagnosis_evidence_links", {
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("diagnosis_evidence_unique").on(table.diagnosisId, table.evidenceId),
+]);
+
+export const diagnosisClaims = sqliteTable("diagnosis_claims", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  diagnosisId: text("diagnosis_id").notNull().references(() => diagnoses.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  limitationType: text("limitation_type"),
+  statement: text("statement").notNull(),
+  groundingStatus: text("grounding_status").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  index("diagnosis_claims_run_idx").on(table.runId),
+  index("diagnosis_claims_diagnosis_idx").on(table.diagnosisId),
+]);
+
+export const diagnosisClaimEvidenceLinks = sqliteTable("diagnosis_claim_evidence_links", {
+  id: text("id").primaryKey(),
+  runId: text("run_id").notNull().references(() => investigationRuns.id, { onDelete: "cascade" }),
+  diagnosisId: text("diagnosis_id").notNull().references(() => diagnoses.id, { onDelete: "cascade" }),
+  claimId: text("claim_id").notNull().references(() => diagnosisClaims.id, { onDelete: "cascade" }),
+  evidenceId: text("evidence_id").notNull().references(() => evidence.id, { onDelete: "cascade" }),
+  createdAt: text("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("diagnosis_claim_evidence_unique").on(table.claimId, table.evidenceId),
+  index("diagnosis_claim_evidence_run_idx").on(table.runId),
+  index("diagnosis_claim_evidence_diagnosis_idx").on(table.diagnosisId),
 ]);
 
 export const approvalSnapshots = sqliteTable("approval_snapshots", {

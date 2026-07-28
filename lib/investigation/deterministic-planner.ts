@@ -1,4 +1,3 @@
-import { fixtureDiagnosis } from "./runtime";
 import type { InvestigationPlanner, PlannerContext } from "./planner";
 import { getActiveHypotheses, getPendingEvidence } from "./hypothesis-invariants";
 
@@ -186,9 +185,53 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
       },
     ];
     if (step < decisions.length) return decisions[step];
+    const selectedHypothesis = [...assessable]
+      .sort((left, right) => right.supportScore - left.supportScore)[0];
+    const supportingEvidence = aggregate.hypothesisEvidenceLinks
+      .filter((link) =>
+        link.hypothesisId === selectedHypothesis.id && link.relation === "SUPPORTS")
+      .map((link) => aggregate.evidence.find((item) => item.id === link.evidenceId))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const evidenceIds = (...categories: string[]) => supportingEvidence
+      .filter((item) => categories.includes(item.category))
+      .map((item) => item.id);
     return {
       type: "FINALIZE" as const,
-      diagnosis: fixtureDiagnosis(),
+      selectedHypothesisId: selectedHypothesis.id,
+      diagnosis: {
+        summary: "指标异常时间、版本改动和用户反馈形成交叉证据；历史事故仅用于支持假设。",
+        claims: [
+          {
+            type: "ROOT_CAUSE" as const,
+            statement: selectedHypothesis.statement,
+            evidenceIds: supportingEvidence
+              .filter((item) => item.category !== "SIMILAR_INCIDENT")
+              .map((item) => item.id),
+          },
+          {
+            type: "CAUSAL_STEP" as const,
+            statement: "Android 7.3.0 的服务端立即重试改动会与幂等锁生命周期发生冲突。",
+            evidenceIds: evidenceIds("RELEASE_CHANGE"),
+          },
+          {
+            type: "AFFECTED_METRIC" as const,
+            statement: "coupon_claim_success_rate 从基线水平显著下降。",
+            evidenceIds: evidenceIds("PRODUCT_METRIC"),
+          },
+          {
+            type: "AFFECTED_SEGMENT" as const,
+            statement: "影响集中在 platform=Android、app_version=7.3.0。",
+            evidenceIds: evidenceIds("SEGMENT_METRIC"),
+          },
+          {
+            type: "LIMITATION" as const,
+            limitationType: "SCOPE_LIMITATION" as const,
+            statement: "现有分析仅覆盖 Android 7.3.0，无法判断其他历史版本。",
+            evidenceIds: [],
+          },
+        ],
+      },
+      disposition: "FIX" as const,
       rationale: "指标、版本、分群和用户反馈已形成交叉证据，历史事故仅作辅助。",
     };
   }

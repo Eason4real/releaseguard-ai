@@ -94,6 +94,9 @@ export type Evidence = {
 export type Diagnosis = {
   id: string;
   runId: string;
+  selectedHypothesisId: string | null;
+  groundingStatus: DiagnosisGroundingStatus;
+  disposition: DiagnosisDisposition | null;
   rootCause: string;
   summary: string;
   causalChain: string[];
@@ -110,6 +113,45 @@ export type Diagnosis = {
   supersededAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export const DIAGNOSIS_CLAIM_TYPES = [
+  "ROOT_CAUSE",
+  "CAUSAL_STEP",
+  "AFFECTED_METRIC",
+  "AFFECTED_SEGMENT",
+  "LIMITATION",
+] as const;
+
+export type DiagnosisClaimType = (typeof DIAGNOSIS_CLAIM_TYPES)[number];
+export type DiagnosisGroundingStatus = "GROUNDED" | "UNGROUNDED" | "LEGACY_UNVERIFIED";
+export type DiagnosisDisposition = "OBSERVE" | "FIX" | "ROLLBACK" | "ESCALATE";
+export const DIAGNOSIS_LIMITATION_TYPES = [
+  "DATA_GAP",
+  "SCOPE_LIMITATION",
+  "UNRESOLVED_UNCERTAINTY",
+  "OBSERVABILITY_LIMITATION",
+] as const;
+export type DiagnosisLimitationType = (typeof DIAGNOSIS_LIMITATION_TYPES)[number];
+
+export type DiagnosisClaim = {
+  id: string;
+  runId: string;
+  diagnosisId: string;
+  type: DiagnosisClaimType;
+  limitationType: DiagnosisLimitationType | null;
+  statement: string;
+  groundingStatus: DiagnosisGroundingStatus;
+  createdAt: string;
+};
+
+export type DiagnosisClaimEvidenceLink = {
+  id: string;
+  runId: string;
+  diagnosisId: string;
+  claimId: string;
+  evidenceId: string;
+  createdAt: string;
 };
 
 export type ProposedAction = {
@@ -157,6 +199,7 @@ export type Approval = {
 };
 
 export type AuditEventType =
+  | "DIAGNOSIS_FINALIZED"
   | "PROPOSED_ACTION_CREATED"
   | "APPROVAL_REQUESTED"
   | "APPROVAL_APPROVED"
@@ -327,6 +370,8 @@ export type InvestigationAggregate = {
   hypothesisEvidenceLinks: HypothesisEvidenceLink[];
   traceEvents: InvestigationTraceEvent[];
   messages: InvestigationMessage[];
+  diagnosisClaims: DiagnosisClaim[];
+  diagnosisClaimEvidenceLinks: DiagnosisClaimEvidenceLink[];
   diagnosisEvidenceLinks: DiagnosisEvidenceLink[];
   approvalSnapshots: ApprovalSnapshot[];
 };

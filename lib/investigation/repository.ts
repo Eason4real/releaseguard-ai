@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, exists, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   agentIterations,
@@ -6,6 +6,8 @@ import {
   approvals,
   auditEvents,
   diagnoses,
+  diagnosisClaimEvidenceLinks,
+  diagnosisClaims,
   diagnosisEvidenceLinks,
   evidence,
   hypotheses,
@@ -21,7 +23,11 @@ import {
 import { assertRunTransition } from "./state";
 import { D1AnalyticsStore } from "../analytics/repository";
 import type { InvestigationStore, RunTransitionPatch } from "./store";
-import type { Phase3InvestigationStore } from "./phase3-store";
+import {
+  assertGroundedFinalizationCommit,
+  type GroundedFinalizationCommit,
+  type Phase3InvestigationStore,
+} from "./phase3-store";
 import type {
   Approval,
   ApprovalSnapshot,
@@ -30,6 +36,8 @@ import type {
   AuditEventType,
   Confidence,
   Diagnosis,
+  DiagnosisClaim,
+  DiagnosisClaimEvidenceLink,
   DiagnosisEvidenceLink,
   Evidence,
   EvidenceStrength,
@@ -127,6 +135,9 @@ const mapEvidence = (row: typeof evidence.$inferSelect): Evidence => ({
 const mapDiagnosis = (row: typeof diagnoses.$inferSelect): Diagnosis => ({
   id: row.id,
   runId: row.runId,
+  selectedHypothesisId: row.selectedHypothesisId,
+  groundingStatus: row.groundingStatus as Diagnosis["groundingStatus"],
+  disposition: row.disposition as Diagnosis["disposition"],
   rootCause: row.rootCause,
   summary: row.summary,
   causalChain: parseJson(row.causalChainJson, []),
@@ -143,6 +154,30 @@ const mapDiagnosis = (row: typeof diagnoses.$inferSelect): Diagnosis => ({
   supersededAt: row.supersededAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt || row.createdAt,
+});
+
+const mapDiagnosisClaim = (
+  row: typeof diagnosisClaims.$inferSelect,
+): DiagnosisClaim => ({
+  id: row.id,
+  runId: row.runId,
+  diagnosisId: row.diagnosisId,
+  type: row.type as DiagnosisClaim["type"],
+  limitationType: row.limitationType as DiagnosisClaim["limitationType"],
+  statement: row.statement,
+  groundingStatus: row.groundingStatus as DiagnosisClaim["groundingStatus"],
+  createdAt: row.createdAt,
+});
+
+const mapDiagnosisClaimEvidenceLink = (
+  row: typeof diagnosisClaimEvidenceLinks.$inferSelect,
+): DiagnosisClaimEvidenceLink => ({
+  id: row.id,
+  runId: row.runId,
+  diagnosisId: row.diagnosisId,
+  claimId: row.claimId,
+  evidenceId: row.evidenceId,
+  createdAt: row.createdAt,
 });
 
 const mapAction = (row: typeof proposedActions.$inferSelect): ProposedAction => ({
@@ -287,6 +322,8 @@ const mapApprovalSnapshot = (
 });
 
 export class D1InvestigationStore implements InvestigationStore, Phase3InvestigationStore {
+  constructor(private readonly finalizationDbProvider: typeof getDb = getDb) {}
+
   async createRun(run: InvestigationRun) {
     await (await getDb()).insert(investigationRuns).values(run);
   }
@@ -381,49 +418,181 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
     await (await getDb()).insert(evidence).values(items);
   }
 
-  async saveDiagnosis(diagnosis: Diagnosis) {
-    await (await getDb()).insert(diagnoses).values({
-      id: diagnosis.id,
-      runId: diagnosis.runId,
-      rootCause: diagnosis.rootCause,
-      summary: diagnosis.summary,
-      causalChainJson: JSON.stringify(diagnosis.causalChain),
-      affectedMetricsJson: JSON.stringify(diagnosis.affectedMetrics),
-      affectedSegmentsJson: JSON.stringify(diagnosis.affectedSegments),
-      validatedClaimsJson: JSON.stringify(diagnosis.validatedClaims),
-      unvalidatedClaimsJson: JSON.stringify(diagnosis.unvalidatedClaims),
-      confidence: diagnosis.confidence,
-      severity: diagnosis.severity,
-      recommendedAction: diagnosis.recommendedAction,
-      revision: diagnosis.revision,
-      status: diagnosis.status,
-      supersedesDiagnosisId: diagnosis.supersedesDiagnosisId,
-      supersededAt: diagnosis.supersededAt,
-      createdAt: diagnosis.createdAt,
-      updatedAt: diagnosis.updatedAt,
-    });
-  }
-
-  async saveProposedAction(action: ProposedAction) {
-    await (await getDb()).insert(proposedActions).values({
-      id: action.id,
-      runId: action.runId,
-      diagnosisId: action.diagnosisId,
-      type: action.type,
-      status: action.status,
-      title: action.title,
-      argumentsJson: JSON.stringify(action.arguments),
-      rationale: action.rationale,
-      revision: action.revision,
-      supersedesProposedActionId: action.supersedesProposedActionId,
-      supersededAt: action.supersededAt,
-      createdAt: action.createdAt,
-      updatedAt: action.updatedAt,
-    });
-  }
-
-  async saveApproval(approval: Approval) {
-    await (await getDb()).insert(approvals).values(approval);
+  async finalizeGroundedInvestigation(input: GroundedFinalizationCommit) {
+    assertGroundedFinalizationCommit(input);
+    const db = await this.finalizationDbProvider();
+    const diagnosis = input.diagnosis;
+    const guardToken = `FINALIZE:${diagnosis.id}`;
+    const selectedHypothesisStillCurrent = exists(
+      db.select({ id: hypotheses.id })
+        .from(hypotheses)
+        .where(and(
+          eq(hypotheses.id, input.selectedHypothesis.id),
+          eq(hypotheses.runId, input.runId),
+          eq(hypotheses.status, input.selectedHypothesis.status),
+          eq(hypotheses.confidence, input.selectedHypothesis.confidence),
+          eq(hypotheses.updatedAt, input.selectedHypothesis.updatedAt),
+        )),
+    );
+    const iterationStillCurrent = exists(
+      db.select({ id: agentIterations.id })
+        .from(agentIterations)
+        .where(and(
+          eq(agentIterations.id, input.iterationId),
+          eq(agentIterations.runId, input.runId),
+          eq(agentIterations.status, "RUNNING"),
+        )),
+    );
+    const claimStatements = input.claims.map((claim) => db.insert(diagnosisClaims).values({
+      id: claim.id,
+      runId: claim.runId,
+      diagnosisId: claim.diagnosisId,
+      type: claim.type,
+      limitationType: claim.limitationType,
+      statement: claim.statement,
+      groundingStatus: claim.groundingStatus,
+      createdAt: claim.createdAt,
+    }));
+    const actionStatements = input.proposedAction
+      && input.approval
+      && input.approvalSnapshot
+      && input.actionToolCall
+      ? [
+          db.insert(proposedActions).values({
+            id: input.proposedAction.id,
+            runId: input.proposedAction.runId,
+            diagnosisId: input.proposedAction.diagnosisId,
+            type: input.proposedAction.type,
+            status: input.proposedAction.status,
+            title: input.proposedAction.title,
+            argumentsJson: JSON.stringify(input.proposedAction.arguments),
+            rationale: input.proposedAction.rationale,
+            revision: input.proposedAction.revision,
+            supersedesProposedActionId: input.proposedAction.supersedesProposedActionId,
+            supersededAt: input.proposedAction.supersededAt,
+            createdAt: input.proposedAction.createdAt,
+            updatedAt: input.proposedAction.updatedAt,
+          }),
+          db.insert(approvals).values(input.approval),
+          db.insert(approvalSnapshots).values({
+            id: input.approvalSnapshot.id,
+            approvalId: input.approvalSnapshot.approvalId,
+            runId: input.approvalSnapshot.runId,
+            diagnosisId: input.approvalSnapshot.diagnosisId,
+            proposedActionId: input.approvalSnapshot.proposedActionId,
+            revision: input.approvalSnapshot.revision,
+            frozenPayloadJson: JSON.stringify(input.approvalSnapshot.frozenPayload),
+            checksum: input.approvalSnapshot.checksum,
+            lifecycleStatus: input.approvalSnapshot.lifecycleStatus,
+            createdAt: input.approvalSnapshot.createdAt,
+            withdrawnAt: input.approvalSnapshot.withdrawnAt,
+          }),
+          db.insert(toolCalls).values({
+            id: input.actionToolCall.id,
+            runId: input.actionToolCall.runId,
+            name: input.actionToolCall.name,
+            argumentsJson: JSON.stringify(input.actionToolCall.arguments),
+            canonicalSignature: input.actionToolCall.canonicalSignature,
+            status: input.actionToolCall.status,
+            proposedActionId: input.actionToolCall.proposedActionId,
+            approvalId: input.actionToolCall.approvalId,
+            agentIterationId: input.actionToolCall.agentIterationId,
+            triggerMessageId: input.actionToolCall.triggerMessageId,
+            cacheSourceToolCallId: input.actionToolCall.cacheSourceToolCallId,
+            iteration: input.actionToolCall.iteration,
+            orderIndex: input.actionToolCall.order,
+            resultId: input.actionToolCall.resultId,
+            requestedAt: input.actionToolCall.requestedAt,
+            startedAt: input.actionToolCall.startedAt,
+            completedAt: input.actionToolCall.completedAt,
+          }),
+        ]
+      : [];
+    const statements = [
+      db.update(investigationRuns)
+        .set({
+          status: input.targetRunStatus,
+          activeIterationId: guardToken,
+          lockVersion: input.expectedLockVersion + 1,
+          currentDiagnosisRevision: diagnosis.revision,
+          totalTokens: input.totalTokens,
+          completedAt: null,
+          updatedAt: input.completedAt,
+        })
+        .where(and(
+          eq(investigationRuns.id, input.runId),
+          eq(investigationRuns.status, "RUNNING"),
+          eq(investigationRuns.activeIterationId, input.iterationId),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion),
+          eq(investigationRuns.currentDiagnosisRevision, input.expectedDiagnosisRevision),
+          selectedHypothesisStillCurrent,
+          iterationStillCurrent,
+        ))
+        .returning({ id: investigationRuns.id }),
+      db.insert(diagnoses).select(sql`
+        SELECT
+          ${diagnosis.id}, ${diagnosis.runId}, ${diagnosis.selectedHypothesisId},
+          ${diagnosis.groundingStatus}, ${diagnosis.disposition}, ${diagnosis.rootCause},
+          ${diagnosis.summary}, ${JSON.stringify(diagnosis.causalChain)},
+          ${JSON.stringify(diagnosis.affectedMetrics)}, ${JSON.stringify(diagnosis.affectedSegments)},
+          ${JSON.stringify(diagnosis.validatedClaims)}, ${JSON.stringify(diagnosis.unvalidatedClaims)},
+          ${diagnosis.confidence}, ${diagnosis.severity}, ${diagnosis.recommendedAction},
+          ${diagnosis.revision}, ${diagnosis.status}, ${diagnosis.supersedesDiagnosisId},
+          ${diagnosis.supersededAt}, ${diagnosis.createdAt}, ${diagnosis.updatedAt}
+        FROM ${investigationRuns}
+        WHERE ${investigationRuns.id} = ${input.runId}
+          AND ${investigationRuns.status} = ${input.targetRunStatus}
+          AND ${investigationRuns.activeIterationId} = ${guardToken}
+          AND ${investigationRuns.lockVersion} = ${input.expectedLockVersion + 1}
+          AND ${investigationRuns.currentDiagnosisRevision} = ${diagnosis.revision}
+      `),
+      ...claimStatements,
+      ...input.claimEvidenceLinks.map((link) =>
+        db.insert(diagnosisClaimEvidenceLinks).values(link)),
+      ...actionStatements,
+      ...input.auditEvents.map((event) => db.insert(auditEvents).values({
+        id: event.id,
+        runId: event.runId,
+        proposedActionId: event.proposedActionId,
+        approvalId: event.approvalId,
+        toolCallId: event.toolCallId,
+        type: event.type,
+        actor: event.actor,
+        detailsJson: JSON.stringify(event.details),
+        createdAt: event.createdAt,
+      })),
+      db.insert(investigationTraceEvents).values({
+        id: input.traceEvent.id,
+        runId: input.traceEvent.runId,
+        iterationId: input.traceEvent.iterationId,
+        sequence: input.traceEvent.sequence,
+        type: input.traceEvent.type,
+        actor: input.traceEvent.actor,
+        publicSummary: input.traceEvent.publicSummary,
+        detailsJson: JSON.stringify(input.traceEvent.details),
+        createdAt: input.traceEvent.createdAt,
+      }),
+      db.update(agentIterations)
+        .set({
+          status: "COMPLETED",
+          decisionType: "FINALIZE",
+          publicRationale: input.publicRationale,
+          completedAt: input.completedAt,
+        })
+        .where(and(
+          eq(agentIterations.id, input.iterationId),
+          eq(agentIterations.runId, input.runId),
+          eq(agentIterations.status, "RUNNING"),
+        )),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null, updatedAt: input.completedAt })
+        .where(and(
+          eq(investigationRuns.id, input.runId),
+          eq(investigationRuns.activeIterationId, guardToken),
+          eq(investigationRuns.lockVersion, input.expectedLockVersion + 1),
+        )),
+    ];
+    await db.batch(statements as [typeof statements[number], ...typeof statements]);
   }
 
   async saveAuditEvents(events: AuditEvent[]) {
@@ -727,27 +896,6 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
     return Boolean(result[0]);
   }
 
-  async saveDiagnosisEvidenceLinks(items: DiagnosisEvidenceLink[]) {
-    if (items.length === 0) return;
-    await (await getDb()).insert(diagnosisEvidenceLinks).values(items).onConflictDoNothing();
-  }
-
-  async saveApprovalSnapshot(snapshot: ApprovalSnapshot) {
-    await (await getDb()).insert(approvalSnapshots).values({
-      id: snapshot.id,
-      approvalId: snapshot.approvalId,
-      runId: snapshot.runId,
-      diagnosisId: snapshot.diagnosisId,
-      proposedActionId: snapshot.proposedActionId,
-      revision: snapshot.revision,
-      frozenPayloadJson: JSON.stringify(snapshot.frozenPayload),
-      checksum: snapshot.checksum,
-      lifecycleStatus: snapshot.lifecycleStatus,
-      createdAt: snapshot.createdAt,
-      withdrawnAt: snapshot.withdrawnAt,
-    });
-  }
-
   async recordRuntimeCommand(input: {
     id: string;
     runId: string;
@@ -838,6 +986,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       hypothesisLinkRows,
       traceRows,
       messageRows,
+      diagnosisClaimRows,
+      diagnosisClaimLinkRows,
       diagnosisLinkRows,
       snapshotRows,
     ] = await Promise.all([
@@ -853,6 +1003,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       db.select().from(hypothesisEvidenceLinks).where(eq(hypothesisEvidenceLinks.runId, run.id)).orderBy(asc(hypothesisEvidenceLinks.createdAt)),
       db.select().from(investigationTraceEvents).where(eq(investigationTraceEvents.runId, run.id)).orderBy(asc(investigationTraceEvents.sequence)),
       db.select().from(investigationMessages).where(eq(investigationMessages.runId, run.id)).orderBy(asc(investigationMessages.createdAt)),
+      db.select().from(diagnosisClaims).where(eq(diagnosisClaims.runId, run.id)).orderBy(asc(diagnosisClaims.createdAt)),
+      db.select().from(diagnosisClaimEvidenceLinks).where(eq(diagnosisClaimEvidenceLinks.runId, run.id)).orderBy(asc(diagnosisClaimEvidenceLinks.createdAt)),
       db.select().from(diagnosisEvidenceLinks).where(eq(diagnosisEvidenceLinks.runId, run.id)).orderBy(asc(diagnosisEvidenceLinks.createdAt)),
       db.select().from(approvalSnapshots).where(eq(approvalSnapshots.runId, run.id)).orderBy(asc(approvalSnapshots.revision)),
     ]);
@@ -885,6 +1037,8 @@ export class D1InvestigationStore implements InvestigationStore, Phase3Investiga
       hypothesisEvidenceLinks: hypothesisLinkRows.map(mapHypothesisLink),
       traceEvents: traceRows.map(mapTraceEvent),
       messages: messageRows.map(mapMessage),
+      diagnosisClaims: diagnosisClaimRows.map(mapDiagnosisClaim),
+      diagnosisClaimEvidenceLinks: diagnosisClaimLinkRows.map(mapDiagnosisClaimEvidenceLink),
       diagnosisEvidenceLinks: diagnosisLinkRows.map(mapDiagnosisLink),
       approvalSnapshots: snapshotRows.map(mapApprovalSnapshot),
     };

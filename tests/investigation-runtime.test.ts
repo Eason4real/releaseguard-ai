@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { drizzle } from "drizzle-orm/d1";
+import * as dbSchema from "../db/schema";
 import "./risk-detection.test";
 import "./analytics-tools.test";
 import "./retrieval.test";
@@ -12,22 +14,30 @@ import {
 } from "../lib/investigation/action-runtime";
 import {
   executeAndRecordTool,
-  finalizeInvestigation,
-  fixtureDiagnosis,
   startInvestigation,
 } from "../lib/investigation/runtime";
 import { runFixtureInvestigation } from "../lib/investigation/fixture-runtime";
 import { runAgentLoop } from "../lib/investigation/agent-loop";
-import type { InvestigationPlanner, PlannerContext } from "../lib/investigation/planner";
+import type {
+  InvestigationDecision,
+  InvestigationPlanner,
+  PlannerContext,
+} from "../lib/investigation/planner";
 import { assertRunTransition } from "../lib/investigation/state";
 import { POST as githubIssueRoute } from "../app/api/github-issue/route";
 import { handleInvestigatePost } from "../app/api/investigate/route";
 import type { RunTransitionPatch } from "../lib/investigation/store";
-import type { Phase3InvestigationStore } from "../lib/investigation/phase3-store";
+import {
+  assertGroundedFinalizationCommit,
+  type GroundedFinalizationCommit,
+  type Phase3InvestigationStore,
+} from "../lib/investigation/phase3-store";
 import type {
   Approval,
   AuditEvent,
   Diagnosis,
+  DiagnosisClaim,
+  DiagnosisClaimEvidenceLink,
   Evidence,
   InvestigationAggregate,
   InvestigationRun,
@@ -51,10 +61,12 @@ import { continueInvestigation } from "../lib/investigation/revision-runtime";
 import { submitInvestigationMessage } from "../lib/investigation/chat-runtime";
 import { DeterministicInvestigationPlanner } from "../lib/investigation/deterministic-planner";
 import { LLMInvestigationPlanner } from "../lib/investigation/llm-planner";
+import { D1InvestigationStore } from "../lib/investigation/repository";
 import {
   InMemoryFeedbackRetriever,
   InMemoryIncidentRetriever,
 } from "../lib/retrieval/local-retrievers";
+import { calculateHypothesisConfidence } from "../lib/investigation/confidence";
 
 class MemoryStore implements Phase3InvestigationStore {
   analytics = new MemoryAnalyticsStore();
@@ -63,6 +75,8 @@ class MemoryStore implements Phase3InvestigationStore {
   results = new Map<string, ToolResult>();
   evidence = new Map<string, Evidence>();
   diagnoses = new Map<string, Diagnosis>();
+  diagnosisClaims = new Map<string, DiagnosisClaim>();
+  diagnosisClaimLinks = new Map<string, DiagnosisClaimEvidenceLink>();
   actions = new Map<string, ProposedAction>();
   approvals = new Map<string, Approval>();
   audits = new Map<string, AuditEvent>();
@@ -75,6 +89,9 @@ class MemoryStore implements Phase3InvestigationStore {
   snapshots = new Map<string, ApprovalSnapshot>();
   commands = new Set<string>();
   failNextEvidenceAssessmentCommit = false;
+  lastGroundedFinalizationInput: GroundedFinalizationCommit | null = null;
+  failNextGroundedFinalizationAt: null | "DIAGNOSIS" | "ACTION" | "APPROVAL"
+    | "SNAPSHOT" | "TOOL_CALL" | "AUDIT" | "RUN_TRANSITION" = null;
 
   async createRun(run: InvestigationRun) {
     this.runs.set(run.id, structuredClone(run));
@@ -126,16 +143,99 @@ class MemoryStore implements Phase3InvestigationStore {
     items.forEach((item) => this.evidence.set(item.id, structuredClone(item)));
   }
 
-  async saveDiagnosis(diagnosis: Diagnosis) {
-    this.diagnoses.set(diagnosis.id, structuredClone(diagnosis));
-  }
+  async finalizeGroundedInvestigation(input: GroundedFinalizationCommit) {
+    assertGroundedFinalizationCommit(input);
+    const run = this.runs.get(input.runId);
+    const iteration = this.iterations.get(input.iterationId);
+    const selectedHypothesis = this.hypotheses.get(input.selectedHypothesis.id);
+    if (
+      !run
+      || run.status !== "RUNNING"
+      || run.activeIterationId !== input.iterationId
+      || run.lockVersion !== input.expectedLockVersion
+      || run.currentDiagnosisRevision !== input.expectedDiagnosisRevision
+      || !iteration
+      || iteration.runId !== input.runId
+      || iteration.status !== "RUNNING"
+      || !selectedHypothesis
+      || selectedHypothesis.runId !== input.runId
+      || selectedHypothesis.status !== input.selectedHypothesis.status
+      || selectedHypothesis.confidence !== input.selectedHypothesis.confidence
+      || selectedHypothesis.updatedAt !== input.selectedHypothesis.updatedAt
+    ) throw new Error("FINALIZATION_PRECONDITION_FAILED");
 
-  async saveProposedAction(action: ProposedAction) {
-    this.actions.set(action.id, structuredClone(action));
-  }
+    const staged = {
+      diagnoses: structuredClone(this.diagnoses),
+      diagnosisClaims: structuredClone(this.diagnosisClaims),
+      diagnosisClaimLinks: structuredClone(this.diagnosisClaimLinks),
+      actions: structuredClone(this.actions),
+      approvals: structuredClone(this.approvals),
+      snapshots: structuredClone(this.snapshots),
+      calls: structuredClone(this.calls),
+      audits: structuredClone(this.audits),
+      traces: structuredClone(this.traces),
+      iterations: structuredClone(this.iterations),
+      runs: structuredClone(this.runs),
+    };
+    const failAt = (point: NonNullable<MemoryStore["failNextGroundedFinalizationAt"]>) => {
+      if (this.failNextGroundedFinalizationAt !== point) return;
+      this.failNextGroundedFinalizationAt = null;
+      throw new Error(`INJECTED_FINALIZATION_${point}_FAILURE`);
+    };
+    staged.diagnoses.set(input.diagnosis.id, structuredClone(input.diagnosis));
+    input.claims.forEach((item) =>
+      staged.diagnosisClaims.set(item.id, structuredClone(item)));
+    input.claimEvidenceLinks.forEach((item) =>
+      staged.diagnosisClaimLinks.set(item.id, structuredClone(item)));
+    failAt("DIAGNOSIS");
+    if (input.proposedAction) {
+      staged.actions.set(input.proposedAction.id, structuredClone(input.proposedAction));
+    }
+    failAt("ACTION");
+    if (input.approval) staged.approvals.set(input.approval.id, structuredClone(input.approval));
+    failAt("APPROVAL");
+    if (input.approvalSnapshot) {
+      staged.snapshots.set(input.approvalSnapshot.id, structuredClone(input.approvalSnapshot));
+    }
+    failAt("SNAPSHOT");
+    if (input.actionToolCall) {
+      staged.calls.set(input.actionToolCall.id, structuredClone(input.actionToolCall));
+    }
+    failAt("TOOL_CALL");
+    input.auditEvents.forEach((item) => staged.audits.set(item.id, structuredClone(item)));
+    staged.traces.set(input.traceEvent.id, structuredClone(input.traceEvent));
+    failAt("AUDIT");
+    staged.iterations.set(input.iterationId, {
+      ...iteration,
+      status: "COMPLETED",
+      decisionType: "FINALIZE",
+      publicRationale: input.publicRationale,
+      completedAt: input.completedAt,
+    });
+    staged.runs.set(input.runId, {
+      ...run,
+      status: input.targetRunStatus,
+      activeIterationId: null,
+      lockVersion: input.expectedLockVersion + 1,
+      currentDiagnosisRevision: input.diagnosis.revision,
+      totalTokens: input.totalTokens,
+      completedAt: null,
+      updatedAt: input.completedAt,
+    });
+    failAt("RUN_TRANSITION");
 
-  async saveApproval(approval: Approval) {
-    this.approvals.set(approval.id, structuredClone(approval));
+    this.diagnoses = staged.diagnoses;
+    this.diagnosisClaims = staged.diagnosisClaims;
+    this.diagnosisClaimLinks = staged.diagnosisClaimLinks;
+    this.actions = staged.actions;
+    this.approvals = staged.approvals;
+    this.snapshots = staged.snapshots;
+    this.calls = staged.calls;
+    this.audits = staged.audits;
+    this.traces = staged.traces;
+    this.iterations = staged.iterations;
+    this.runs = staged.runs;
+    this.lastGroundedFinalizationInput = structuredClone(input);
   }
 
   async saveAuditEvents(events: AuditEvent[]) {
@@ -360,14 +460,6 @@ class MemoryStore implements Phase3InvestigationStore {
     return true;
   }
 
-  async saveDiagnosisEvidenceLinks(items: DiagnosisEvidenceLink[]) {
-    items.forEach((item) => this.diagnosisLinks.set(item.id, structuredClone(item)));
-  }
-
-  async saveApprovalSnapshot(snapshot: ApprovalSnapshot) {
-    this.snapshots.set(snapshot.id, structuredClone(snapshot));
-  }
-
   async recordRuntimeCommand(input: {
     id: string;
     runId: string;
@@ -475,6 +567,10 @@ class MemoryStore implements Phase3InvestigationStore {
         .sort((left, right) => left.sequence - right.sequence)),
       messages: structuredClone([...this.messages.values()]
         .filter((item) => item.runId === runId)),
+      diagnosisClaims: structuredClone([...this.diagnosisClaims.values()]
+        .filter((item) => item.runId === runId)),
+      diagnosisClaimEvidenceLinks: structuredClone([...this.diagnosisClaimLinks.values()]
+        .filter((item) => item.runId === runId)),
       diagnosisEvidenceLinks: structuredClone([...this.diagnosisLinks.values()]
         .filter((item) => item.runId === runId)),
       approvalSnapshots: structuredClone([...this.snapshots.values()]
@@ -487,6 +583,44 @@ class MemoryStore implements Phase3InvestigationStore {
     const latest = [...this.runs.values()].sort((left, right) =>
       right.createdAt.localeCompare(left.createdAt))[0];
     return latest ? this.getAggregate(latest.id) : null;
+  }
+}
+
+class AtomicBatchD1Statement {
+  constructor(
+    readonly query: string,
+    readonly params: unknown[] = [],
+  ) {}
+
+  bind(...params: unknown[]) {
+    return new AtomicBatchD1Statement(this.query, params);
+  }
+}
+
+class AtomicBatchD1Client {
+  committedQueries: string[] = [];
+  batchCalls = 0;
+  failPattern: RegExp | null = null;
+
+  prepare(query: string) {
+    return new AtomicBatchD1Statement(query);
+  }
+
+  async batch(statements: AtomicBatchD1Statement[]) {
+    this.batchCalls += 1;
+    const staged = [...this.committedQueries];
+    for (const statement of statements) {
+      if (this.failPattern?.test(statement.query)) {
+        throw new Error("INJECTED_D1_BATCH_FAILURE");
+      }
+      staged.push(statement.query);
+    }
+    this.committedQueries = staged;
+    return statements.map(() => ({
+      success: true,
+      results: [],
+      meta: { changes: 1 },
+    }));
   }
 }
 
@@ -582,6 +716,117 @@ async function runningInvestigationWithPartialMatrix() {
   };
 }
 
+async function groundedReadyInvestigation() {
+  const setup = await runningInvestigationWithHypotheses();
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "get_release",
+    args: { release_id: setup.release.id },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+  });
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "query_metric",
+    args: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: setup.event.filters,
+      granularity_minutes: 5,
+      include_baseline: true,
+    },
+    iteration: 1,
+    order: 2,
+    analytics: setup.store.analytics,
+  });
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "segment_metric",
+    args: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: { platform: "Android" },
+      dimension: "app_version",
+      limit: 10,
+    },
+    iteration: 1,
+    order: 3,
+    analytics: setup.store.analytics,
+  });
+  const collected = (await setup.store.getAggregate(setup.runId))!;
+  const links = collected.evidence.flatMap((item) => setup.hypotheses.map((candidate, index) =>
+    hypothesisLink(
+      setup.runId,
+      item.id,
+      candidate.id,
+      index === 0 ? "SUPPORTS" : "CONTRADICTS",
+    )));
+  await setup.store.saveHypothesisEvidenceLinks(links);
+  for (const candidate of setup.hypotheses) {
+    const calculated = calculateHypothesisConfidence(
+      collected.evidence,
+      links.filter((item) => item.hypothesisId === candidate.id),
+    );
+    await setup.store.updateHypothesis({ ...candidate, ...calculated });
+  }
+  return { ...setup, aggregate: (await setup.store.getAggregate(setup.runId))! };
+}
+
+function groundedFinalizeDecision(
+  aggregate: InvestigationAggregate,
+): Extract<InvestigationDecision, { type: "FINALIZE" }> {
+  const selected = aggregate.hypotheses.find((item) => item.status === "SUPPORTED")
+    ?? aggregate.hypotheses.find((item) => item.status === "CONFIRMED")!;
+  const supportingIds = new Set(aggregate.hypothesisEvidenceLinks
+    .filter((item) => item.hypothesisId === selected.id && item.relation === "SUPPORTS")
+    .map((item) => item.evidenceId));
+  const evidenceIds = (...categories: string[]) => aggregate.evidence
+    .filter((item) => supportingIds.has(item.id) && categories.includes(item.category))
+    .map((item) => item.id);
+  return {
+    type: "FINALIZE",
+    selectedHypothesisId: selected.id,
+    diagnosis: {
+      summary: "当前 Run 的发布、指标与分群证据共同支持所选假设。",
+      claims: [
+        {
+          type: "ROOT_CAUSE",
+          statement: selected.statement,
+          evidenceIds: aggregate.evidence
+            .filter((item) => supportingIds.has(item.id) && item.category !== "SIMILAR_INCIDENT")
+            .map((item) => item.id),
+        },
+        {
+          type: "CAUSAL_STEP",
+          statement: "发布变更与当前失败机制在时间上和产品路径上相符。",
+          evidenceIds: evidenceIds("RELEASE_CHANGE"),
+        },
+        {
+          type: "AFFECTED_METRIC",
+          statement: "coupon_claim_success_rate 显著低于动态基线。",
+          evidenceIds: evidenceIds("PRODUCT_METRIC"),
+        },
+        {
+          type: "AFFECTED_SEGMENT",
+          statement: "异常集中在 Android 7.3.0。",
+          evidenceIds: evidenceIds("SEGMENT_METRIC"),
+        },
+        {
+          type: "LIMITATION",
+          limitationType: "SCOPE_LIMITATION",
+          statement: "现有分析仅覆盖 Android 7.3.0，无法判断其他历史版本。",
+          evidenceIds: [],
+        },
+      ],
+    },
+    disposition: "FIX",
+    rationale: "使用当前 Run Evidence 形成 grounded diagnosis。",
+  };
+}
+
 test("Android fixture creates a persisted Approval and waiting Action ToolCall", async () => {
   const store = new MemoryStore();
   const aggregate = await runFixtureInvestigation(
@@ -619,7 +864,11 @@ test("Android fixture creates a persisted Approval and waiting Action ToolCall",
     5,
   );
   assert.equal(aggregate.hypothesisEvidenceLinks.some((item) => item.linkedBy === "RUNTIME"), false);
-  assert.equal(aggregate.diagnosisEvidenceLinks.length, 5);
+  assert.equal(aggregate.diagnosis?.groundingStatus, "GROUNDED");
+  assert.equal(aggregate.diagnosis?.selectedHypothesisId, aggregate.hypotheses[0].id);
+  assert.equal(aggregate.diagnosisClaims.length, 5);
+  assert.equal(aggregate.diagnosisClaimEvidenceLinks.length, 7);
+  assert.equal(aggregate.diagnosisEvidenceLinks.length, 0);
   assert.equal(aggregate.approvalSnapshots.length, 1);
   assert.equal(aggregate.approvalSnapshots[0].lifecycleStatus, "ACTIVE");
 
@@ -740,6 +989,7 @@ test("Case B: rejection is persisted and never calls GitHub", async () => {
   assert.equal(rejected?.run.status, "CLOSED_NO_ACTION");
   assert.equal(rejected?.approval?.status, "REJECTED");
   assert.equal(rejected?.proposedAction?.status, "REJECTED");
+  assert.ok(rejected?.run.completedAt);
   assert.equal(
     rejected?.toolCalls.find((call) => call.proposedActionId === actionId)?.status,
     "DENIED",
@@ -833,7 +1083,7 @@ test("Case C: a valid approval cannot execute when the Run state is forged", asy
   );
 });
 
-test("EMPTY and ERROR investigation ToolResults persist without failing the run", async () => {
+test("EMPTY and ERROR investigation ToolResults persist without bypassing grounded finalization", async () => {
   const store = new MemoryStore();
   const runId = await startInvestigation(store, {
     question: "测试空结果和错误结果",
@@ -856,16 +1106,20 @@ test("EMPTY and ERROR investigation ToolResults persist without failing the run"
   });
   assert.equal(emptyResult.result.status, "EMPTY");
   assert.equal(errorResult.result.status, "ERROR");
-  await finalizeInvestigation(store, {
-    runId,
-    diagnosis: fixtureDiagnosis(),
-    totalTokens: 0,
-    evidenceCount: 0,
-  });
-  assert.equal((await store.getAggregate(runId))?.run.status, "WAITING_APPROVAL");
+  const aggregate = await store.getAggregate(runId);
+  assert.equal(aggregate?.run.status, "RUNNING");
+  assert.equal(aggregate?.diagnosis, null);
+  assert.equal(aggregate?.proposedAction, null);
 });
 
 test("invalid InvestigationRun transitions are rejected", () => {
+  assert.doesNotThrow(
+    () => assertRunTransition("RUNNING", "WAITING_VERIFICATION"),
+  );
+  assert.throws(
+    () => assertRunTransition("RUNNING", "CLOSED_NO_ACTION"),
+    /Invalid InvestigationRun transition/,
+  );
   assert.throws(
     () => assertRunTransition("WAITING_VERIFICATION", "RUNNING"),
     /Invalid InvestigationRun transition/,
@@ -1047,7 +1301,9 @@ test("P4.1 blocks FINALIZE and incomplete assessment while Evidence is pending",
     async plan() {
       return {
         type: "FINALIZE",
-        diagnosis: fixtureDiagnosis(),
+        selectedHypothesisId: finalizeCase.hypotheses[0].id,
+        diagnosis: { summary: "待评价 Evidence 不得绕过。", claims: [] },
+        disposition: "FIX",
         rationale: "尝试绕过 pending Evidence gate。",
       };
     },
@@ -1178,7 +1434,9 @@ test("P4.1 partial matrix blocks both CALL_TOOL and FINALIZE", async () => {
     async plan() {
       return {
         type: "FINALIZE",
-        diagnosis: fixtureDiagnosis(),
+        selectedHypothesisId: finalizeCase.hypotheses[0].id,
+        diagnosis: { summary: "Partial matrix 不得绕过。", claims: [] },
+        disposition: "FIX",
         rationale: "尝试绕过 partial matrix gate。",
       };
     },
@@ -1370,7 +1628,7 @@ test("P4.1 Continue Investigation refuses a legacy over-limit Run without withdr
   assert.equal(unchanged?.hypotheses.filter((item) => item.status !== "REJECTED").length, 4);
 });
 
-test("P4.1 rejects HIGH FINALIZE from both planner types when all hypotheses are rejected", async () => {
+test("P4.1 rejects FINALIZE from both planner types when all hypotheses are rejected", async () => {
   for (const plannerType of ["LLM", "DETERMINISTIC"] as const) {
     const setup = await runningInvestigationWithHypotheses();
     for (const item of setup.hypotheses) {
@@ -1381,7 +1639,16 @@ test("P4.1 rejects HIGH FINALIZE from both planner types when all hypotheses are
       async plan() {
         return {
           type: "FINALIZE",
-          diagnosis: { ...fixtureDiagnosis(), confidence: "HIGH" },
+          selectedHypothesisId: setup.hypotheses[0].id,
+          diagnosis: {
+            summary: "恶意尝试在没有有效假设时输出结论。",
+            claims: [{
+              type: "ROOT_CAUSE",
+              statement: setup.hypotheses[0].statement,
+              evidenceIds: [],
+            }],
+          },
+          disposition: "FIX",
           rationale: "恶意尝试在没有有效假设时输出 HIGH。",
         };
       },
@@ -1397,6 +1664,644 @@ test("P4.1 rejects HIGH FINALIZE from both planner types when all hypotheses are
     const failed = await setup.store.getAggregate(setup.runId);
     assert.equal(failed?.diagnosis, null);
     assert.equal(failed?.run.status, "FAILED");
+  }
+});
+
+test("P4.2 persists a ROOT_CAUSE grounded by current Run Evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan() {
+      return decision;
+    },
+  };
+  const completed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  assert.equal(completed?.run.status, "WAITING_APPROVAL");
+  assert.equal(completed?.diagnosis?.groundingStatus, "GROUNDED");
+  assert.equal(completed?.diagnosis?.selectedHypothesisId, decision.selectedHypothesisId);
+  assert.equal(completed?.diagnosis?.confidence, "HIGH");
+  const rootClaim = completed?.diagnosisClaims.find((item) => item.type === "ROOT_CAUSE");
+  assert.ok(rootClaim);
+  assert.ok(completed?.diagnosisClaimEvidenceLinks.some((item) =>
+    item.claimId === rootClaim.id));
+  assert.ok(completed?.proposedAction);
+  assert.ok(completed?.approval);
+});
+
+test("P4.2 rejects ROOT_CAUSE without Evidence and creates no action or approval", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.evidenceIds = [];
+  const planner: InvestigationPlanner = { type: "LLM", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /UNGROUNDED_CRITICAL_CLAIM/,
+  );
+  const failed = await setup.store.getAggregate(setup.runId);
+  assert.equal(failed?.diagnosis, null);
+  assert.equal(failed?.proposedAction, null);
+  assert.equal(failed?.approval, null);
+});
+
+test("P4.2 rejects a Claim that cites Evidence from another Run", async () => {
+  const setup = await groundedReadyInvestigation();
+  const other = await groundedReadyInvestigation();
+  const foreignEvidenceId = other.aggregate.evidence[0].id;
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.evidenceIds = [
+    foreignEvidenceId,
+  ];
+  const planner: InvestigationPlanner = { type: "DETERMINISTIC", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /CROSS_RUN_EVIDENCE/,
+  );
+  assert.equal((await setup.store.getAggregate(setup.runId))?.diagnosis, null);
+});
+
+test("P4.2 rejects a RAG-only ROOT_CAUSE", async () => {
+  const setup = await groundedReadyInvestigation();
+  const ragEvidence: Evidence = {
+    id: "EV-RAG-ONLY",
+    runId: setup.runId,
+    toolResultId: "TR-RAG-ONLY",
+    category: "SIMILAR_INCIDENT",
+    statement: "历史事故症状相似。",
+    source: "Historical Incident Memory",
+    strength: "HIGH",
+    provenance: "public_reference",
+    collectedAt: new Date().toISOString(),
+  };
+  await setup.store.saveEvidence([ragEvidence]);
+  await setup.store.saveHypothesisEvidenceLinks(setup.hypotheses.map((candidate, index) =>
+    hypothesisLink(
+      setup.runId,
+      ragEvidence.id,
+      candidate.id,
+      index === 0 ? "SUPPORTS" : "NEUTRAL",
+    )));
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const decision = groundedFinalizeDecision(aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.evidenceIds = [
+    ragEvidence.id,
+  ];
+  const planner: InvestigationPlanner = { type: "LLM", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /RAG_ONLY_ROOT_CAUSE/,
+  );
+});
+
+test("P4.2 allows a LIMITATION without Evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const planner: InvestigationPlanner = { type: "DETERMINISTIC", async plan() { return decision; } };
+  const completed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  const limitation = completed?.diagnosisClaims.find((item) => item.type === "LIMITATION");
+  assert.ok(limitation);
+  assert.equal(
+    completed?.diagnosisClaimEvidenceLinks.some((item) => item.claimId === limitation.id),
+    false,
+  );
+  assert.equal(limitation.limitationType, "SCOPE_LIMITATION");
+});
+
+test("P4.2 accepts structured evidence-free limitation boundaries", async () => {
+  const cases = [
+    {
+      limitationType: "DATA_GAP" as const,
+      statement: "当前没有客户端 trace，因此无法确认具体重试机制。",
+    },
+    {
+      limitationType: "SCOPE_LIMITATION" as const,
+      statement: "反馈数据仅覆盖 US 用户，无法判断其他地区影响。",
+    },
+    {
+      limitationType: "UNRESOLVED_UNCERTAINTY" as const,
+      statement: "当前无法排除尚未接入的第三方依赖因素。",
+    },
+    {
+      limitationType: "OBSERVABILITY_LIMITATION" as const,
+      statement: "支付网关状态不可用，因此无法排除第三方故障。",
+    },
+  ];
+  for (const boundary of cases) {
+    const setup = await groundedReadyInvestigation();
+    const decision = groundedFinalizeDecision(setup.aggregate);
+    const limitation = decision.diagnosis.claims.find((item) => item.type === "LIMITATION");
+    assert.ok(limitation && limitation.type === "LIMITATION");
+    limitation.limitationType = boundary.limitationType;
+    limitation.statement = boundary.statement;
+    const completed = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+      analytics: setup.store.analytics,
+    });
+    assert.equal(completed?.diagnosis?.groundingStatus, "GROUNDED");
+  }
+});
+
+test("P4.2 rejects critical factual assertions disguised as LIMITATION", async () => {
+  const cases = [
+    {
+      limitationType: "UNRESOLVED_UNCERTAINTY" as const,
+      statement: "根因就是支付系统故障，可能影响所有用户。",
+    },
+    {
+      limitationType: "UNRESOLVED_UNCERTAINTY" as const,
+      statement: "新用户可能是主要受影响人群，目前尚不能完全确认。",
+    },
+    {
+      limitationType: "UNRESOLVED_UNCERTAINTY" as const,
+      statement: "指标下降可能来自第三方故障。",
+    },
+    {
+      limitationType: "UNRESOLVED_UNCERTAINTY" as const,
+      statement: "7.3.0 的重试逻辑导致转化下降，但仍有一些不确定性。",
+    },
+  ];
+  for (const disguisedClaim of cases) {
+    const setup = await groundedReadyInvestigation();
+    const decision = groundedFinalizeDecision(setup.aggregate);
+    const limitation = decision.diagnosis.claims.find((item) => item.type === "LIMITATION");
+    assert.ok(limitation && limitation.type === "LIMITATION");
+    limitation.limitationType = disguisedClaim.limitationType;
+    limitation.statement = disguisedClaim.statement;
+    await assert.rejects(
+      runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: { type: "LLM", async plan() { return decision; } },
+        analytics: setup.store.analytics,
+      }),
+      /LIMITATION_(?:CONTAINS_CRITICAL_ASSERTION|BOUNDARY|SHAPE)/,
+    );
+    const failed = await setup.store.getAggregate(setup.runId);
+    assert.equal(failed?.diagnoses.length, 0);
+    assert.equal(failed?.proposedActions.length, 0);
+    assert.equal(failed?.approvals.length, 0);
+  }
+});
+
+test("P4.2 rejects a factual LIMITATION even when it cites Evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const limitation = decision.diagnosis.claims.find((item) => item.type === "LIMITATION");
+  assert.ok(limitation && limitation.type === "LIMITATION");
+  limitation.limitationType = "UNRESOLVED_UNCERTAINTY";
+  limitation.statement = "当前无法确认全部影响范围，但新用户是主要受影响人群。";
+  limitation.evidenceIds = [setup.aggregate.evidence[0].id];
+  await assert.rejects(
+    runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: { type: "LLM", async plan() { return decision; } },
+      analytics: setup.store.analytics,
+    }),
+    /INVALID_LIMITATION_SHAPE|LIMITATION_CONTAINS_CRITICAL_ASSERTION/,
+  );
+  const failed = await setup.store.getAggregate(setup.runId);
+  assert.equal(failed?.diagnoses.length, 0);
+  assert.equal(failed?.proposedActions.length, 0);
+});
+
+test("P4.2 does not use LIMITATION Evidence as Action grounding", async () => {
+  const setup = await groundedReadyInvestigation();
+  const limitationOnlyEvidence: Evidence = {
+    id: `EV-LIMITATION-${crypto.randomUUID()}`,
+    runId: setup.runId,
+    toolResultId: setup.aggregate.evidence[0].toolResultId,
+    category: "SIMILAR_INCIDENT",
+    statement: "历史事故只说明尚有未覆盖场景。",
+    source: "Historical Incident Memory",
+    strength: "LOW",
+    provenance: "public_reference",
+    collectedAt: new Date().toISOString(),
+  };
+  await setup.store.saveEvidence([limitationOnlyEvidence]);
+  await setup.store.saveHypothesisEvidenceLinks(setup.hypotheses.map((candidate) =>
+    hypothesisLink(setup.runId, limitationOnlyEvidence.id, candidate.id, "NEUTRAL")));
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const decision = groundedFinalizeDecision(aggregate);
+  const limitation = decision.diagnosis.claims.find((item) => item.type === "LIMITATION");
+  assert.ok(limitation && limitation.type === "LIMITATION");
+  limitation.evidenceIds = [limitationOnlyEvidence.id];
+  const criticalEvidenceCount = new Set(decision.diagnosis.claims
+    .filter((claim) => claim.type !== "LIMITATION")
+    .flatMap((claim) => claim.evidenceIds)).size;
+  const completed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: setup.store.analytics,
+  });
+  assert.equal(completed?.proposedAction?.arguments.evidenceCount, criticalEvidenceCount);
+  assert.doesNotMatch(completed?.proposedAction?.rationale ?? "", /历史事故|未覆盖场景/);
+});
+
+test("P4.2 rejects AFFECTED_METRIC without Evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "AFFECTED_METRIC")!.evidenceIds = [];
+  const planner: InvestigationPlanner = { type: "DETERMINISTIC", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /UNGROUNDED_CRITICAL_CLAIM/,
+  );
+});
+
+test("P4.2 rejects a ROOT_CAUSE that contradicts the selected Hypothesis", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.statement =
+    "第三方依赖故障导致领券失败";
+  const planner: InvestigationPlanner = { type: "LLM", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /ROOT_CAUSE_HYPOTHESIS_MISMATCH/,
+  );
+});
+
+test("P4.2 rejects a REJECTED selected Hypothesis", async () => {
+  const setup = await groundedReadyInvestigation();
+  const rejected = setup.aggregate.hypotheses.find((item) => item.status === "REJECTED")!;
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.selectedHypothesisId = rejected.id;
+  decision.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.statement =
+    rejected.statement;
+  const planner: InvestigationPlanner = { type: "DETERMINISTIC", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /REJECTED_HYPOTHESIS/,
+  );
+});
+
+test("P4.2 rejects ACTIVE/LOW selected Hypothesis without a Finalize policy exception", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const decision: Extract<InvestigationDecision, { type: "FINALIZE" }> = {
+    type: "FINALIZE",
+    selectedHypothesisId: setup.hypotheses[0].id,
+    diagnosis: {
+      summary: "低置信假设不得形成高置信结论。",
+      claims: [{
+        type: "ROOT_CAUSE",
+        statement: setup.hypotheses[0].statement,
+        evidenceIds: [],
+      }],
+    },
+    disposition: "ESCALATE",
+    rationale: "尝试绕过 finalization policy。",
+  };
+  const planner: InvestigationPlanner = { type: "LLM", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /HYPOTHESIS_NOT_FINALIZABLE/,
+  );
+});
+
+test("P4.2 rejects critical Claim supported only by CONTRADICTS Evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const contradicting: Evidence = {
+    id: "EV-CONTRADICTING-ONLY",
+    runId: setup.runId,
+    toolResultId: "TR-CONTRADICTING-ONLY",
+    category: "DATA_QUALITY",
+    statement: "该证据直接反驳所选根因机制。",
+    source: "test",
+    strength: "HIGH",
+    provenance: "runtime_generated",
+    collectedAt: new Date().toISOString(),
+  };
+  await setup.store.saveEvidence([contradicting]);
+  await setup.store.saveHypothesisEvidenceLinks(setup.hypotheses.map((candidate, index) =>
+    hypothesisLink(
+      setup.runId,
+      contradicting.id,
+      candidate.id,
+      index === 0 ? "CONTRADICTS" : "NEUTRAL",
+    )));
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const decision = groundedFinalizeDecision(aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "CAUSAL_STEP")!.evidenceIds = [
+    contradicting.id,
+  ];
+  const planner: InvestigationPlanner = { type: "DETERMINISTIC", async plan() { return decision; } };
+  await assert.rejects(
+    runAgentLoop(setup.store, { runId: setup.runId, planner, analytics: setup.store.analytics }),
+    /UNSUPPORTED_CLAIM_EVIDENCE/,
+  );
+});
+
+test("P4.2 ignores planner confidence and derives Diagnosis confidence from selected Hypothesis", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const malicious = {
+    ...decision,
+    diagnosis: { ...decision.diagnosis, confidence: "LOW", groundingStatus: "GROUNDED" },
+  } as unknown as InvestigationDecision;
+  const planner: InvestigationPlanner = { type: "LLM", async plan() { return malicious; } };
+  const completed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  assert.equal(completed?.diagnosis?.confidence, "HIGH");
+  assert.equal(completed?.diagnosis?.groundingStatus, "GROUNDED");
+});
+
+test("P4.2 FINALIZE rolls back every artifact at each injected persistence stage", async () => {
+  const failurePoints = [
+    "DIAGNOSIS",
+    "ACTION",
+    "APPROVAL",
+    "SNAPSHOT",
+    "TOOL_CALL",
+    "AUDIT",
+    "RUN_TRANSITION",
+  ] as const;
+  for (const failurePoint of failurePoints) {
+    const setup = await groundedReadyInvestigation();
+    const decision = groundedFinalizeDecision(setup.aggregate);
+    setup.store.failNextGroundedFinalizationAt = failurePoint;
+    await assert.rejects(
+      runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+        analytics: setup.store.analytics,
+      }),
+      new RegExp(`INJECTED_FINALIZATION_${failurePoint}_FAILURE`),
+    );
+    const failed = await setup.store.getAggregate(setup.runId);
+    assert.equal(failed?.diagnoses.length, 0, `${failurePoint}: Diagnosis leaked`);
+    assert.equal(failed?.diagnosisClaims.length, 0, `${failurePoint}: Claim leaked`);
+    assert.equal(failed?.diagnosisClaimEvidenceLinks.length, 0, `${failurePoint}: Claim link leaked`);
+    assert.equal(failed?.proposedActions.length, 0, `${failurePoint}: Action leaked`);
+    assert.equal(failed?.approvals.length, 0, `${failurePoint}: Approval leaked`);
+    assert.equal(failed?.approvalSnapshots.length, 0, `${failurePoint}: Snapshot leaked`);
+    assert.equal(
+      failed?.toolCalls.some((call) => call.proposedActionId !== null),
+      false,
+      `${failurePoint}: Action ToolCall leaked`,
+    );
+    assert.equal(
+      failed?.auditEvents.some((event) => event.type === "DIAGNOSIS_FINALIZED"),
+      false,
+      `${failurePoint}: finalize audit leaked`,
+    );
+    assert.equal(
+      failed?.traceEvents.some((event) =>
+        event.type === "PLANNER_DECISION" && event.details.decisionType === "FINALIZE"),
+      false,
+      `${failurePoint}: finalize trace leaked`,
+    );
+  }
+});
+
+test("P4.2 D1 and MemoryStore use the same single-batch FINALIZE contract", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: setup.store.analytics,
+  });
+  const commit = setup.store.lastGroundedFinalizationInput;
+  assert.ok(commit);
+
+  const client = new AtomicBatchD1Client();
+  const db = drizzle(client as never, { schema: dbSchema });
+  const d1Store = new D1InvestigationStore(async () => db);
+  client.failPattern = /insert into ["`]approval_snapshots["`]/i;
+  await assert.rejects(
+    d1Store.finalizeGroundedInvestigation(structuredClone(commit)),
+    /INJECTED_D1_BATCH_FAILURE/,
+  );
+  assert.equal(client.batchCalls, 1);
+  assert.deepEqual(client.committedQueries, []);
+
+  client.failPattern = null;
+  await d1Store.finalizeGroundedInvestigation(structuredClone(commit));
+  assert.equal(client.batchCalls, 2);
+  const committedSql = client.committedQueries.join("\n");
+  for (const table of [
+    "investigation_runs",
+    "diagnoses",
+    "diagnosis_claims",
+    "diagnosis_claim_evidence_links",
+    "proposed_actions",
+    "approvals",
+    "approval_snapshots",
+    "tool_calls",
+    "audit_events",
+    "investigation_trace_events",
+    "agent_iterations",
+  ]) assert.match(committedSql, new RegExp(table));
+});
+
+test("P4.2 FINALIZE atomically creates one revision and duplicate invocation is idempotent", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan() { return decision; },
+  };
+  const first = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  assert.equal(first?.run.status, "WAITING_APPROVAL");
+  assert.equal(first?.run.activeIterationId, null);
+  assert.equal(first?.run.currentDiagnosisRevision, 1);
+  assert.equal(first?.diagnoses.length, 1);
+  assert.equal(first?.proposedActions.length, 1);
+  assert.equal(first?.approvals.length, 1);
+  assert.equal(first?.approvalSnapshots.length, 1);
+  assert.equal(first?.diagnosis?.revision, 1);
+  assert.equal(first?.proposedAction?.revision, 1);
+  assert.equal(first?.approval?.revision, 1);
+  assert.equal(first?.approvalSnapshots[0].revision, 1);
+  assert.equal(first?.iterations.at(-1)?.decisionType, "FINALIZE");
+  assert.equal(first?.iterations.at(-1)?.status, "COMPLETED");
+
+  const second = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  assert.equal(second?.diagnoses.length, 1);
+  assert.equal(second?.proposedActions.length, 1);
+  assert.equal(second?.approvals.length, 1);
+  assert.equal(second?.approvalSnapshots.length, 1);
+});
+
+test("P4.2 OBSERVE atomically enters WAITING_VERIFICATION without Action or Approval", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  decision.disposition = "OBSERVE";
+  const completed = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+    analytics: setup.store.analytics,
+  });
+  assert.equal(completed?.run.status, "WAITING_VERIFICATION");
+  assert.equal(completed?.run.completedAt, null);
+  assert.equal(completed?.run.currentDiagnosisRevision, 1);
+  assert.equal(completed?.diagnoses.length, 1);
+  assert.equal(completed?.diagnosisClaims.length, decision.diagnosis.claims.length);
+  assert.equal(completed?.proposedActions.length, 0);
+  assert.equal(completed?.approvals.length, 0);
+  assert.equal(completed?.approvalSnapshots.length, 0);
+  assert.equal(completed?.toolCalls.some((call) => call.proposedActionId !== null), false);
+  const diagnosisFinalized = completed?.auditEvents.find((event) =>
+    event.type === "DIAGNOSIS_FINALIZED");
+  assert.ok(diagnosisFinalized);
+  assert.equal(diagnosisFinalized?.createdAt, completed?.diagnosis?.createdAt);
+  assert.ok(completed?.auditEvents.some((event) =>
+    event.type === "RUN_STATE_CHANGED"
+    && event.details.to === "WAITING_VERIFICATION"
+    && event.details.disposition === "OBSERVE"));
+  const finalTrace = completed?.traceEvents.find((event) =>
+    event.type === "PLANNER_DECISION" && event.details.decisionType === "FINALIZE");
+  assert.equal(finalTrace?.details.disposition, "OBSERVE");
+  assert.equal(finalTrace?.details.targetRunStatus, "WAITING_VERIFICATION");
+  assert.match(finalTrace?.publicSummary ?? "", /WAITING_VERIFICATION/);
+  assert.doesNotMatch(finalTrace?.publicSummary ?? "", /closed|rejected|关闭|拒绝/i);
+  assert.equal(completed?.iterations.at(-1)?.decisionType, "FINALIZE");
+  assert.equal(completed?.iterations.at(-1)?.status, "COMPLETED");
+});
+
+test("P4.2 action dispositions still atomically enter WAITING_APPROVAL", async () => {
+  for (const disposition of ["FIX", "ROLLBACK", "ESCALATE"] as const) {
+    const setup = await groundedReadyInvestigation();
+    const decision = groundedFinalizeDecision(setup.aggregate);
+    decision.disposition = disposition;
+    const completed = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: { type: "DETERMINISTIC", async plan() { return decision; } },
+      analytics: setup.store.analytics,
+    });
+    assert.equal(completed?.run.status, "WAITING_APPROVAL", disposition);
+    assert.equal(completed?.run.completedAt, null, disposition);
+    assert.ok(completed?.proposedAction, disposition);
+    assert.ok(completed?.approval, disposition);
+    assert.ok(completed?.approvalSnapshots[0], disposition);
+    assert.ok(completed?.toolCalls.some((call) => call.proposedActionId !== null), disposition);
+  }
+});
+
+test("P4.2 preserves revision N claims when revision N+1 is created", async () => {
+  const store = new MemoryStore();
+  const first = await runFixtureInvestigation(store, "Android grounded revision case");
+  const revisionOneClaims = structuredClone(first.diagnosisClaims);
+  const revisionOneLinks = structuredClone(first.diagnosisClaimEvidenceLinks);
+  await continueInvestigation(store, {
+    runId: first.run.id,
+    clientRequestId: "p42-revision-continue",
+    reason: "补充分群验证",
+  });
+  const completed = await submitInvestigationMessage(store, {
+    runId: first.run.id,
+    clientRequestId: "p42-revision-hypothesis",
+    intent: "ADD_HYPOTHESIS",
+    content: "异常可能主要集中在 Android 7.3.0 新用户。",
+    planner: new DeterministicInvestigationPlanner(),
+    analytics: store.analytics,
+  });
+  assert.equal(completed?.diagnoses.length, 2);
+  assert.deepEqual(
+    completed?.diagnosisClaims.filter((item) => item.diagnosisId === first.diagnosis!.id),
+    revisionOneClaims,
+  );
+  assert.deepEqual(
+    completed?.diagnosisClaimEvidenceLinks.filter((item) =>
+      item.diagnosisId === first.diagnosis!.id),
+    revisionOneLinks,
+  );
+  assert.equal(completed?.approvalSnapshots[1].diagnosisId, completed?.diagnoses[1].id);
+});
+
+test("P4.2 keeps legacy Diagnosis LEGACY_UNVERIFIED without fabricated Claims", async () => {
+  const store = new MemoryStore();
+  const runId = await startInvestigation(store, {
+    question: "legacy diagnosis compatibility",
+    provider: "legacy",
+    model: "legacy",
+  });
+  const now = new Date().toISOString();
+  const legacyDiagnosis: Diagnosis = {
+    id: "DX-LEGACY",
+    runId,
+    selectedHypothesisId: null,
+    groundingStatus: "LEGACY_UNVERIFIED",
+    disposition: null,
+    rootCause: "迁移前的旧结论",
+    summary: "旧 Diagnosis 没有逐 claim grounding。",
+    causalChain: [],
+    affectedMetrics: [],
+    affectedSegments: [],
+    validatedClaims: ["旧版 validated claim"],
+    unvalidatedClaims: [],
+    confidence: "HIGH",
+    severity: "HIGH",
+    recommendedAction: "人工复核",
+    revision: 1,
+    status: "FINAL",
+    supersedesDiagnosisId: null,
+    supersededAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  store.diagnoses.set(legacyDiagnosis.id, structuredClone(legacyDiagnosis));
+  const loaded = await store.getAggregate(runId);
+  assert.equal(loaded?.diagnosis?.groundingStatus, "LEGACY_UNVERIFIED");
+  assert.equal(loaded?.diagnosis?.selectedHypothesisId, null);
+  assert.equal(loaded?.diagnosisClaims.length, 0);
+  assert.equal(loaded?.diagnosisClaimEvidenceLinks.length, 0);
+});
+
+test("P4.2 LLMPlanner rejects model-supplied confidence and grounding fields", async () => {
+  const setup = await groundedReadyInvestigation();
+  const decision = groundedFinalizeDecision(setup.aggregate);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    choices: [{
+      message: {
+        content: JSON.stringify({
+          ...decision,
+          diagnosis: {
+            ...decision.diagnosis,
+            confidence: "HIGH",
+            groundingStatus: "GROUNDED",
+          },
+        }),
+      },
+    }],
+  });
+  try {
+    await assert.rejects(
+      new LLMInvestigationPlanner({
+        provider: "OpenAI",
+        baseUrl: "https://api.openai.com/v1",
+        model: "test-model",
+        apiKey: "test-key",
+      }).plan({
+        aggregate: setup.aggregate,
+        trigger: "INITIAL",
+        humanMessage: null,
+        remainingIterations: 4,
+        remainingToolCalls: 2,
+      }),
+      /Grounded Contract/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 
@@ -1452,7 +2357,7 @@ test("P4.1 assessment commit is atomic under injected persistence failure", asyn
   assert.equal(failed?.run.status, "FAILED");
 });
 
-test("P4.1 LLMPlanner and DeterministicPlanner implement the same decision contract", async () => {
+test("P4.2 LLMPlanner and DeterministicPlanner implement the same decision contract", async () => {
   const { store, runId } = await runningInvestigationWithHypotheses();
   store.hypotheses.clear();
   const aggregateWithoutHypotheses = (await store.getAggregate(runId))!;
@@ -1496,6 +2401,50 @@ test("P4.1 LLMPlanner and DeterministicPlanner implement the same decision contr
         Object.keys(llmCreate.hypotheses[0]).sort(),
         ["refuteIf", "statement", "supportIf"],
       );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const finalized = await runFixtureInvestigation(new MemoryStore(), "shared FINALIZE contract");
+  const deterministicFinal = await new DeterministicInvestigationPlanner()
+    .plan(context(finalized));
+  assert.equal(deterministicFinal.type, "FINALIZE");
+  if (deterministicFinal.type !== "FINALIZE") throw new Error("Expected FINALIZE");
+  globalThis.fetch = async () => Response.json({
+    choices: [{
+      message: {
+        content: JSON.stringify({
+          type: "FINALIZE",
+          selectedHypothesisId: deterministicFinal.selectedHypothesisId,
+          diagnosis: deterministicFinal.diagnosis,
+          disposition: deterministicFinal.disposition,
+          rationale: "使用同一个 grounded FINALIZE contract。",
+        }),
+      },
+    }],
+  });
+  try {
+    const llmFinal = await new LLMInvestigationPlanner({
+      provider: "OpenAI",
+      baseUrl: "https://api.openai.com/v1",
+      model: "test-model",
+      apiKey: "test-key",
+    }).plan(context(finalized));
+    assert.equal(llmFinal.type, "FINALIZE");
+    if (llmFinal.type === "FINALIZE") {
+      assert.deepEqual(
+        Object.keys(llmFinal).sort(),
+        ["diagnosis", "disposition", "rationale", "selectedHypothesisId", "type"],
+      );
+      assert.deepEqual(
+        Object.keys(llmFinal.diagnosis).sort(),
+        ["claims", "summary"],
+      );
+      assert.ok(llmFinal.diagnosis.claims.every((claim) =>
+        Object.keys(claim).sort().join(",") === (claim.type === "LIMITATION"
+          ? "evidenceIds,limitationType,statement,type"
+          : "evidenceIds,statement,type")));
     }
   } finally {
     globalThis.fetch = originalFetch;

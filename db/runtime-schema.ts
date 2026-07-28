@@ -133,6 +133,9 @@ export const investigationRuntimeSchema = [
   `CREATE TABLE IF NOT EXISTS diagnoses (
     id text PRIMARY KEY NOT NULL,
     run_id text NOT NULL REFERENCES investigation_runs(id) ON DELETE cascade,
+    selected_hypothesis_id text,
+    grounding_status text DEFAULT 'LEGACY_UNVERIFIED' NOT NULL,
+    disposition text,
     root_cause text NOT NULL,
     summary text NOT NULL,
     causal_chain_json text NOT NULL,
@@ -260,6 +263,24 @@ export const investigationRuntimeSchema = [
     relationship text NOT NULL,
     created_at text NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS diagnosis_claims (
+    id text PRIMARY KEY NOT NULL,
+    run_id text NOT NULL REFERENCES investigation_runs(id) ON DELETE cascade,
+    diagnosis_id text NOT NULL REFERENCES diagnoses(id) ON DELETE cascade,
+    type text NOT NULL,
+    limitation_type text,
+    statement text NOT NULL,
+    grounding_status text NOT NULL,
+    created_at text NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS diagnosis_claim_evidence_links (
+    id text PRIMARY KEY NOT NULL,
+    run_id text NOT NULL REFERENCES investigation_runs(id) ON DELETE cascade,
+    diagnosis_id text NOT NULL REFERENCES diagnoses(id) ON DELETE cascade,
+    claim_id text NOT NULL REFERENCES diagnosis_claims(id) ON DELETE cascade,
+    evidence_id text NOT NULL REFERENCES evidence(id) ON DELETE cascade,
+    created_at text NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS approval_snapshots (
     id text PRIMARY KEY NOT NULL,
     approval_id text NOT NULL REFERENCES approvals(id) ON DELETE cascade,
@@ -361,6 +382,11 @@ export const investigationRuntimeSchema = [
   "CREATE UNIQUE INDEX IF NOT EXISTS investigation_messages_request_unique ON investigation_messages (run_id, client_request_id)",
   "CREATE INDEX IF NOT EXISTS investigation_messages_run_idx ON investigation_messages (run_id, created_at)",
   "CREATE UNIQUE INDEX IF NOT EXISTS diagnosis_evidence_unique ON diagnosis_evidence_links (diagnosis_id, evidence_id)",
+  "CREATE INDEX IF NOT EXISTS diagnosis_claims_run_idx ON diagnosis_claims (run_id)",
+  "CREATE INDEX IF NOT EXISTS diagnosis_claims_diagnosis_idx ON diagnosis_claims (diagnosis_id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS diagnosis_claim_evidence_unique ON diagnosis_claim_evidence_links (claim_id, evidence_id)",
+  "CREATE INDEX IF NOT EXISTS diagnosis_claim_evidence_run_idx ON diagnosis_claim_evidence_links (run_id)",
+  "CREATE INDEX IF NOT EXISTS diagnosis_claim_evidence_diagnosis_idx ON diagnosis_claim_evidence_links (diagnosis_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS approval_snapshots_approval_unique ON approval_snapshots (approval_id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS approval_snapshots_run_revision_unique ON approval_snapshots (run_id, revision)",
   "CREATE UNIQUE INDEX IF NOT EXISTS runtime_commands_request_unique ON runtime_commands (run_id, command_type, client_request_id)",

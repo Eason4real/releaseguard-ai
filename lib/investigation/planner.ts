@@ -1,9 +1,29 @@
-import type { DiagnosisDraft } from "./model";
 import type {
   AgentIterationTrigger,
+  DiagnosisClaimType,
+  DiagnosisLimitationType,
+  DiagnosisDisposition,
   EvidenceRelation,
   InvestigationAggregate,
 } from "./types";
+
+export type DiagnosisClaimDraft =
+  | {
+      type: Exclude<DiagnosisClaimType, "LIMITATION">;
+      statement: string;
+      evidenceIds: string[];
+    }
+  | {
+      type: "LIMITATION";
+      limitationType: DiagnosisLimitationType;
+      statement: string;
+      evidenceIds: string[];
+    };
+
+export type GroundedDiagnosisDraft = {
+  summary: string;
+  claims: DiagnosisClaimDraft[];
+};
 
 export type PlannerContext = {
   aggregate: InvestigationAggregate;
@@ -50,7 +70,9 @@ export type InvestigationDecision =
     }
   | {
       type: "FINALIZE";
-      diagnosis: DiagnosisDraft;
+      selectedHypothesisId: string;
+      diagnosis: GroundedDiagnosisDraft;
+      disposition: DiagnosisDisposition;
       rationale: string;
     }
   | {

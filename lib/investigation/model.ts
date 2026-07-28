@@ -1,5 +1,7 @@
 import { modelToolDefinitions } from "./tools";
-import type { Confidence, Severity } from "./types";
+import { DIAGNOSIS_CLAIM_TYPES, DIAGNOSIS_LIMITATION_TYPES } from "./types";
+import type { DiagnosisDisposition } from "./types";
+import type { DiagnosisClaimDraft, GroundedDiagnosisDraft } from "./planner";
 
 export type ModelToolCall = {
   id: string;
@@ -22,22 +24,11 @@ export type ModelConfig = {
   apiKey: string;
 };
 
-export type DiagnosisDraft = {
-  rootCause: string;
-  summary: string;
-  causalChain: string[];
-  affectedMetrics: string[];
-  affectedSegments: string[];
-  validatedClaims: string[];
-  unvalidatedClaims: string[];
-  confidence: Confidence;
-  severity: Severity;
-  recommendedAction: string;
-  requiresHumanApproval: boolean;
+export type ModelFinalization = {
+  selectedHypothesisId: string;
+  diagnosis: GroundedDiagnosisDraft;
+  disposition: DiagnosisDisposition;
 };
-
-const stringArray = (value: unknown) =>
-  Array.isArray(value) ? value.map(String).filter(Boolean).slice(0, 12) : [];
 
 function isPrivateHost(hostname: string) {
   const host = hostname.toLowerCase();
@@ -144,27 +135,10 @@ function extractJsonObjects(content: string) {
   return candidates;
 }
 
-function normalizeConfidence(value: unknown): Confidence {
-  const text = String(value ?? "").trim().toUpperCase();
-  if (text === "HIGH" || text === "MEDIUM" || text === "LOW") return text;
-  const numeric = Number(text.replace("%", ""));
-  if (Number.isFinite(numeric)) {
-    const normalized = text.includes("%") || numeric > 1 ? numeric / 100 : numeric;
-    if (normalized >= 0.8) return "HIGH";
-    if (normalized >= 0.55) return "MEDIUM";
-  }
-  return "LOW";
-}
+const hasOnlyKeys = (value: Record<string, unknown>, allowed: string[]) =>
+  Object.keys(value).every((key) => allowed.includes(key));
 
-function normalizeSeverity(value: unknown): Severity {
-  const severity = String(value ?? "").trim().toUpperCase();
-  if (severity === "CRITICAL" || severity === "HIGH" || severity === "MEDIUM" || severity === "LOW") {
-    return severity;
-  }
-  return "HIGH";
-}
-
-export function parseModelDiagnosis(content: string | null): DiagnosisDraft | null {
+export function parseModelFinalization(content: string | null): ModelFinalization | null {
   const raw = (content ?? "").trim();
   if (!raw) return null;
   const fenced = [...raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map((match) => match[1].trim());
@@ -172,21 +146,75 @@ export function parseModelDiagnosis(content: string | null): DiagnosisDraft | nu
   for (const candidate of [...new Set(candidates)]) {
     try {
       const parsed = JSON.parse(candidate.replace(/,\s*([}\]])/g, "$1")) as Record<string, unknown>;
-      if (!parsed || typeof parsed !== "object" || !parsed.root_cause) continue;
-      const causalChain = stringArray(parsed.causal_chain);
-      const validatedClaims = stringArray(parsed.validated_claims ?? parsed.evidence_summary);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+      if (!hasOnlyKeys(parsed, ["selectedHypothesisId", "diagnosis", "disposition"])) continue;
+      const selectedHypothesisId = String(parsed.selectedHypothesisId ?? "").trim();
+      const disposition = String(parsed.disposition ?? "").trim();
+      const diagnosis = parsed.diagnosis;
+      if (
+        !selectedHypothesisId
+        || !["OBSERVE", "FIX", "ROLLBACK", "ESCALATE"].includes(disposition)
+        || !diagnosis
+        || typeof diagnosis !== "object"
+        || Array.isArray(diagnosis)
+      ) continue;
+      const diagnosisObject = diagnosis as Record<string, unknown>;
+      if (!hasOnlyKeys(diagnosisObject, ["summary", "claims"])) continue;
+      const summary = String(diagnosisObject.summary ?? "").trim();
+      if (!summary || !Array.isArray(diagnosisObject.claims) || diagnosisObject.claims.length === 0) {
+        continue;
+      }
+      const claims: DiagnosisClaimDraft[] = [];
+      let valid = true;
+      for (const item of diagnosisObject.claims) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          valid = false;
+          break;
+        }
+        const claim = item as Record<string, unknown>;
+        const type = String(claim.type ?? "");
+        const allowedClaimKeys = type === "LIMITATION"
+          ? ["type", "limitationType", "statement", "evidenceIds"]
+          : ["type", "statement", "evidenceIds"];
+        if (!hasOnlyKeys(claim, allowedClaimKeys)) {
+          valid = false;
+          break;
+        }
+        const statement = String(claim.statement ?? "").trim();
+        const evidenceIds = Array.isArray(claim.evidenceIds)
+          ? claim.evidenceIds.map(String).map((id) => id.trim()).filter(Boolean)
+          : [];
+        if (!DIAGNOSIS_CLAIM_TYPES.includes(type as DiagnosisClaimDraft["type"]) || !statement) {
+          valid = false;
+          break;
+        }
+        if (type === "LIMITATION") {
+          const limitationType = String(claim.limitationType ?? "");
+          if (!DIAGNOSIS_LIMITATION_TYPES.includes(
+            limitationType as (typeof DIAGNOSIS_LIMITATION_TYPES)[number],
+          )) {
+            valid = false;
+            break;
+          }
+          claims.push({
+            type,
+            limitationType: limitationType as (typeof DIAGNOSIS_LIMITATION_TYPES)[number],
+            statement,
+            evidenceIds,
+          });
+        } else {
+          claims.push({
+            type: type as Exclude<DiagnosisClaimDraft["type"], "LIMITATION">,
+            statement,
+            evidenceIds,
+          });
+        }
+      }
+      if (!valid) continue;
       return {
-        rootCause: String(parsed.root_cause),
-        summary: String(parsed.summary ?? "调查完成"),
-        causalChain: causalChain.length > 0 ? causalChain : [String(parsed.summary ?? parsed.root_cause)],
-        affectedMetrics: stringArray(parsed.affected_metrics),
-        affectedSegments: stringArray(parsed.affected_users ?? parsed.affected_segments),
-        validatedClaims,
-        unvalidatedClaims: stringArray(parsed.unvalidated_claims),
-        confidence: normalizeConfidence(parsed.confidence),
-        severity: normalizeSeverity(parsed.severity ?? parsed.risk_level),
-        recommendedAction: String(parsed.recommended_action ?? parsed.recommendation ?? "补充调查后再执行变更"),
-        requiresHumanApproval: parsed.requires_human_approval !== false,
+        selectedHypothesisId,
+        diagnosis: { summary, claims },
+        disposition: disposition as DiagnosisDisposition,
       };
     } catch {
       // Continue with the next candidate.
@@ -196,7 +224,7 @@ export function parseModelDiagnosis(content: string | null): DiagnosisDraft | nu
 }
 
 export const investigationSystemPrompt =
-  "你是 ReleaseGuard AI 的上线风险调查 Agent。自主选择必要工具，至少交叉验证两个独立来源。不得执行修复、发布、回滚或通知等外部动作。最终仅输出 JSON，字段为 root_cause、summary、causal_chain(字符串数组)、affected_metrics(字符串数组)、affected_users(字符串数组)、validated_claims(字符串数组)、unvalidated_claims(字符串数组)、confidence(HIGH/MEDIUM/LOW)、severity(CRITICAL/HIGH/MEDIUM/LOW)、recommended_action、requires_human_approval。不得输出百分比置信度。高风险修复必须 requires_human_approval=true。";
+  "你是 ReleaseGuard AI 的上线风险调查 Agent。自主选择必要工具，至少交叉验证两个独立来源。不得执行修复、发布、回滚或通知等外部动作。最终结论必须选择一个有效 Hypothesis，并为每个关键 Diagnosis Claim 引用当前 Run 的 Evidence。不得输出 confidence、grounding status 或 grounding score。";
 
 export const repairSystemPrompt =
-  "你是 JSON 格式整理器。只整理用户提供的结论，不增加新事实。仅输出合法 JSON，字段为 root_cause、summary、causal_chain、affected_metrics、affected_users、validated_claims、unvalidated_claims、confidence(HIGH/MEDIUM/LOW)、severity、recommended_action、requires_human_approval。不得输出 Markdown、解释或百分比置信度。";
+  "你是 JSON 格式整理器。只整理用户提供的结论，不增加新事实。不得增加或判断 confidence、grounding status 或 grounding score。";

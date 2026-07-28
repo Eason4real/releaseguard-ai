@@ -23,6 +23,8 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   const approvalColumns = new Set(approvalInfo.results.map((column: { name: string }) => column.name));
   const hypothesisInfo = await d1.prepare("PRAGMA table_info(hypotheses)").all<{ name: string }>();
   const hypothesisColumns = new Set(hypothesisInfo.results.map((column: { name: string }) => column.name));
+  const diagnosisClaimInfo = await d1.prepare("PRAGMA table_info(diagnosis_claims)").all<{ name: string }>();
+  const diagnosisClaimColumns = new Set(diagnosisClaimInfo.results.map((column: { name: string }) => column.name));
   const upgrades = [];
   if (!runColumns.has("risk_event_id")) {
     upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN risk_event_id text REFERENCES risk_events(id)"));
@@ -56,11 +58,15 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!diagnosisColumns.has("supersedes_diagnosis_id")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN supersedes_diagnosis_id text"));
   if (!diagnosisColumns.has("superseded_at")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN superseded_at text"));
   if (!diagnosisColumns.has("updated_at")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN updated_at text DEFAULT '' NOT NULL"));
+  if (!diagnosisColumns.has("selected_hypothesis_id")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN selected_hypothesis_id text"));
+  if (!diagnosisColumns.has("grounding_status")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN grounding_status text DEFAULT 'LEGACY_UNVERIFIED' NOT NULL"));
+  if (!diagnosisColumns.has("disposition")) upgrades.push(d1.prepare("ALTER TABLE diagnoses ADD COLUMN disposition text"));
   if (!approvalColumns.has("revision")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN revision integer DEFAULT 1 NOT NULL"));
   if (!approvalColumns.has("supersedes_approval_id")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN supersedes_approval_id text"));
   if (!approvalColumns.has("withdrawn_at")) upgrades.push(d1.prepare("ALTER TABLE approvals ADD COLUMN withdrawn_at text"));
   if (!hypothesisColumns.has("support_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN support_if text DEFAULT '' NOT NULL"));
   if (!hypothesisColumns.has("refute_if")) upgrades.push(d1.prepare("ALTER TABLE hypotheses ADD COLUMN refute_if text DEFAULT '' NOT NULL"));
+  if (!diagnosisClaimColumns.has("limitation_type")) upgrades.push(d1.prepare("ALTER TABLE diagnosis_claims ADD COLUMN limitation_type text"));
   if (upgrades.length > 0) await d1.batch(upgrades);
   await d1.prepare("DROP INDEX IF EXISTS diagnoses_run_unique").run();
   await d1.batch(indexStatements.map((statement) => d1.prepare(statement)));

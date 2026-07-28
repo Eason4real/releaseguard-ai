@@ -26,7 +26,7 @@ const reliability = (item: Evidence) => {
   return item.strength === "HIGH" ? 3 : item.strength === "MEDIUM" ? 2 : 1;
 };
 
-const family = (item: Evidence) => {
+export const evidenceFamily = (item: Evidence) => {
   if (impactCategories.has(item.category)) return "ANALYTICS";
   if (item.category === "RELEASE_CHANGE" || item.category.includes("CHANGE_MECHANISM")) return "RELEASE";
   if (item.category === "ERROR_TRACE" || item.category === "SYSTEM_EVENT") return "SYSTEM";
@@ -34,6 +34,12 @@ const family = (item: Evidence) => {
   if (item.category === "SIMILAR_INCIDENT") return "RAG";
   return item.source;
 };
+
+export const isCurrentIncidentEvidence = (item: Evidence) =>
+  item.category !== "SIMILAR_INCIDENT" && item.provenance !== "public_reference";
+
+export const isImpactEvidence = (item: Evidence) => impactCategories.has(item.category);
+export const isMechanismEvidence = (item: Evidence) => mechanismCategories.has(item.category);
 
 export function calculateHypothesisConfidence(
   evidence: Evidence[],
@@ -54,13 +60,12 @@ export function calculateHypothesisConfidence(
     const weight = reliability(item);
     if (link.relation === "SUPPORTS") {
       supportScore += weight;
-      const isCurrentEvent = item.category !== "SIMILAR_INCIDENT"
-        && item.provenance !== "public_reference";
+      const isCurrentEvent = isCurrentIncidentEvidence(item);
       if (isCurrentEvent) {
         hasCurrentSupport = true;
-        currentSupportingFamilies.add(family(item));
-        if (impactCategories.has(item.category)) hasImpactSupport = true;
-        if (mechanismCategories.has(item.category)) hasMechanismSupport = true;
+        currentSupportingFamilies.add(evidenceFamily(item));
+        if (isImpactEvidence(item)) hasImpactSupport = true;
+        if (isMechanismEvidence(item)) hasMechanismSupport = true;
       }
     } else {
       contradictionScore += weight;

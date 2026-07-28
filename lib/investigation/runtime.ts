@@ -1,16 +1,25 @@
 import { canonicalize, createToolSignature } from "./state";
 import type { AnalyticsStore } from "../analytics/store";
-import type { DiagnosisDraft } from "./model";
 import type { InvestigationStore } from "./store";
-import { isPhase3Store } from "./phase3-store";
+import type { Phase3InvestigationStore } from "./phase3-store";
+import {
+  diagnosisSeverity,
+  dispositionRecommendation,
+  validateGroundedDiagnosis,
+  type GroundedDiagnosisProposal,
+} from "./grounded-diagnosis";
 import { executeNamedTool, extractToolEvidence, type ToolArgs } from "./tools";
 import type {
   Approval,
+  ApprovalSnapshot,
   AuditEvent,
   Diagnosis,
+  DiagnosisClaim,
+  DiagnosisClaimEvidenceLink,
   Evidence,
   InvestigationAggregate,
   InvestigationRun,
+  InvestigationTraceEvent,
   LegacyInvestigationResponse,
   ProposedAction,
   ToolCall,
@@ -148,33 +157,56 @@ export async function executeAndRecordTool(
 }
 
 export async function finalizeInvestigation(
-  store: InvestigationStore,
+  store: Phase3InvestigationStore,
   input: {
     runId: string;
-    diagnosis: DiagnosisDraft;
+    iterationId: string;
+    proposal: GroundedDiagnosisProposal;
     totalTokens: number;
-    evidenceCount: number;
+    publicRationale: string;
+    traceEvent: InvestigationTraceEvent;
   },
 ) {
   const now = new Date().toISOString();
   const beforeFinal = await store.getAggregate(input.runId);
+  if (!beforeFinal) throw new Error("InvestigationRun 不存在。");
+  const validated = validateGroundedDiagnosis(beforeFinal, input.proposal);
   const revision = (beforeFinal?.run.currentDiagnosisRevision ?? beforeFinal?.diagnoses.length ?? 0) + 1;
   const previousDiagnosis = beforeFinal?.diagnoses.at(-1) ?? null;
   const previousAction = beforeFinal?.proposedActions.at(-1) ?? null;
   const previousApproval = beforeFinal?.approvals.at(-1) ?? null;
+  const rootCause = validated.diagnosis.claims.find((claim) =>
+    claim.type === "ROOT_CAUSE")!;
+  const causalSteps = validated.diagnosis.claims
+    .filter((claim) => claim.type === "CAUSAL_STEP")
+    .map((claim) => claim.statement);
+  const affectedMetrics = validated.diagnosis.claims
+    .filter((claim) => claim.type === "AFFECTED_METRIC")
+    .map((claim) => claim.statement);
+  const affectedSegments = validated.diagnosis.claims
+    .filter((claim) => claim.type === "AFFECTED_SEGMENT")
+    .map((claim) => claim.statement);
+  const limitations = validated.diagnosis.claims
+    .filter((claim) => claim.type === "LIMITATION")
+    .map((claim) => claim.statement);
   const diagnosis: Diagnosis = {
     id: createId("DX"),
     runId: input.runId,
-    rootCause: input.diagnosis.rootCause,
-    summary: input.diagnosis.summary,
-    causalChain: input.diagnosis.causalChain,
-    affectedMetrics: input.diagnosis.affectedMetrics,
-    affectedSegments: input.diagnosis.affectedSegments,
-    validatedClaims: input.diagnosis.validatedClaims,
-    unvalidatedClaims: input.diagnosis.unvalidatedClaims,
-    confidence: input.diagnosis.confidence,
-    severity: input.diagnosis.severity,
-    recommendedAction: input.diagnosis.recommendedAction,
+    selectedHypothesisId: validated.selectedHypothesis.id,
+    groundingStatus: "GROUNDED",
+    disposition: validated.disposition,
+    rootCause: rootCause.statement,
+    summary: validated.diagnosis.summary,
+    causalChain: [rootCause.statement, ...causalSteps],
+    affectedMetrics,
+    affectedSegments,
+    validatedClaims: validated.diagnosis.claims
+      .filter((claim) => claim.type !== "LIMITATION")
+      .map((claim) => claim.statement),
+    unvalidatedClaims: limitations,
+    confidence: validated.selectedHypothesis.confidence,
+    severity: diagnosisSeverity(validated.selectedHypothesis),
+    recommendedAction: dispositionRecommendation(validated.disposition),
     revision,
     status: "FINAL",
     supersedesDiagnosisId: previousDiagnosis?.id ?? null,
@@ -182,53 +214,60 @@ export async function finalizeInvestigation(
     createdAt: now,
     updatedAt: now,
   };
-  await store.saveDiagnosis(diagnosis);
-  if (isPhase3Store(store)) {
-    await store.saveDiagnosisEvidenceLinks((beforeFinal?.evidence ?? []).map((item) => ({
-      id: createId("DEL"),
+  const claims: DiagnosisClaim[] = validated.diagnosis.claims.map((claim) => ({
+    id: createId("DCL"),
+    runId: input.runId,
+    diagnosisId: diagnosis.id,
+    type: claim.type,
+    limitationType: claim.type === "LIMITATION" ? claim.limitationType : null,
+    statement: claim.statement,
+    groundingStatus: "GROUNDED",
+    createdAt: now,
+  }));
+  const claimEvidenceLinks: DiagnosisClaimEvidenceLink[] = claims.flatMap((claim, index) =>
+    (validated.evidenceByClaim.get(index) ?? []).map((item) => ({
+      id: createId("DCEL"),
       runId: input.runId,
       diagnosisId: diagnosis.id,
+      claimId: claim.id,
       evidenceId: item.id,
-      relationship: "VALIDATES" as const,
       createdAt: now,
     })));
-  }
-
-  if (!input.diagnosis.requiresHumanApproval) {
-    await store.transitionRun(input.runId, "INCONCLUSIVE", {
-      totalTokens: input.totalTokens,
-      completedAt: now,
-    });
-    return;
-  }
-
-  const runContext = await store.getAggregate(input.runId);
-  const action: ProposedAction = {
+  const needsAction = validated.disposition !== "OBSERVE";
+  const criticalClaimIds = new Set(claims
+    .filter((claim) => claim.type !== "LIMITATION")
+    .map((claim) => claim.id));
+  const groundedCriticalEvidenceCount = new Set(claimEvidenceLinks
+    .filter((link) => criticalClaimIds.has(link.claimId))
+    .map((link) => link.evidenceId)).size;
+  const actionJustification =
+    `Grounded ROOT_CAUSE: ${rootCause.statement} ${dispositionRecommendation(validated.disposition)}`;
+  const action: ProposedAction | null = needsAction ? {
     id: createId("PA"),
     runId: input.runId,
     diagnosisId: diagnosis.id,
     type: "CREATE_GITHUB_ISSUE",
     status: "PENDING_APPROVAL",
-    title: `修复 ${runContext?.release?.platform ?? "Android"} ${runContext?.release?.version ?? "7.3.0"} 优惠券领取成功率异常`,
+    title: `处理 ${beforeFinal.release?.platform ?? "Android"} ${beforeFinal.release?.version ?? "7.3.0"} 发布风险`,
     arguments: {
-      incidentId: runContext?.run.incidentId ?? "RG-2026-0726-01",
-      riskEventId: runContext?.run.riskEventId ?? null,
-      releaseId: runContext?.run.releaseId ?? null,
+      incidentId: beforeFinal.run.incidentId,
+      riskEventId: beforeFinal.run.riskEventId,
+      releaseId: beforeFinal.run.releaseId,
       rootCause: diagnosis.rootCause,
       recommendation: diagnosis.recommendedAction,
+      disposition: diagnosis.disposition,
       confidence: diagnosis.confidence,
-      evidenceCount: input.evidenceCount,
+      evidenceCount: groundedCriticalEvidenceCount,
     },
-    rationale: diagnosis.summary,
+    rationale: actionJustification,
     revision,
     supersedesProposedActionId: previousAction?.id ?? null,
     supersededAt: null,
     createdAt: now,
     updatedAt: now,
-  };
-  await store.saveProposedAction(action);
+  } : null;
 
-  const approval: Approval = {
+  const approval: Approval | null = action ? {
     id: createId("APR"),
     runId: input.runId,
     proposedActionId: action.id,
@@ -244,32 +283,31 @@ export async function finalizeInvestigation(
     withdrawnAt: null,
     createdAt: now,
     decidedAt: null,
-  };
-  await store.saveApproval(approval);
-  if (isPhase3Store(store)) {
-    const frozenPayload = {
-      runId: input.runId,
-      diagnosis,
-      proposedAction: action,
-      revision,
-    };
-    await store.saveApprovalSnapshot({
-      id: createId("APS"),
-      approvalId: approval.id,
-      runId: input.runId,
-      diagnosisId: diagnosis.id,
-      proposedActionId: action.id,
-      revision,
-      frozenPayload,
-      checksum: await sha256(frozenPayload),
-      lifecycleStatus: "ACTIVE",
-      createdAt: now,
-      withdrawnAt: null,
-    });
-  }
+  } : null;
+  const frozenPayload = action && approval ? {
+    runId: input.runId,
+    diagnosis,
+    diagnosisClaims: claims,
+    diagnosisClaimEvidenceLinks: claimEvidenceLinks,
+    proposedAction: action,
+    revision,
+  } : null;
+  const approvalSnapshot: ApprovalSnapshot | null = action && approval && frozenPayload ? {
+    id: createId("APS"),
+    approvalId: approval.id,
+    runId: input.runId,
+    diagnosisId: diagnosis.id,
+    proposedActionId: action.id,
+    revision,
+    frozenPayload,
+    checksum: await sha256(frozenPayload),
+    lifecycleStatus: "ACTIVE",
+    createdAt: now,
+    withdrawnAt: null,
+  } : null;
 
-  const actionArguments = { title: action.title, ...action.arguments };
-  const actionCall: ToolCall = {
+  const actionArguments = action ? { title: action.title, ...action.arguments } : null;
+  const actionCall: ToolCall | null = action && approval && actionArguments ? {
     id: createId("TC"),
     runId: input.runId,
     name: "create_github_issue",
@@ -287,17 +325,45 @@ export async function finalizeInvestigation(
     requestedAt: now,
     startedAt: null,
     completedAt: null,
+  } : null;
+
+  const targetRunStatus = needsAction ? "WAITING_APPROVAL" : "WAITING_VERIFICATION";
+  const finalizationTrace: InvestigationTraceEvent = {
+    ...input.traceEvent,
+    publicSummary: needsAction
+      ? input.traceEvent.publicSummary
+      : "Grounded Diagnosis 已形成，进入 WAITING_VERIFICATION 继续观察。",
+    details: {
+      ...input.traceEvent.details,
+      disposition: validated.disposition,
+      targetRunStatus,
+    },
   };
-  await store.createToolCall(actionCall);
 
   const events: AuditEvent[] = [
     {
       id: createId("AE"),
       runId: input.runId,
+      proposedActionId: action?.id ?? null,
+      approvalId: approval?.id ?? null,
+      toolCallId: actionCall?.id ?? null,
+      type: "DIAGNOSIS_FINALIZED",
+      actor: "ReleaseGuard Runtime",
+      details: {
+        diagnosisId: diagnosis.id,
+        revision,
+        disposition: diagnosis.disposition,
+        groundingStatus: diagnosis.groundingStatus,
+      },
+      createdAt: now,
+    },
+    ...(action && approval && actionCall ? [{
+      id: createId("AE"),
+      runId: input.runId,
       proposedActionId: action.id,
       approvalId: null,
       toolCallId: actionCall.id,
-      type: "PROPOSED_ACTION_CREATED",
+      type: "PROPOSED_ACTION_CREATED" as const,
       actor: "ReleaseGuard Agent",
       details: { actionType: action.type, actionStatus: action.status },
       createdAt: now,
@@ -308,17 +374,51 @@ export async function finalizeInvestigation(
       proposedActionId: action.id,
       approvalId: approval.id,
       toolCallId: actionCall.id,
-      type: "APPROVAL_REQUESTED",
+      type: "APPROVAL_REQUESTED" as const,
       actor: "ReleaseGuard Agent",
       details: { approvalStatus: approval.status },
       createdAt: now,
+    }] : []),
+    {
+      id: createId("AE"),
+      runId: input.runId,
+      proposedActionId: action?.id ?? null,
+      approvalId: approval?.id ?? null,
+      toolCallId: actionCall?.id ?? null,
+      type: "RUN_STATE_CHANGED",
+      actor: "ReleaseGuard Runtime",
+      details: {
+        from: "RUNNING",
+        to: targetRunStatus,
+        disposition: validated.disposition,
+      },
+      createdAt: now,
     },
   ];
-  await store.saveAuditEvents(events);
-  await store.transitionRun(input.runId, "WAITING_APPROVAL", {
+  await store.finalizeGroundedInvestigation({
+    runId: input.runId,
+    iterationId: input.iterationId,
+    expectedLockVersion: beforeFinal.run.lockVersion,
+    expectedDiagnosisRevision: beforeFinal.run.currentDiagnosisRevision,
+    selectedHypothesis: {
+      id: validated.selectedHypothesis.id,
+      status: validated.selectedHypothesis.status,
+      confidence: validated.selectedHypothesis.confidence,
+      updatedAt: validated.selectedHypothesis.updatedAt,
+    },
+    diagnosis,
+    claims,
+    claimEvidenceLinks,
+    proposedAction: action,
+    approval,
+    approvalSnapshot,
+    actionToolCall: actionCall,
+    auditEvents: events,
+    traceEvent: finalizationTrace,
+    targetRunStatus,
     totalTokens: input.totalTokens,
-    completedAt: null,
-    currentDiagnosisRevision: revision,
+    publicRationale: input.publicRationale,
+    completedAt: now,
   });
 }
 
@@ -345,32 +445,6 @@ export async function markInvestigationFailed(
     errorMessage,
     completedAt: new Date().toISOString(),
   });
-}
-
-export function fixtureDiagnosis(): DiagnosisDraft {
-  return {
-    rootCause: "Android 7.3.0 的服务端立即重试策略与幂等锁生命周期冲突",
-    summary: "指标异常时间、版本改动和用户反馈形成交叉证据；历史事故仅用于支持假设。",
-    causalChain: [
-      "Android 7.3.0 发布",
-      "优惠券请求改为服务端立即重试",
-      "重试请求与幂等锁生命周期冲突",
-      "领取请求超时或失败",
-      "coupon_claim_success_rate 从 96% 降至 78%",
-    ],
-    affectedMetrics: ["coupon_claim_success_rate"],
-    affectedSegments: ["platform=Android", "app_version=7.3.0"],
-    validatedClaims: [
-      "异常始于 Android 7.3.0 发布后 6 分钟",
-      "CouponClaimService 与 IdempotencyGuard 在该版本发生高风险改动",
-      "异常窗口内出现优惠券超时和重复加载反馈",
-    ],
-    unvalidatedClaims: ["尚未验证其他 Android 版本是否完全不受影响"],
-    confidence: "HIGH",
-    severity: "HIGH",
-    recommendedAction: "回滚重试策略，并补充幂等锁超时保护",
-    requiresHumanApproval: true,
-  };
 }
 
 export function toLegacyResponse(

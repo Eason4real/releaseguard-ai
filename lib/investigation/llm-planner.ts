@@ -1,6 +1,6 @@
 import {
   callModel,
-  parseModelDiagnosis,
+  parseModelFinalization,
   type ModelConfig,
 } from "./model";
 import { modelToolDefinitions } from "./tools";
@@ -73,7 +73,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         {
           role: "system",
           content:
-            "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 包含 question、rationale；STOP_INCONCLUSIVE 包含 reason、rationale；FINALIZE 包含 diagnosis 和 rationale。Diagnosis 字段沿用 root_cause、summary、causal_chain、affected_metrics、affected_users、validated_claims、unvalidated_claims、confidence(HIGH/MEDIUM/LOW)、severity、recommended_action、requires_human_approval。历史事故只能辅助，不得单独确认根因。",
+            "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 包含 question、rationale；STOP_INCONCLUSIVE 包含 reason、rationale。FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
         },
         {
           role: "user",
@@ -186,9 +186,17 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       };
     }
     if (type === "FINALIZE") {
-      const diagnosis = parseModelDiagnosis(JSON.stringify(parsed?.diagnosis ?? {}));
-      if (!diagnosis) throw new Error("Planner FINALIZE Diagnosis 不符合结构化契约。");
-      return { type, diagnosis, rationale: rationale || "已有足够交叉证据形成结论。" };
+      const finalization = parseModelFinalization(JSON.stringify({
+        selectedHypothesisId: parsed?.selectedHypothesisId,
+        diagnosis: parsed?.diagnosis,
+        disposition: parsed?.disposition,
+      }));
+      if (!finalization) throw new Error("Planner FINALIZE Diagnosis 不符合 Grounded Contract。");
+      return {
+        type,
+        ...finalization,
+        rationale: rationale || "已有足够交叉证据形成 grounded conclusion。",
+      };
     }
     throw new Error("Planner 没有返回有效 InvestigationDecision。");
   }

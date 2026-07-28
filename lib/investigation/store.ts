@@ -1,7 +1,5 @@
 import type {
-  Approval,
   AuditEvent,
-  Diagnosis,
   Evidence,
   InvestigationAggregate,
   InvestigationRun,
@@ -34,9 +32,6 @@ export interface InvestigationStore {
   markToolCallRunning(callId: string, startedAt: string): Promise<void>;
   completeToolCall(callId: string, result: ToolResult, completedAt: string): Promise<void>;
   saveEvidence(items: Evidence[]): Promise<void>;
-  saveDiagnosis(diagnosis: Diagnosis): Promise<void>;
-  saveProposedAction(action: ProposedAction): Promise<void>;
-  saveApproval(approval: Approval): Promise<void>;
   saveAuditEvents(events: AuditEvent[]): Promise<void>;
   decideApproval(
     approvalId: string,

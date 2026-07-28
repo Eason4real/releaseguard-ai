@@ -141,7 +141,7 @@ export async function runAgentLoop(
         decision.rationale,
         { decisionType: decision.type },
       );
-      if (decision.type !== "ASSESS_EVIDENCE") {
+      if (decision.type !== "ASSESS_EVIDENCE" && decision.type !== "FINALIZE") {
         await store.saveTraceEvents([decisionTrace]);
       }
 
@@ -407,25 +407,18 @@ export async function runAgentLoop(
             "NO_ACTIVE_HYPOTHESIS: 所有 Hypothesis 均已 REJECTED，必须创建新假设、询问人工或停止为 INCONCLUSIVE。",
           );
         }
-        await store.completeIteration(
-          iteration.id,
-          "COMPLETED",
-          decision.type,
-          decision.rationale,
-          new Date().toISOString(),
-        );
         const beforeFinal = await store.getAggregate(input.runId);
-        const primary = viableHypotheses
-          .sort((left, right) => right.supportScore - left.supportScore)[0];
-        const diagnosis = {
-          ...decision.diagnosis,
-          confidence: primary.confidence,
-        };
         await finalizeInvestigation(store, {
           runId: input.runId,
-          diagnosis,
+          iterationId: iteration.id,
+          proposal: {
+            selectedHypothesisId: decision.selectedHypothesisId,
+            diagnosis: decision.diagnosis,
+            disposition: decision.disposition,
+          },
           totalTokens: beforeFinal?.run.totalTokens ?? 0,
-          evidenceCount: beforeFinal?.evidence.length ?? 0,
+          publicRationale: decision.rationale,
+          traceEvent: decisionTrace,
         });
         return store.getAggregate(input.runId);
       }
