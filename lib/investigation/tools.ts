@@ -517,12 +517,23 @@ const searchSimilarIncidentsAdapter: ToolAdapter = {
     const matches = outputRecord(output).matches;
     if (!Array.isArray(matches) || matches.length === 0) return [];
     const first = outputRecord(matches[0]);
+    const matchProvenance = outputRecord(first.provenance);
+    const isRealPublic = matchProvenance.corpusType === "REAL_PUBLIC";
+    const company = typeof matchProvenance.company === "string" ? matchProvenance.company : null;
+    const title = typeof first.title === "string" ? first.title : null;
+    const incidentDate = typeof matchProvenance.incidentDateStart === "string"
+      ? matchProvenance.incidentDateStart.slice(0, 10) : null;
+    const originalSource = typeof matchProvenance.originalSourceUrl === "string"
+      ? matchProvenance.originalSourceUrl : null;
+    const corpusLabel = isRealPublic
+      ? `REAL PUBLIC${company ? ` · ${company}` : ""}${title ? ` · ${title}` : ""}${incidentDate ? ` · ${incidentDate}` : ""}${originalSource ? ` · ${originalSource}` : ""}`
+      : "FIXTURE";
     return [{
       category: "SIMILAR_INCIDENT",
       statement: `历史事故 ${String(first.incidentId ?? first.id ?? "INC-2024-081")} 呈现相似模式；该相似性只能用于形成假设，不能单独证明当前根因。`,
-      source: "Incident Knowledge Base",
+      source: `Historical Memory / RAG · ${corpusLabel}`,
       strength: "LOW",
-      provenance: "derived",
+      provenance: isRealPublic ? "public_reference" : "derived",
     }];
   },
 };

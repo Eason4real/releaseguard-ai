@@ -30,6 +30,9 @@ export interface FeedbackRetriever {
   search(input: FeedbackSearchInput): Promise<FeedbackMatch[]>;
 }
 
+export type IncidentCorpusType = "FIXTURE" | "REAL_PUBLIC" | "LIVE_ENTERPRISE";
+export type IncidentCorpusScope = "FIXTURE_ONLY" | "REAL_PUBLIC_ONLY" | "ALL";
+
 export type IncidentSearchInput = {
   query: string;
   metricKey?: string;
@@ -38,6 +41,7 @@ export type IncidentSearchInput = {
   region?: string;
   userType?: string;
   limit?: number;
+  corpusScope?: IncidentCorpusScope;
 };
 
 export type IncidentMatch = {
@@ -49,6 +53,25 @@ export type IncidentMatch = {
   provenance: {
     source: string;
     corpusVersion: string;
+    corpusType: IncidentCorpusType;
+    sourceProvider?: string;
+    sourceRecordId?: string;
+    company?: string;
+    incidentDateStart?: string | null;
+    sourceUrl?: string;
+    originalSourceUrl?: string;
+    datasetLicense?: { provider: string; name: string; url: string };
+    originalContentRights?: {
+      status: "KNOWN_LICENSE" | "SOURCE_SPECIFIC" | "UNKNOWN";
+      licenseName: string | null;
+      licenseUrl: string | null;
+      sourceUrl: string;
+    };
+    retrievedAt?: string;
+    contentHash?: string;
+    sourcePayloadHash?: string;
+    snapshotVersion?: string;
+    ingestionVersion?: string;
   };
   sourceDocument: string;
   chunkId: string;

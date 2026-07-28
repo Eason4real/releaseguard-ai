@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   feedbackRecords,
@@ -21,6 +21,7 @@ import type {
   IncidentMatch,
   IncidentRetriever,
   IncidentSearchInput,
+  IncidentCorpusScope,
   VectorIndex,
 } from "./types";
 
@@ -131,6 +132,12 @@ type ChunkMetadata = {
   userTypes: string[];
   components: string[];
   severity: string;
+  corpusType?: "FIXTURE" | "REAL_PUBLIC" | "LIVE_ENTERPRISE";
+  sourceProvider?: string;
+  company?: string;
+  categories?: string[];
+  incidentDateStart?: string | null;
+  originalSourceUrl?: string;
 };
 
 type ChunkCandidate = {
@@ -142,12 +149,16 @@ type ChunkCandidate = {
   sourceDocument: string;
   metadata: ChunkMetadata;
   embedding: number[] | null;
+  corpusVersion: string;
+  corpusType: "FIXTURE" | "REAL_PUBLIC" | "LIVE_ENTERPRISE";
+  provenance: IncidentMatch["provenance"];
 };
 
 export class D1IncidentRetriever implements IncidentRetriever {
   constructor(
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly vectorIndex: VectorIndex | null = null,
+    private readonly defaultScope: IncidentCorpusScope = "FIXTURE_ONLY",
   ) {}
 
   private async ensureSeeded() {
@@ -166,7 +177,9 @@ export class D1IncidentRetriever implements IncidentRetriever {
         .where(eq(incidentDocuments.corpusVersion, INCIDENT_CORPUS_VERSION)),
       db.select({ value: count() }).from(incidentChunks)
         .where(eq(incidentChunks.corpusVersion, INCIDENT_CORPUS_VERSION)),
-      db.select({ value: count() }).from(incidentChunkTerms),
+      db.select({ value: count() }).from(incidentChunkTerms)
+        .innerJoin(incidentChunks, eq(incidentChunkTerms.chunkId, incidentChunks.id))
+        .where(eq(incidentChunks.corpusVersion, INCIDENT_CORPUS_VERSION)),
     ]);
     const needsSeedRepair = documentCount.value < incidentFixtures.length
       || chunkCount.value < expectedChunkCount
@@ -195,6 +208,7 @@ export class D1IncidentRetriever implements IncidentRetriever {
           sourceDocument: `incident://phase3/${incident.incidentId}`,
           corpusVersion: INCIDENT_CORPUS_VERSION,
           contentHash: await sha256(content),
+          corpusType: "FIXTURE",
           createdAt: new Date().toISOString(),
         }).onConflictDoNothing();
         const sectionEntries = Object.entries(incident.sections);
@@ -218,6 +232,7 @@ export class D1IncidentRetriever implements IncidentRetriever {
             tokenCount: tokenize(searchText).length,
             contentHash,
             corpusVersion: INCIDENT_CORPUS_VERSION,
+            corpusType: "FIXTURE",
             embeddingModel: this.embeddingProvider.model,
             embeddingJson: JSON.stringify(vectors[index]),
           }).onConflictDoNothing();
@@ -289,6 +304,7 @@ export class D1IncidentRetriever implements IncidentRetriever {
             values: parseJson(chunk.embeddingJson!, []),
             metadata: {
               corpusVersion: INCIDENT_CORPUS_VERSION,
+              corpusType: "FIXTURE",
               platform: metadata.platform,
               metricKey: metadata.metricKeys[0] ?? "",
               incidentId: chunk.incidentId,
@@ -300,31 +316,35 @@ export class D1IncidentRetriever implements IncidentRetriever {
   }
 
   private metadataMatches(metadata: ChunkMetadata, input: IncidentSearchInput) {
-    return (!input.platform || metadata.platform === input.platform)
-      && (!input.metricKey || metadata.metricKeys.includes(input.metricKey))
-      && (!input.version || metadata.versions.includes(input.version))
-      && (!input.region || metadata.regions.includes(input.region))
-      && (!input.userType || metadata.userTypes.includes(input.userType));
+    const publicUnknown = metadata.corpusType === "REAL_PUBLIC";
+    return (!input.platform || metadata.platform === input.platform || publicUnknown)
+      && (!input.metricKey || metadata.metricKeys.includes(input.metricKey) || publicUnknown)
+      && (!input.version || metadata.versions.includes(input.version) || publicUnknown)
+      && (!input.region || metadata.regions.includes(input.region) || publicUnknown)
+      && (!input.userType || metadata.userTypes.includes(input.userType) || publicUnknown);
   }
 
   async search(input: IncidentSearchInput): Promise<IncidentMatch[]> {
     await this.ensureSeeded();
     const db = await getDb();
+    const scope = input.corpusScope ?? this.defaultScope;
+    const corpusType = scope === "FIXTURE_ONLY" ? "FIXTURE"
+      : scope === "REAL_PUBLIC_ONLY" ? "REAL_PUBLIC" : null;
     const [chunkRows, documentRows] = await Promise.all([
-      db.select().from(incidentChunks)
-        .where(eq(incidentChunks.corpusVersion, INCIDENT_CORPUS_VERSION)),
-      db.select().from(incidentDocuments)
-        .where(eq(incidentDocuments.corpusVersion, INCIDENT_CORPUS_VERSION)),
+      corpusType
+        ? db.select().from(incidentChunks).where(eq(incidentChunks.corpusType, corpusType))
+        : db.select().from(incidentChunks),
+      corpusType
+        ? db.select().from(incidentDocuments).where(and(
+          eq(incidentDocuments.corpusType, corpusType),
+          eq(incidentDocuments.indexStatus, "ACTIVE"),
+        ))
+        : db.select().from(incidentDocuments).where(eq(incidentDocuments.indexStatus, "ACTIVE")),
     ]);
-    const sourceByDocument = new Map(documentRows.map((row) => [row.id, row.sourceDocument]));
-    const candidates: ChunkCandidate[] = chunkRows.map((row) => ({
-      id: row.id,
-      incidentId: row.incidentId,
-      title: row.title,
-      section: row.section,
-      content: row.content,
-      sourceDocument: sourceByDocument.get(row.documentId) ?? `incident://phase3/${row.incidentId}`,
-      metadata: parseJson(row.metadataJson, {
+    const documentById = new Map(documentRows.map((row) => [row.id, row]));
+    const candidates: ChunkCandidate[] = chunkRows.filter((row) => documentById.has(row.documentId)).map((row) => {
+      const document = documentById.get(row.documentId);
+      const metadata = parseJson<ChunkMetadata>(row.metadataJson, {
         platform: "",
         versions: [],
         metricKeys: [],
@@ -332,9 +352,50 @@ export class D1IncidentRetriever implements IncidentRetriever {
         userTypes: [],
         components: [],
         severity: "",
-      }),
-      embedding: row.embeddingJson ? parseJson(row.embeddingJson, null) : null,
-    })).filter((item) => this.metadataMatches(item.metadata, input));
+      });
+      const realPublic = row.corpusType === "REAL_PUBLIC";
+      return {
+        id: row.id,
+        incidentId: row.incidentId,
+        title: row.title,
+        section: row.section,
+        content: row.content,
+        sourceDocument: document?.sourceDocument ?? `incident://phase3/${row.incidentId}`,
+        metadata,
+        embedding: row.embeddingJson ? parseJson(row.embeddingJson, null) : null,
+        corpusVersion: row.corpusVersion,
+        corpusType: row.corpusType as ChunkCandidate["corpusType"],
+        provenance: {
+          source: realPublic ? "Public Historical Incident Corpus" : "ReleaseGuard Incident Knowledge Base",
+          corpusVersion: row.corpusVersion,
+          corpusType: row.corpusType as ChunkCandidate["corpusType"],
+          ...(realPublic && document ? {
+            sourceProvider: document.sourceProvider ?? undefined,
+            sourceRecordId: document.sourceRecordId ?? undefined,
+            company: metadata.company,
+            incidentDateStart: metadata.incidentDateStart,
+            sourceUrl: document.sourceUrl ?? undefined,
+            originalSourceUrl: document.originalSourceUrl ?? undefined,
+            datasetLicense: document.datasetLicenseName && document.datasetLicenseUrl ? {
+              provider: document.sourceProvider ?? "POSTMORTEMS_APP",
+              name: document.datasetLicenseName,
+              url: document.datasetLicenseUrl,
+            } : undefined,
+            originalContentRights: document.originalRightsStatus && document.originalSourceUrl ? {
+              status: document.originalRightsStatus as "KNOWN_LICENSE" | "SOURCE_SPECIFIC" | "UNKNOWN",
+              licenseName: document.originalLicenseName,
+              licenseUrl: document.originalLicenseUrl,
+              sourceUrl: document.originalSourceUrl,
+            } : undefined,
+            retrievedAt: document.retrievedAt ?? undefined,
+            contentHash: document.contentHash,
+            sourcePayloadHash: document.sourcePayloadHash ?? undefined,
+            snapshotVersion: document.snapshotVersion ?? undefined,
+            ingestionVersion: document.ingestionVersion ?? undefined,
+          } : {}),
+        },
+      };
+    }).filter((item) => this.metadataMatches(item.metadata, input));
 
     const queryTerms = termFrequency(input.query);
     const documentCount = Math.max(candidates.length, 1);
@@ -365,9 +426,10 @@ export class D1IncidentRetriever implements IncidentRetriever {
     let vector: Array<{ id: string; score: number }>;
     let retrievalMode: IncidentMatch["retrievalSignals"]["retrievalMode"];
     if (this.vectorIndex) {
-      const filter: Record<string, unknown> = { corpusVersion: { $eq: INCIDENT_CORPUS_VERSION } };
-      if (input.platform) filter.platform = { $eq: input.platform };
-      if (input.metricKey) filter.metricKey = { $eq: input.metricKey };
+      const filter: Record<string, unknown> = {};
+      if (corpusType) filter.corpusType = { $eq: corpusType };
+      if (scope === "FIXTURE_ONLY" && input.platform) filter.platform = { $eq: input.platform };
+      if (scope === "FIXTURE_ONLY" && input.metricKey) filter.metricKey = { $eq: input.metricKey };
       vector = await this.vectorIndex.query(queryVector, { topK: 20, filter });
       retrievalMode = "HYBRID_VECTORIZE";
     } else {
@@ -423,10 +485,7 @@ export class D1IncidentRetriever implements IncidentRetriever {
       relevance: round(finalScore / maxScore),
       chunk: item.content,
       metadata: item.metadata,
-      provenance: {
-        source: "ReleaseGuard Incident Knowledge Base",
-        corpusVersion: INCIDENT_CORPUS_VERSION,
-      },
+      provenance: item.provenance,
       sourceDocument: item.sourceDocument,
       chunkId: item.id,
       section: item.section,

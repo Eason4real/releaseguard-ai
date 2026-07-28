@@ -261,10 +261,19 @@ function RuntimeTruth({ investigation, ragMode }: {
   ragMode: string | null;
 }) {
   const liveModel = investigation?.investigation.run.plannerType === "LLM";
+  const historicalEvidence = investigation?.investigation.evidence.filter((item) =>
+    item.source.startsWith("Historical Memory / RAG")) ?? [];
+  const hasRealPublicMemory = historicalEvidence.some((item) => item.source.includes("REAL PUBLIC"));
+  const hasFixtureMemory = historicalEvidence.some((item) => item.source.includes("FIXTURE"));
+  const historicalCorpusLabel = hasRealPublicMemory && hasFixtureMemory
+    ? "MIXED" : hasRealPublicMemory ? "REAL PUBLIC" : "FIXTURE";
+  const historicalCorpusDescription = historicalCorpusLabel === "MIXED"
+    ? "Fixture and public historical evidence, labeled per item"
+    : hasRealPublicMemory ? "Public historical incident with source provenance" : "Historical incident corpus";
   return <section className="truth-banner" aria-label="运行数据真实性">
     <div><b>FIXTURE</b><span>Analytics scenario</span></div>
     <div><b>FIXTURE</b><span>Feedback corpus</span></div>
-    <div><b>FIXTURE</b><span>Historical incident corpus</span></div>
+    <div><b>{historicalCorpusLabel}</b><span>{historicalCorpusDescription}</span></div>
     <div><b>FIXTURE</b><span>Deterministic verification data</span></div>
     <div><b className={liveModel ? "truth-live" : "truth-fallback"}>{liveModel ? "LIVE" : "FIXTURE"}</b><span>{liveModel ? "OpenAI-compatible LLM" : "Deterministic Planner"}</span></div>
     <div><b className={ragMode === "HYBRID_VECTORIZE" ? "truth-live" : "truth-fallback"}>{ragMode === "HYBRID_VECTORIZE" ? "LIVE" : "FALLBACK"}</b><span>{ragMode === "HYBRID_VECTORIZE" ? "Workers AI + Vectorize" : "Local retrieval"}</span></div>

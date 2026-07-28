@@ -11,6 +11,7 @@ import "./phase4-agent-benchmark.test";
 import "./phase4-ui.test";
 import "./hypothesis-confidence.test";
 import "./verification-evaluator.test";
+import "./public-incident-corpus.test";
 import {
   decideProposedAction,
   executeApprovedGithubAction,

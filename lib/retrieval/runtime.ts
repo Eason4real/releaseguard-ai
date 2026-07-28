@@ -25,7 +25,7 @@ export async function createRuntimeRetrievers() {
   const vector = env.VECTORIZE ? new CloudflareVectorIndex(env.VECTORIZE) : null;
   return {
     feedbackRetriever: new D1FeedbackRetriever(),
-    incidentRetriever: new D1IncidentRetriever(embedding, vector),
+    incidentRetriever: new D1IncidentRetriever(embedding, vector, "ALL"),
     ragMode: vector && embedding.mode === "REAL" ? "HYBRID_VECTORIZE" : "HYBRID_LOCAL",
     embeddingModel: embedding.model,
   };

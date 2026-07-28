@@ -509,9 +509,27 @@ export const incidentDocuments = sqliteTable("incident_documents", {
   sourceDocument: text("source_document").notNull(),
   corpusVersion: text("corpus_version").notNull(),
   contentHash: text("content_hash").notNull(),
+  corpusType: text("corpus_type").notNull().default("FIXTURE"),
+  sourceProvider: text("source_provider"),
+  sourceRecordId: text("source_record_id"),
+  sourceUrl: text("source_url"),
+  originalSourceUrl: text("original_source_url"),
+  datasetLicenseName: text("dataset_license_name"),
+  datasetLicenseUrl: text("dataset_license_url"),
+  originalRightsStatus: text("original_rights_status"),
+  originalLicenseName: text("original_license_name"),
+  originalLicenseUrl: text("original_license_url"),
+  sourcePayloadHash: text("source_payload_hash"),
+  snapshotVersion: text("snapshot_version"),
+  indexStatus: text("index_status").notNull().default("ACTIVE"),
+  retrievedAt: text("retrieved_at"),
+  ingestionVersion: text("ingestion_version"),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   uniqueIndex("incident_documents_corpus_incident_unique").on(table.corpusVersion, table.incidentId),
+  uniqueIndex("incident_documents_source_identity_unique").on(table.sourceProvider, table.sourceRecordId),
+  index("incident_documents_corpus_type_idx").on(table.corpusType),
+  index("incident_documents_source_url_idx").on(table.sourceUrl),
 ]);
 
 export const incidentChunks = sqliteTable("incident_chunks", {
@@ -526,6 +544,7 @@ export const incidentChunks = sqliteTable("incident_chunks", {
   tokenCount: integer("token_count").notNull(),
   contentHash: text("content_hash").notNull(),
   corpusVersion: text("corpus_version").notNull(),
+  corpusType: text("corpus_type").notNull().default("FIXTURE"),
   embeddingModel: text("embedding_model").notNull(),
   embeddingJson: text("embedding_json"),
 }, (table) => [
@@ -540,6 +559,51 @@ export const incidentChunkTerms = sqliteTable("incident_chunk_terms", {
 }, (table) => [
   uniqueIndex("incident_chunk_terms_unique").on(table.chunkId, table.term),
   index("incident_chunk_terms_term_idx").on(table.term),
+]);
+
+export const publicIncidentImportAttempts = sqliteTable("public_incident_import_attempts", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull(),
+  sourceRecordId: text("source_record_id").notNull(),
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+  status: text("status").notNull(),
+  documentId: text("document_id").notNull(),
+  contentHash: text("content_hash").notNull(),
+  sourcePayloadHash: text("source_payload_hash").notNull(),
+  embeddingBackend: text("embedding_backend").notNull(),
+  vectorBackend: text("vector_backend").notNull(),
+  failureStage: text("failure_stage"),
+  failureCode: text("failure_code"),
+  failureMessage: text("failure_message"),
+  retryCount: integer("retry_count").notNull(),
+  ingestionVersion: text("ingestion_version").notNull(),
+}, (table) => [
+  uniqueIndex("public_incident_attempt_retry_unique").on(
+    table.provider, table.sourceRecordId, table.contentHash, table.retryCount,
+  ),
+  index("public_incident_attempt_status_idx").on(table.status, table.startedAt),
+]);
+
+export const publicIncidentRevisions = sqliteTable("public_incident_revisions", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull(),
+  sourceRecordId: text("source_record_id").notNull(),
+  documentId: text("document_id"),
+  status: text("status").notNull(),
+  previousContentHash: text("previous_content_hash"),
+  contentHash: text("content_hash").notNull(),
+  sourcePayloadHash: text("source_payload_hash").notNull(),
+  previousIngestionVersion: text("previous_ingestion_version"),
+  ingestionVersion: text("ingestion_version").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  originalSourceUrl: text("original_source_url").notNull(),
+  detectedAt: text("detected_at").notNull(),
+}, (table) => [
+  uniqueIndex("public_incident_revision_identity_unique").on(
+    table.provider, table.sourceRecordId, table.contentHash, table.status,
+  ),
+  index("public_incident_revision_source_idx").on(table.provider, table.sourceRecordId, table.detectedAt),
 ]);
 
 export const ragIndexVersions = sqliteTable("rag_index_versions", {

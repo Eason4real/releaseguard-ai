@@ -14,6 +14,7 @@
     "eval": "node scripts/run-runtime-tests.mjs && node scripts/run-rag-eval.mjs && node scripts/run-phase4-eval.mjs",
     "eval:rag": "node scripts/run-rag-eval.mjs",
     "eval:live": "node scripts/run-live-eval.mjs",
+    "corpus:import:public": "node scripts/run-public-corpus-import.mjs",
     "tsc": "tsc --noEmit",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",

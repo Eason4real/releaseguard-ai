@@ -1,8 +1,12 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import {
+  runHostedPublicCorpusImport,
+  type PublicCorpusHostedBindings,
+} from "../lib/retrieval/public-incidents/hosted";
 
-interface Env {
+interface Env extends PublicCorpusHostedBindings {
   ASSETS: { fetch(request: Request): Promise<Response> };
   IMAGES: {
     input(stream: ReadableStream): {
@@ -11,6 +15,7 @@ interface Env {
       };
     };
   };
+  PUBLIC_CORPUS_IMPORT_ENABLED?: string;
 }
 
 interface ExecutionContext {
@@ -40,6 +45,13 @@ const worker = {
     }
 
     return handler.fetch(request, env, ctx);
+  },
+  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (env.PUBLIC_CORPUS_IMPORT_ENABLED !== "true") return;
+    ctx.waitUntil(runHostedPublicCorpusImport(env).then((report) => {
+      console.log(JSON.stringify({ event: "PUBLIC_CORPUS_IMPORT", report }));
+      if (report.failed > 0 || report.partial > 0) throw new Error("PUBLIC_CORPUS_IMPORT_INCOMPLETE");
+    }));
   },
 };
 

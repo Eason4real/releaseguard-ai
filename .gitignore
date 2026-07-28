@@ -41,3 +41,4 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+/data/public-incidents/cache/

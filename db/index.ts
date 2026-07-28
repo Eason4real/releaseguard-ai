@@ -27,6 +27,10 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   const diagnosisClaimColumns = new Set(diagnosisClaimInfo.results.map((column: { name: string }) => column.name));
   const verificationPolicyInfo = await d1.prepare("PRAGMA table_info(verification_policy_snapshots)").all<{ name: string }>();
   const verificationPolicyColumns = new Set(verificationPolicyInfo.results.map((column: { name: string }) => column.name));
+  const incidentDocumentInfo = await d1.prepare("PRAGMA table_info(incident_documents)").all<{ name: string }>();
+  const incidentDocumentColumns = new Set(incidentDocumentInfo.results.map((column: { name: string }) => column.name));
+  const incidentChunkInfo = await d1.prepare("PRAGMA table_info(incident_chunks)").all<{ name: string }>();
+  const incidentChunkColumns = new Set(incidentChunkInfo.results.map((column: { name: string }) => column.name));
   const upgrades = [];
   if (!runColumns.has("risk_event_id")) {
     upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN risk_event_id text REFERENCES risk_events(id)"));
@@ -77,6 +81,22 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!verificationPolicyColumns.has("feedback_minimum_sample_size")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN feedback_minimum_sample_size integer DEFAULT 5 NOT NULL"));
   if (!verificationPolicyColumns.has("control_baseline_value")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN control_baseline_value real"));
   if (!verificationPolicyColumns.has("minimum_improvement_threshold")) upgrades.push(d1.prepare("ALTER TABLE verification_policy_snapshots ADD COLUMN minimum_improvement_threshold real DEFAULT 0.05 NOT NULL"));
+  if (!incidentDocumentColumns.has("corpus_type")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN corpus_type text DEFAULT 'FIXTURE' NOT NULL"));
+  if (!incidentDocumentColumns.has("source_provider")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN source_provider text"));
+  if (!incidentDocumentColumns.has("source_record_id")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN source_record_id text"));
+  if (!incidentDocumentColumns.has("source_url")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN source_url text"));
+  if (!incidentDocumentColumns.has("original_source_url")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN original_source_url text"));
+  if (!incidentDocumentColumns.has("dataset_license_name")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN dataset_license_name text"));
+  if (!incidentDocumentColumns.has("dataset_license_url")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN dataset_license_url text"));
+  if (!incidentDocumentColumns.has("original_rights_status")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN original_rights_status text"));
+  if (!incidentDocumentColumns.has("original_license_name")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN original_license_name text"));
+  if (!incidentDocumentColumns.has("original_license_url")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN original_license_url text"));
+  if (!incidentDocumentColumns.has("source_payload_hash")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN source_payload_hash text"));
+  if (!incidentDocumentColumns.has("snapshot_version")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN snapshot_version text"));
+  if (!incidentDocumentColumns.has("index_status")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN index_status text DEFAULT 'ACTIVE' NOT NULL"));
+  if (!incidentDocumentColumns.has("retrieved_at")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN retrieved_at text"));
+  if (!incidentDocumentColumns.has("ingestion_version")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN ingestion_version text"));
+  if (!incidentChunkColumns.has("corpus_type")) upgrades.push(d1.prepare("ALTER TABLE incident_chunks ADD COLUMN corpus_type text DEFAULT 'FIXTURE' NOT NULL"));
   if (upgrades.length > 0) await d1.batch(upgrades);
   await d1.prepare("DROP INDEX IF EXISTS diagnoses_run_unique").run();
   await d1.batch(indexStatements.map((statement) => d1.prepare(statement)));

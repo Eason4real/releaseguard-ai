@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1",
+  "corpusVersion": "real-public-postmortems-app-v1",
+  "sourceProvider": "POSTMORTEMS_APP",
+  "datasetLicense": {
+    "provider": "POSTMORTEMS_APP",
+    "name": "GPL-3.0",
+    "url": "https://github.com/icco/postmortems/blob/main/LICENSE"
+  },
+  "records": [
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "402733d3-31ee-4ca3-b769-0a9cdf7dd59f",
+      "title": "GitHub Actions and Codespaces outage of February 2026",
+      "company": "GitHub",
+      "sourceUrl": "https://postmortems.app/postmortem/402733d3-31ee-4ca3-b769-0a9cdf7dd59f",
+      "originalSourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-february-2026",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://github.blog/news-insights/company-news/github-availability-report-february-2026" },
+      "sourcePayloadHash": "3f3c185da659fcda7e8f2dd4c016c05e7b0ec091ad7bfd2b18c7c6469a6c4bb9",
+      "contentHash": "f64f24c519a54a50b9381b79009336334e327b6c6fd6249190610fc1504bf9e2",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "24be1eec-6da2-4825-853c-4b2561bdd422",
+      "title": "Cloudflare systemwide outage, November 18, 2025",
+      "company": "Cloudflare",
+      "sourceUrl": "https://postmortems.app/postmortem/24be1eec-6da2-4825-853c-4b2561bdd422",
+      "originalSourceUrl": "https://blog.cloudflare.com/18-november-2025-outage",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://blog.cloudflare.com/18-november-2025-outage" },
+      "sourcePayloadHash": "fad5ae964a0dd586f980d0af1a4c8c91a7528b48122b45f13c49eb4929cd79ad",
+      "contentHash": "e150c879c4a699f1d9ab13f7ccd22c32b65213add0460cb6af227ac68a06446b",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "a50e7b06-2f2c-4d13-a340-9a1e7eed59d7",
+      "title": "Slack’s Incident on 2-22-22",
+      "company": "Slack",
+      "sourceUrl": "https://postmortems.app/postmortem/a50e7b06-2f2c-4d13-a340-9a1e7eed59d7",
+      "originalSourceUrl": "https://slack.engineering/slacks-incident-on-2-22-22",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://slack.engineering/slacks-incident-on-2-22-22" },
+      "sourcePayloadHash": "f2c58559936126aa46b889e75db60a1ac36ebd5da6a455b939d8ed331c253b55",
+      "contentHash": "b3d8cbdcd9e74be04d8a745a777e181f32d0e621108210efd40090df67b179eb",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "f70ce67c-0944-422e-b0bd-be38f0edb0cd",
+      "title": "GitLab.com database outage of January 31, 2017",
+      "company": "Gitlab",
+      "sourceUrl": "https://postmortems.app/postmortem/f70ce67c-0944-422e-b0bd-be38f0edb0cd",
+      "originalSourceUrl": "https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31" },
+      "sourcePayloadHash": "84aee60910a75c3b43723ce422614a96cbc0ec514fad56a57cb087807ffb49b8",
+      "contentHash": "14913971be144f5c0a6902858c6acfa39d48ddcdd573302235ad36745860308a",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "b3ecf309-d821-44e9-9755-b49540b6a90c",
+      "title": "Honeycomb total outage on July 25th, 2023",
+      "company": "Honeycomb",
+      "sourceUrl": "https://postmortems.app/postmortem/b3ecf309-d821-44e9-9755-b49540b6a90c",
+      "originalSourceUrl": "https://honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down" },
+      "sourcePayloadHash": "638596ec991b67c268ea40a644ff96170b3c52a103f545cd77910a773184bbf4",
+      "contentHash": "0a8bd5e5b3ecbc7301fdd5bc2c9f6106e956838190805564d244874f888730f7",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    },
+    {
+      "sourceProvider": "POSTMORTEMS_APP",
+      "sourceId": "029b4a8e-0332-4b91-abc3-5f84bdf70094",
+      "title": "Intermittent downtime from repeated crashes",
+      "company": "incident.io",
+      "sourceUrl": "https://postmortems.app/postmortem/029b4a8e-0332-4b91-abc3-5f84bdf70094",
+      "originalSourceUrl": "https://incident.io/blog/intermittent-downtime",
+      "datasetLicense": { "provider": "POSTMORTEMS_APP", "name": "GPL-3.0", "url": "https://github.com/icco/postmortems/blob/main/LICENSE" },
+      "originalContentRights": { "status": "SOURCE_SPECIFIC", "licenseName": null, "licenseUrl": null, "sourceUrl": "https://incident.io/blog/intermittent-downtime" },
+      "sourcePayloadHash": "f61d65c457a70819a3f28f4939e2684a65284d3be46e1c04f511b1ed893d5c9c",
+      "contentHash": "2c321dbb4e37c6ac8d9c07ffae4a43c039fe796f2d7f88cf9b02e4283503947c",
+      "snapshotVersion": "postmortems-app-snapshot-v1",
+      "ingestionStatus": "ACCEPTED"
+    }
+  ]
+}
