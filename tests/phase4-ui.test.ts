@@ -193,7 +193,10 @@ const actionAggregate = (input: {
   output?: unknown;
 }) => ({
   proposedAction: { id: "PA-1", status: input.actionStatus },
-  approval: { id: "APR-1", status: input.approvalStatus ?? "PENDING" },
+  approval: {
+    id: "APR-1", status: input.approvalStatus ?? "PENDING",
+    targetOwner: "acme", targetRepo: "repo",
+  },
   toolCalls: [{
     id: "TC-1",
     name: "create_github_issue",
@@ -218,7 +221,8 @@ test("Action presentation is derived from persisted approval, tool and result st
     actionStatus: "SUCCEEDED", callStatus: "COMPLETED", approvalStatus: "APPROVED",
     resultStatus: "SUCCESS",
     output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
-      createdAt: "2026-07-29T00:00:00.000Z" },
+      repository: { owner: "acme", repo: "repo" },
+      createdAt: "2026-07-29T00:00:00.000Z", deduplicated: false },
   })).state, "SUCCEEDED");
   assert.equal(resolveActionPresentation(actionAggregate({
     actionStatus: "FAILED", callStatus: "COMPLETED", approvalStatus: "APPROVED",
@@ -230,6 +234,10 @@ test("Action presentation is derived from persisted approval, tool and result st
   assert.equal(resolveActionPresentation(actionAggregate({
     actionStatus: "CANCELLED", callStatus: "CANCELLED", approvalStatus: "WITHDRAWN",
   })).state, "CANCELLED");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "RECONCILIATION_REQUIRED", callStatus: "RECONCILIATION_REQUIRED",
+    approvalStatus: "APPROVED",
+  })).state, "RECONCILIATION_REQUIRED");
 });
 
 test("Action presentation never reports success without a completed call and valid result", () => {
@@ -250,4 +258,13 @@ test("Action presentation never reports success without a completed call and val
     output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
       createdAt: "2026-07-29T00:00:00.000Z" },
   })), null);
+  const inconsistent = resolveActionPresentation(actionAggregate({
+    actionStatus: "SUCCEEDED", callStatus: "RUNNING", approvalStatus: "APPROVED",
+    resultStatus: "SUCCESS",
+    output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
+      repository: { owner: "acme", repo: "repo" },
+      createdAt: "2026-07-29T00:00:00.000Z", deduplicated: false },
+  }));
+  assert.notEqual(inconsistent.state, "SUCCEEDED");
+  assert.doesNotMatch(inconsistent.title, /已创建/);
 });

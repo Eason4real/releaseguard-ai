@@ -124,6 +124,9 @@ export const toolCalls = sqliteTable("tool_calls", {
   requestedAt: text("requested_at").notNull(),
   startedAt: text("started_at"),
   completedAt: text("completed_at"),
+  executionAttemptId: text("execution_attempt_id"),
+  executionLeaseExpiresAt: text("execution_lease_expires_at"),
+  externalDispatchStartedAt: text("external_dispatch_started_at"),
 }, (table) => [
   index("tool_calls_run_idx").on(table.runId),
   index("tool_calls_signature_idx").on(table.runId, table.canonicalSignature),

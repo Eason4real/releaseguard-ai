@@ -56,6 +56,9 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!toolColumns.has("agent_iteration_id")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN agent_iteration_id text"));
   if (!toolColumns.has("trigger_message_id")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN trigger_message_id text"));
   if (!toolColumns.has("cache_source_tool_call_id")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN cache_source_tool_call_id text"));
+  if (!toolColumns.has("execution_attempt_id")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN execution_attempt_id text"));
+  if (!toolColumns.has("execution_lease_expires_at")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN execution_lease_expires_at text"));
+  if (!toolColumns.has("external_dispatch_started_at")) upgrades.push(d1.prepare("ALTER TABLE tool_calls ADD COLUMN external_dispatch_started_at text"));
   if (!actionColumns.has("updated_at")) {
     upgrades.push(d1.prepare("ALTER TABLE proposed_actions ADD COLUMN updated_at text NOT NULL DEFAULT ''"));
   }
@@ -101,6 +104,11 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!incidentDocumentColumns.has("ingestion_version")) upgrades.push(d1.prepare("ALTER TABLE incident_documents ADD COLUMN ingestion_version text"));
   if (!incidentChunkColumns.has("corpus_type")) upgrades.push(d1.prepare("ALTER TABLE incident_chunks ADD COLUMN corpus_type text DEFAULT 'FIXTURE' NOT NULL"));
   if (upgrades.length > 0) await d1.batch(upgrades);
+  await d1.prepare(`UPDATE tool_calls
+    SET status = 'COMPLETED'
+    WHERE name = 'create_github_issue'
+      AND status = 'SUCCESS'
+      AND result_id IS NOT NULL`).run();
   await d1.prepare("DROP INDEX IF EXISTS diagnoses_run_unique").run();
   await d1.batch(indexStatements.map((statement) => d1.prepare(statement)));
 }

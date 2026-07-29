@@ -12,6 +12,7 @@ import type {
   VerificationEvaluation,
 } from "./types";
 import { evaluateVerification } from "./verification-evaluator";
+import { resolveValidatedGithubIssue } from "./github-action-state";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const CONFIRMED_BY = "Product Manager · Workspace Owner";
@@ -349,7 +350,13 @@ export async function confirmActionCompletion(
   }
   const call = aggregate.toolCalls.find((item) =>
     item.proposedActionId === action.id && item.approvalId === approval.id);
-  if (!call || call.status !== "SUCCESS" || call.result?.status !== "SUCCESS" || !call.completedAt) {
+  const issue = call && approval.targetOwner && approval.targetRepo
+    ? resolveValidatedGithubIssue(call, {
+        owner: approval.targetOwner,
+        repo: approval.targetRepo,
+      })
+    : null;
+  if (!call || !issue || !call.completedAt) {
     throw new RuntimeRequestError(
       "SUCCESSFUL_ACTION_REQUIRED",
       "只有成功完成的 Action ToolCall 才能确认变更生效。",

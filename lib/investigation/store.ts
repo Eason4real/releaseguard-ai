@@ -8,6 +8,12 @@ import type {
   ToolCall,
   ToolResult,
 } from "./types";
+import type {
+  GithubActionClaimInput,
+  GithubActionDispatchInput,
+  GithubActionReconciliationInput,
+  GithubActionSettlementInput,
+} from "./github-action-state";
 
 export type RunTransitionPatch = {
   totalTokens?: number;
@@ -64,6 +70,13 @@ export interface InvestigationStore {
     from: ToolCall["status"],
     result: ToolResult,
     completedAt: string,
+  ): Promise<boolean>;
+  claimGithubAction(input: GithubActionClaimInput): Promise<boolean>;
+  markGithubActionDispatchStarted(input: GithubActionDispatchInput): Promise<boolean>;
+  commitGithubActionSuccess(input: GithubActionSettlementInput): Promise<boolean>;
+  commitGithubActionFailure(input: GithubActionSettlementInput): Promise<boolean>;
+  markGithubActionReconciliationRequired(
+    input: GithubActionReconciliationInput,
   ): Promise<boolean>;
   getAggregate(runId: string): Promise<InvestigationAggregate | null>;
   getLatestAggregate(): Promise<InvestigationAggregate | null>;

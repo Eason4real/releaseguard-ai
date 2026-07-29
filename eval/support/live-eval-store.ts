@@ -16,6 +16,13 @@ import type { RunTransitionPatch } from "../../lib/investigation/store";
 import type * as T from "../../lib/investigation/types";
 import type { VerificationFeedbackRecord } from "../../lib/investigation/verification-evaluator";
 import type { AnalyticsStore } from "../../lib/analytics/store";
+import type {
+  GithubActionClaimInput,
+  GithubActionDispatchInput,
+  GithubActionReconciliationInput,
+  GithubActionSettlementInput,
+} from "../../lib/investigation/github-action-state";
+import { normalizeGithubTarget } from "../../lib/investigation/github-action-state";
 
 const copy = <V>(value: V): V => structuredClone(value);
 
@@ -127,6 +134,85 @@ export class LiveEvalStore implements Phase4InvestigationStore {
     this.results.set(result.id, copy(result));
     this.calls.set(id, { ...item, status: result.status === "SUCCESS" ? "SUCCESS" : "ERROR",
       resultId: result.id, completedAt });
+    return true;
+  }
+
+  async claimGithubAction(input: GithubActionClaimInput) {
+    const run = this.runs.get(input.runId);
+    const action = this.actions.get(input.proposedActionId);
+    const approval = this.approvals.get(input.approvalId);
+    const snapshot = this.snapshots.get(input.approvalSnapshotId);
+    const call = this.calls.get(input.toolCallId);
+    const initial = input.mode === "INITIAL";
+    const target = approval?.targetOwner && approval.targetRepo
+      ? normalizeGithubTarget({ owner: approval.targetOwner, repo: approval.targetRepo }) : null;
+    if (!run || run.status !== (initial ? "WAITING_APPROVAL" : "ACTION_EXECUTING")
+      || run.lockVersion !== input.expectedLockVersion || run.activeIterationId
+      || !action || action.status !== (initial ? "APPROVED" : "EXECUTING")
+      || !approval || approval.status !== "APPROVED" || approval.decision !== "APPROVE"
+      || !target || target.owner !== input.frozenTarget.owner || target.repo !== input.frozenTarget.repo
+      || !snapshot || snapshot.lifecycleStatus !== "ACTIVE" || snapshot.approvalId !== approval.id
+      || !call || call.status !== (initial ? "WAITING_APPROVAL" : "RUNNING")
+      || (!initial && (call.executionAttemptId !== input.previousAttemptId
+        || call.executionLeaseExpiresAt !== input.previousLeaseExpiresAt
+        || call.externalDispatchStartedAt !== null
+        || !call.executionLeaseExpiresAt || call.executionLeaseExpiresAt >= input.claimedAt))) return false;
+    this.runs.set(run.id, { ...run, status: "ACTION_EXECUTING",
+      lockVersion: run.lockVersion + 1, updatedAt: input.claimedAt });
+    this.actions.set(action.id, { ...action, status: "EXECUTING", updatedAt: input.claimedAt });
+    this.calls.set(call.id, { ...call, status: "RUNNING", approvalId: approval.id,
+      executionAttemptId: input.attemptId, executionLeaseExpiresAt: input.leaseExpiresAt,
+      externalDispatchStartedAt: null, startedAt: input.claimedAt, completedAt: null, resultId: null });
+    this.audits.set(input.auditEvent.id, copy(input.auditEvent));
+    return true;
+  }
+
+  async markGithubActionDispatchStarted(input: GithubActionDispatchInput) {
+    const call = this.calls.get(input.toolCallId);
+    if (!call || call.status !== "RUNNING" || call.executionAttemptId !== input.attemptId
+      || call.externalDispatchStartedAt) return false;
+    this.calls.set(call.id, { ...call, externalDispatchStartedAt: input.dispatchedAt });
+    this.audits.set(input.auditEvent.id, copy(input.auditEvent));
+    return true;
+  }
+
+  private async settleGithubAction(input: GithubActionSettlementInput, success: boolean) {
+    const run = this.runs.get(input.runId);
+    const action = this.actions.get(input.proposedActionId);
+    const call = this.calls.get(input.toolCallId);
+    if (!run || run.status !== "ACTION_EXECUTING" || !action || !call
+      || !["EXECUTING", "RECONCILIATION_REQUIRED"].includes(action.status)
+      || !["RUNNING", "RECONCILIATION_REQUIRED"].includes(call.status)
+      || call.executionAttemptId !== input.attemptId
+      || input.result.status !== (success ? "SUCCESS" : "ERROR")) return false;
+    this.calls.set(call.id, { ...call, status: "COMPLETED", resultId: input.result.id,
+      completedAt: input.settledAt, executionLeaseExpiresAt: null });
+    this.results.set(input.result.id, copy(input.result));
+    this.actions.set(action.id, { ...action, status: success ? "SUCCEEDED" : "FAILED",
+      updatedAt: input.settledAt });
+    this.runs.set(run.id, { ...run, status: success ? "WAITING_ACTION_COMPLETION" : "FAILED",
+      errorMessage: success ? null : input.result.errorMessage,
+      completedAt: success ? null : input.settledAt, updatedAt: input.settledAt });
+    this.audits.set(input.auditEvent.id, copy(input.auditEvent));
+    return true;
+  }
+  async commitGithubActionSuccess(input: GithubActionSettlementInput) {
+    return this.settleGithubAction(input, true);
+  }
+  async commitGithubActionFailure(input: GithubActionSettlementInput) {
+    return this.settleGithubAction(input, false);
+  }
+  async markGithubActionReconciliationRequired(input: GithubActionReconciliationInput) {
+    const action = this.actions.get(input.proposedActionId);
+    const call = this.calls.get(input.toolCallId);
+    if (!action || !call || call.executionAttemptId !== input.attemptId
+      || !["EXECUTING", "RECONCILIATION_REQUIRED"].includes(action.status)
+      || !["RUNNING", "RECONCILIATION_REQUIRED"].includes(call.status)) return false;
+    this.actions.set(action.id, { ...action, status: "RECONCILIATION_REQUIRED",
+      updatedAt: input.observedAt });
+    this.calls.set(call.id, { ...call, status: "RECONCILIATION_REQUIRED",
+      executionLeaseExpiresAt: null });
+    this.audits.set(input.auditEvent.id, copy(input.auditEvent));
     return true;
   }
 

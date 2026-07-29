@@ -4,6 +4,10 @@ import type {
   InvestigationAggregate,
   LegacyInvestigationResponse,
 } from "./types";
+import {
+  resolveValidatedGithubIssue,
+  type ValidatedGithubIssue,
+} from "./github-action-state";
 
 const plannerAuditLabels: Partial<Record<AuditEvent["type"], string>> = {
   PLANNER_MODEL_CALL_RESERVED: "模型调用额度已预留",
@@ -14,6 +18,11 @@ const plannerAuditLabels: Partial<Record<AuditEvent["type"], string>> = {
   PLANNER_DECISION_REPAIRED: "Planner decision repair 已成功",
   PLANNER_DECISION_REPAIR_FAILED: "Planner decision repair 已耗尽",
   PLANNER_MODEL_CALL_BUDGET_EXHAUSTED: "模型调用预算已耗尽",
+  ACTION_EXECUTION_STARTED: "Action execution 已 claim",
+  ACTION_EXECUTION_RECLAIMED: "Action execution lease 已恢复",
+  ACTION_EXTERNAL_DISPATCH_STARTED: "GitHub create dispatch 已记录",
+  ACTION_RECONCILIATION_REQUIRED: "GitHub 写入结果待核对",
+  ACTION_RECONCILIATION_CHECKED: "GitHub marker 已核对",
 };
 
 export function resolveAuditEventLabel(event: AuditEvent) {
@@ -105,35 +114,10 @@ export type ActionPresentationState =
   | "FAILED"
   | "REJECTED"
   | "CANCELLED"
+  | "RECONCILIATION_REQUIRED"
   | "UNAVAILABLE";
 
-export type SuccessfulGithubIssue = {
-  number: number;
-  title: string;
-  url: string;
-  createdAt: string;
-  deduplicated: boolean;
-};
-
-const parseGithubIssueResult = (output: unknown): SuccessfulGithubIssue | null => {
-  if (!output || typeof output !== "object" || Array.isArray(output)) return null;
-  const issue = output as Record<string, unknown>;
-  if (!(Number.isInteger(issue.number)
-    && Number(issue.number) > 0
-    && typeof issue.title === "string"
-    && issue.title.trim().length > 0
-    && typeof issue.url === "string"
-    && /^https:\/\//.test(issue.url)
-    && typeof issue.createdAt === "string"
-    && issue.createdAt.length > 0)) return null;
-  return {
-    number: Number(issue.number),
-    title: issue.title,
-    url: issue.url,
-    createdAt: issue.createdAt,
-    deduplicated: issue.deduplicated === true,
-  };
-};
+export type SuccessfulGithubIssue = ValidatedGithubIssue;
 
 export function resolveSuccessfulGithubIssue(
   aggregate: InvestigationAggregate | null,
@@ -142,8 +126,12 @@ export function resolveSuccessfulGithubIssue(
   if (!action || action.status !== "SUCCEEDED") return null;
   const call = aggregate?.toolCalls.find((item) => item.proposedActionId === action.id
     && item.name === "create_github_issue") ?? null;
-  if (call?.status !== "COMPLETED" || call.result?.status !== "SUCCESS") return null;
-  return parseGithubIssueResult(call.result.output);
+  const approval = aggregate?.approval;
+  if (!approval?.targetOwner || !approval.targetRepo) return null;
+  return resolveValidatedGithubIssue(call, {
+    owner: approval.targetOwner,
+    repo: approval.targetRepo,
+  });
 };
 
 export function resolveActionPresentation(
@@ -165,6 +153,14 @@ export function resolveActionPresentation(
   }
   if (action?.status === "FAILED" || call?.status === "ERROR" || call?.result?.status === "ERROR") {
     return { state: "FAILED", title: "工作项创建失败", detail: call?.result?.errorMessage ?? "外部 Action 未成功完成。" };
+  }
+  if (action?.status === "RECONCILIATION_REQUIRED"
+    || call?.status === "RECONCILIATION_REQUIRED") {
+    return {
+      state: "RECONCILIATION_REQUIRED",
+      title: "工作项结果待核对",
+      detail: "外部写入结果尚不确定；系统只会通过稳定 marker 核对，不会盲目重复创建。",
+    };
   }
   if (action?.status === "EXECUTING" || call?.status === "RUNNING") {
     return { state: "RUNNING", title: "正在创建工作项", detail: "已批准 Action 正在执行，尚无成功结果。" };

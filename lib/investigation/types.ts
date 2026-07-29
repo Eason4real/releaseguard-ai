@@ -26,6 +26,7 @@ export type ToolCallStatus =
   | "COMPLETED"
   | "SUCCESS"
   | "ERROR"
+  | "RECONCILIATION_REQUIRED"
   | "DENIED"
   | "CANCELLED";
 export type ToolResultStatus = "SUCCESS" | "EMPTY" | "ERROR";
@@ -74,6 +75,9 @@ export type ToolCall = {
   requestedAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  executionAttemptId?: string | null;
+  executionLeaseExpiresAt?: string | null;
+  externalDispatchStartedAt?: string | null;
 };
 
 export type ToolResult = {
@@ -174,6 +178,7 @@ export type ProposedAction = {
     | "EXECUTING"
     | "SUCCEEDED"
     | "FAILED"
+    | "RECONCILIATION_REQUIRED"
     | "SUPERSEDED"
     | "CANCELLED";
   revision: number;
@@ -221,6 +226,10 @@ export type AuditEventType =
   | "APPROVAL_APPROVED"
   | "APPROVAL_REJECTED"
   | "ACTION_EXECUTION_STARTED"
+  | "ACTION_EXECUTION_RECLAIMED"
+  | "ACTION_EXTERNAL_DISPATCH_STARTED"
+  | "ACTION_RECONCILIATION_REQUIRED"
+  | "ACTION_RECONCILIATION_CHECKED"
   | "ACTION_SUCCEEDED"
   | "ACTION_FAILED"
   | "ACTION_COMPLETION_CONFIRMED"

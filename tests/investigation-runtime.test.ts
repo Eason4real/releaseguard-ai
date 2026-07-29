@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { drizzle } from "drizzle-orm/d1";
 import * as dbSchema from "../db/schema";
@@ -38,6 +39,17 @@ import {
 import { POST as githubIssueRoute } from "../app/api/github-issue/route";
 import { handleInvestigatePost } from "../app/api/investigate/route";
 import type { RunTransitionPatch } from "../lib/investigation/store";
+import type {
+  GithubActionClaimInput,
+  GithubActionDispatchInput,
+  GithubActionReconciliationInput,
+  GithubActionSettlementInput,
+} from "../lib/investigation/github-action-state";
+import {
+  GithubIssueResponseValidationError,
+  normalizeGithubTarget,
+  validateGithubIssueResponse,
+} from "../lib/investigation/github-action-state";
 import {
   assertGroundedFinalizationCommit,
   type ModelCallReservationInput,
@@ -151,12 +163,16 @@ class MemoryStore implements Phase4InvestigationStore {
   commands = new Set<string>();
   failNextEvidenceAssessmentCommit = false;
   failNextVerificationEvaluationCommit = false;
+  failNextGithubClaimCommit = false;
+  failNextGithubSettlementCommit = false;
   lastGroundedFinalizationInput: GroundedFinalizationCommit | null = null;
   lastActionCompletionInput: ActionCompletionCommit | null = null;
   lastVerificationAttemptInput: VerificationAttemptCommit | null = null;
   lastVerificationEvaluationInput: VerificationEvaluationCommit | null = null;
   lastVerificationReopenInput: VerificationReopenCommit | null = null;
   lastVerificationRetryInput: VerificationRetryCommit | null = null;
+  lastGithubClaimInput: GithubActionClaimInput | null = null;
+  lastGithubSettlementInput: GithubActionSettlementInput | null = null;
   failNextGroundedFinalizationAt: null | "DIAGNOSIS" | "ACTION" | "APPROVAL"
     | "SNAPSHOT" | "TOOL_CALL" | "AUDIT" | "RUN_TRANSITION" = null;
 
@@ -417,6 +433,164 @@ class MemoryStore implements Phase4InvestigationStore {
     return true;
   }
 
+  async claimGithubAction(input: GithubActionClaimInput) {
+    this.lastGithubClaimInput = structuredClone(input);
+    const run = this.runs.get(input.runId);
+    const action = this.actions.get(input.proposedActionId);
+    const approval = this.approvals.get(input.approvalId);
+    const snapshot = this.snapshots.get(input.approvalSnapshotId);
+    const call = this.calls.get(input.toolCallId);
+    const target = approval?.targetOwner && approval.targetRepo
+      ? normalizeGithubTarget({ owner: approval.targetOwner, repo: approval.targetRepo })
+      : null;
+    const initial = input.mode === "INITIAL";
+    if (!run || run.lockVersion !== input.expectedLockVersion || run.activeIterationId
+      || run.status !== (initial ? "WAITING_APPROVAL" : "ACTION_EXECUTING")
+      || !action || action.runId !== input.runId
+      || action.status !== (initial ? "APPROVED" : "EXECUTING")
+      || !approval || approval.runId !== input.runId || approval.proposedActionId !== action.id
+      || approval.status !== "APPROVED" || approval.decision !== "APPROVE"
+      || !target || target.owner !== input.frozenTarget.owner || target.repo !== input.frozenTarget.repo
+      || !snapshot || snapshot.runId !== input.runId || snapshot.approvalId !== approval.id
+      || snapshot.proposedActionId !== action.id || snapshot.lifecycleStatus !== "ACTIVE"
+      || snapshot.revision !== action.revision
+      || !call || call.runId !== input.runId || call.proposedActionId !== action.id
+      || call.name !== "create_github_issue"
+      || call.status !== (initial ? "WAITING_APPROVAL" : "RUNNING")
+      || (!initial && (call.executionAttemptId !== input.previousAttemptId
+        || call.executionLeaseExpiresAt !== input.previousLeaseExpiresAt
+        || call.externalDispatchStartedAt !== null
+        || !call.executionLeaseExpiresAt
+        || call.executionLeaseExpiresAt >= input.claimedAt))) return false;
+
+    const runs = structuredClone(this.runs);
+    const actions = structuredClone(this.actions);
+    const calls = structuredClone(this.calls);
+    const audits = structuredClone(this.audits);
+    runs.set(run.id, {
+      ...run, status: "ACTION_EXECUTING", lockVersion: run.lockVersion + 1,
+      updatedAt: input.claimedAt,
+    });
+    actions.set(action.id, { ...action, status: "EXECUTING", updatedAt: input.claimedAt });
+    calls.set(call.id, {
+      ...call,
+      status: "RUNNING",
+      approvalId: approval.id,
+      executionAttemptId: input.attemptId,
+      executionLeaseExpiresAt: input.leaseExpiresAt,
+      externalDispatchStartedAt: null,
+      startedAt: input.claimedAt,
+      completedAt: null,
+      resultId: null,
+    });
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    if (this.failNextGithubClaimCommit) {
+      this.failNextGithubClaimCommit = false;
+      throw new Error("INJECTED_GITHUB_CLAIM_FAILURE");
+    }
+    this.runs = runs;
+    this.actions = actions;
+    this.calls = calls;
+    this.audits = audits;
+    return true;
+  }
+
+  async markGithubActionDispatchStarted(input: GithubActionDispatchInput) {
+    const call = this.calls.get(input.toolCallId);
+    if (!call || call.runId !== input.runId || call.proposedActionId !== input.proposedActionId
+      || call.approvalId !== input.approvalId || call.status !== "RUNNING"
+      || call.executionAttemptId !== input.attemptId || call.externalDispatchStartedAt) return false;
+    const calls = structuredClone(this.calls);
+    const audits = structuredClone(this.audits);
+    calls.set(call.id, { ...call, externalDispatchStartedAt: input.dispatchedAt });
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    this.calls = calls;
+    this.audits = audits;
+    return true;
+  }
+
+  private async commitGithubActionSettlement(
+    input: GithubActionSettlementInput,
+    outcome: "SUCCESS" | "FAILURE",
+  ) {
+    this.lastGithubSettlementInput = structuredClone(input);
+    const run = this.runs.get(input.runId);
+    const action = this.actions.get(input.proposedActionId);
+    const call = this.calls.get(input.toolCallId);
+    if (!run || run.status !== "ACTION_EXECUTING" || !action
+      || !["EXECUTING", "RECONCILIATION_REQUIRED"].includes(action.status)
+      || !call || !["RUNNING", "RECONCILIATION_REQUIRED"].includes(call.status)
+      || call.approvalId !== input.approvalId || call.executionAttemptId !== input.attemptId
+      || input.result.runId !== input.runId || input.result.toolCallId !== input.toolCallId
+      || input.result.status !== (outcome === "SUCCESS" ? "SUCCESS" : "ERROR")) return false;
+    const runs = structuredClone(this.runs);
+    const actions = structuredClone(this.actions);
+    const calls = structuredClone(this.calls);
+    const results = structuredClone(this.results);
+    const audits = structuredClone(this.audits);
+    calls.set(call.id, {
+      ...call, status: "COMPLETED", resultId: input.result.id,
+      completedAt: input.settledAt, executionLeaseExpiresAt: null,
+    });
+    results.set(input.result.id, structuredClone(input.result));
+    actions.set(action.id, {
+      ...action, status: outcome === "SUCCESS" ? "SUCCEEDED" : "FAILED",
+      updatedAt: input.settledAt,
+    });
+    runs.set(run.id, {
+      ...run,
+      status: outcome === "SUCCESS" ? "WAITING_ACTION_COMPLETION" : "FAILED",
+      errorMessage: outcome === "SUCCESS" ? null : input.result.errorMessage,
+      completedAt: outcome === "SUCCESS" ? null : input.settledAt,
+      updatedAt: input.settledAt,
+    });
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    if (this.failNextGithubSettlementCommit) {
+      this.failNextGithubSettlementCommit = false;
+      throw new Error("INJECTED_GITHUB_SETTLEMENT_FAILURE");
+    }
+    this.runs = runs;
+    this.actions = actions;
+    this.calls = calls;
+    this.results = results;
+    this.audits = audits;
+    return true;
+  }
+
+  async commitGithubActionSuccess(input: GithubActionSettlementInput) {
+    return this.commitGithubActionSettlement(input, "SUCCESS");
+  }
+
+  async commitGithubActionFailure(input: GithubActionSettlementInput) {
+    return this.commitGithubActionSettlement(input, "FAILURE");
+  }
+
+  async markGithubActionReconciliationRequired(input: GithubActionReconciliationInput) {
+    const run = this.runs.get(input.runId);
+    const action = this.actions.get(input.proposedActionId);
+    const call = this.calls.get(input.toolCallId);
+    if (!run || run.status !== "ACTION_EXECUTING" || !action
+      || !["EXECUTING", "RECONCILIATION_REQUIRED"].includes(action.status)
+      || !call || !["RUNNING", "RECONCILIATION_REQUIRED"].includes(call.status)
+      || call.approvalId !== input.approvalId || call.executionAttemptId !== input.attemptId) {
+      return false;
+    }
+    const actions = structuredClone(this.actions);
+    const calls = structuredClone(this.calls);
+    const audits = structuredClone(this.audits);
+    actions.set(action.id, {
+      ...action, status: "RECONCILIATION_REQUIRED", updatedAt: input.observedAt,
+    });
+    calls.set(call.id, {
+      ...call, status: "RECONCILIATION_REQUIRED", executionLeaseExpiresAt: null,
+    });
+    audits.set(input.auditEvent.id, structuredClone(input.auditEvent));
+    this.actions = actions;
+    this.calls = calls;
+    this.audits = audits;
+    return true;
+  }
+
   async claimIteration(iteration: AgentIteration, expectedLockVersion: number) {
     const run = this.runs.get(iteration.runId);
     if (
@@ -597,7 +771,9 @@ class MemoryStore implements Phase4InvestigationStore {
       || approval.proposedActionId !== action.id
       || approval.revision !== completion.revision
       || !call
-      || call.status !== "SUCCESS"
+      || call.status !== "COMPLETED"
+      || !call.resultId
+      || this.results.get(call.resultId)?.status !== "SUCCESS"
       || call.completedAt !== input.expectedActionCompletedAt
       || [...this.actionCompletions.values()].some((item) =>
         item.runId === completion.runId
@@ -1054,6 +1230,29 @@ const fixture = () => runFixtureInvestigation(
   "为什么 Android 7.3.0 发布后，优惠券领取成功率突然下降？",
 );
 
+async function approvedFixtureAction(store = new MemoryStore()) {
+  const initial = await runFixtureInvestigation(store, "atomic GitHub action case");
+  const actionId = initial.proposedAction!.id;
+  await decideProposedAction(store, {
+    runId: initial.run.id,
+    proposedActionId: actionId,
+    decision: "APPROVE",
+    reason: "批准受控测试写入",
+    targetOwner: "Example",
+    targetRepo: "ReleaseGuard-Demo",
+  });
+  return { store, aggregate: (await store.getAggregate(initial.run.id))!, actionId };
+}
+
+const validGithubResponse = (number = 88) => ({
+  number,
+  title: "[P1] ReleaseGuard repair",
+  html_url: `https://github.com/example/releaseguard-demo/issues/${number}`,
+  repository_url: "https://api.github.com/repos/example/releaseguard-demo",
+  url: `https://api.github.com/repos/example/releaseguard-demo/issues/${number}`,
+  created_at: "2026-07-29T00:00:00.000Z",
+});
+
 async function executedFixtureAction(store = new MemoryStore()) {
   const initial = await runFixtureInvestigation(store, "P4.3A action completion case");
   const actionId = initial.proposedAction!.id;
@@ -1470,7 +1669,7 @@ test("Case A: approve executes the frozen action and reaches WAITING_ACTION_COMP
   assert.equal(completed?.approval?.status, "APPROVED");
   assert.equal(completed?.proposedAction?.status, "SUCCEEDED");
   const actionCall = completed?.toolCalls.find((call) => call.proposedActionId === actionId);
-  assert.equal(actionCall?.status, "SUCCESS");
+  assert.equal(actionCall?.status, "COMPLETED");
   assert.equal(actionCall?.result?.status, "SUCCESS");
   assert.ok(completed?.auditEvents.some((event) => event.type === "ACTION_EXECUTION_STARTED"));
   assert.ok(completed?.auditEvents.some((event) => event.type === "ACTION_SUCCEEDED"));
@@ -1482,9 +1681,304 @@ test("Case A: approve executes the frozen action and reaches WAITING_ACTION_COMP
       token: "test-token",
     }, fetcher),
     (error: unknown) =>
-      error instanceof RuntimeRequestError && error.code === "ACTION_ALREADY_EXECUTED",
+      error instanceof RuntimeRequestError && error.code === "ALREADY_COMPLETED",
   );
   assert.equal(calls, 2, "replayed execution must not call GitHub again");
+});
+
+test("GitHub response validation binds a positive safe number to the approved repository", () => {
+  const target = { owner: "Example", repo: "ReleaseGuard-Demo" };
+  const valid = validateGithubIssueResponse(validGithubResponse(), target, {
+    deduplicated: false,
+    observedAt: "2026-07-29T00:00:00.000Z",
+  });
+  assert.equal(valid.number, 88);
+  assert.deepEqual(valid.repository, { owner: "example", repo: "releaseguard-demo" });
+
+  const invalidResponses: unknown[] = [
+    { ...validGithubResponse(), number: 0 },
+    { ...validGithubResponse(), number: -1 },
+    { ...validGithubResponse(), number: 1.5 },
+    { ...validGithubResponse(), number: "88" },
+    { ...validGithubResponse(), number: Number.MAX_SAFE_INTEGER + 1 },
+    { ...validGithubResponse(), html_url: "http://github.com/example/releaseguard-demo/issues/88" },
+    { ...validGithubResponse(), html_url: "https://evil.example/example/releaseguard-demo/issues/88" },
+    { ...validGithubResponse(), html_url: "https://user@github.com/example/releaseguard-demo/issues/88" },
+    { ...validGithubResponse(), html_url: "https://github.com:444/example/releaseguard-demo/issues/88" },
+    { ...validGithubResponse(), html_url: "https://github.com/example/wrong/issues/88" },
+    { ...validGithubResponse(), html_url: "https://github.com/example/releaseguard-demo/issues/89" },
+    { ...validGithubResponse(), html_url: "https://github.com/example/releaseguard-demo/%69ssues/88" },
+    { ...validGithubResponse(), html_url: "https://github.com/example/releaseguard-demo/issues/88/extra" },
+    { ...validGithubResponse(), repository_url: "https://api.github.com/repos/example/wrong" },
+    { ...validGithubResponse(), url: "https://api.github.com/repos/example/releaseguard-demo/issues/89" },
+  ];
+  for (const response of invalidResponses) {
+    assert.throws(
+      () => validateGithubIssueResponse(response, target, {
+        deduplicated: false,
+        observedAt: "2026-07-29T00:00:00.000Z",
+      }),
+      (error: unknown) => error instanceof GithubIssueResponseValidationError,
+    );
+  }
+});
+
+test("Concurrent GitHub execute calls share one atomic claim and create exactly once", async () => {
+  const { store, aggregate, actionId } = await approvedFixtureAction();
+  let createCalls = 0;
+  const fetcher: typeof fetch = async (_url, init) => {
+    if (init?.method === "POST") {
+      createCalls += 1;
+      return Response.json(validGithubResponse(), { status: 201 });
+    }
+    return Response.json([]);
+  };
+  const executions = await Promise.allSettled([
+    executeApprovedGithubAction(store, {
+      runId: aggregate.run.id, proposedActionId: actionId, token: "concurrency-secret",
+    }, fetcher),
+    executeApprovedGithubAction(store, {
+      runId: aggregate.run.id, proposedActionId: actionId, token: "concurrency-secret",
+    }, fetcher),
+  ]);
+  assert.equal(executions.filter((item) => item.status === "fulfilled").length, 1);
+  assert.equal(executions.filter((item) => item.status === "rejected").length, 1);
+  assert.equal(createCalls, 1);
+  const completed = (await store.getAggregate(aggregate.run.id))!;
+  assert.equal(completed.run.status, "WAITING_ACTION_COMPLETION");
+  assert.equal(completed.proposedAction?.status, "SUCCEEDED");
+  assert.equal(completed.toolCalls.find((item) => item.proposedActionId === actionId)?.status,
+    "COMPLETED");
+  assert.doesNotMatch(JSON.stringify(completed), /concurrency-secret/);
+
+  const replay = await Promise.allSettled([
+    executeApprovedGithubAction(store, {
+      runId: aggregate.run.id, proposedActionId: actionId, token: "replay-secret",
+    }, fetcher),
+    executeApprovedGithubAction(store, {
+      runId: aggregate.run.id, proposedActionId: actionId, token: "replay-secret",
+    }, fetcher),
+  ]);
+  assert.equal(replay.every((item) => item.status === "rejected"
+    && item.reason instanceof RuntimeRequestError
+    && item.reason.code === "ALREADY_COMPLETED"), true);
+  assert.equal(createCalls, 1);
+});
+
+test("GitHub claim and completion failures do not commit half states", async () => {
+  const claimFixture = await approvedFixtureAction();
+  claimFixture.store.failNextGithubClaimCommit = true;
+  let claimNetworkCalls = 0;
+  await assert.rejects(executeApprovedGithubAction(claimFixture.store, {
+    runId: claimFixture.aggregate.run.id,
+    proposedActionId: claimFixture.actionId,
+    token: "claim-secret",
+  }, async () => {
+    claimNetworkCalls += 1;
+    return Response.json([]);
+  }), /INJECTED_GITHUB_CLAIM_FAILURE/);
+  const unclaimed = (await claimFixture.store.getAggregate(claimFixture.aggregate.run.id))!;
+  assert.equal(claimNetworkCalls, 0);
+  assert.equal(unclaimed.run.status, "WAITING_APPROVAL");
+  assert.equal(unclaimed.proposedAction?.status, "APPROVED");
+  assert.equal(unclaimed.toolCalls.find((item) => item.proposedActionId === claimFixture.actionId)?.status,
+    "WAITING_APPROVAL");
+
+  const completionFixture = await approvedFixtureAction();
+  completionFixture.store.failNextGithubSettlementCommit = true;
+  let createCalls = 0;
+  await assert.rejects(executeApprovedGithubAction(completionFixture.store, {
+    runId: completionFixture.aggregate.run.id,
+    proposedActionId: completionFixture.actionId,
+    token: "completion-secret",
+  }, async (_url, init) => {
+    if (init?.method === "POST") {
+      createCalls += 1;
+      return Response.json(validGithubResponse(91), { status: 201 });
+    }
+    return Response.json([]);
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "RECONCILIATION_REQUIRED");
+  const pending = (await completionFixture.store.getAggregate(completionFixture.aggregate.run.id))!;
+  const pendingCall = pending.toolCalls.find((item) => item.proposedActionId === completionFixture.actionId)!;
+  assert.equal(createCalls, 1);
+  assert.equal(pending.run.status, "ACTION_EXECUTING");
+  assert.equal(pending.proposedAction?.status, "RECONCILIATION_REQUIRED");
+  assert.equal(pendingCall.status, "RECONCILIATION_REQUIRED");
+  assert.equal(pendingCall.result, null);
+
+  const marker = `<!-- releaseguard-action:${pending.run.id}:${completionFixture.actionId} -->`;
+  const recovered = await executeApprovedGithubAction(completionFixture.store, {
+    runId: pending.run.id,
+    proposedActionId: completionFixture.actionId,
+    token: "completion-secret",
+  }, async (_url, init) => {
+    assert.equal(init?.method, undefined);
+    return Response.json([{ ...validGithubResponse(91), body: marker }]);
+  });
+  assert.equal(recovered.number, 91);
+  assert.equal(recovered.deduplicated, true);
+  assert.equal((await completionFixture.store.getAggregate(pending.run.id))?.run.status,
+    "WAITING_ACTION_COMPLETION");
+  assert.equal(createCalls, 1, "reconciliation must not create a second Issue");
+});
+
+test("Unknown GitHub create outcome remains recoverable and never blindly retries", async () => {
+  const { store, aggregate, actionId } = await approvedFixtureAction();
+  let createCalls = 0;
+  await assert.rejects(executeApprovedGithubAction(store, {
+    runId: aggregate.run.id, proposedActionId: actionId, token: "timeout-secret",
+  }, async (_url, init) => {
+    if (init?.method === "POST") {
+      createCalls += 1;
+      throw new Error("connection reset with private upstream detail");
+    }
+    return Response.json([]);
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "RECONCILIATION_REQUIRED");
+  const uncertain = (await store.getAggregate(aggregate.run.id))!;
+  assert.equal(uncertain.proposedAction?.status, "RECONCILIATION_REQUIRED");
+  assert.equal(uncertain.toolCalls.find((item) => item.proposedActionId === actionId)?.status,
+    "RECONCILIATION_REQUIRED");
+  assert.doesNotMatch(JSON.stringify(uncertain), /timeout-secret|private upstream detail/);
+
+  await assert.rejects(executeApprovedGithubAction(store, {
+    runId: aggregate.run.id, proposedActionId: actionId, token: "timeout-secret",
+  }, async (_url, init) => {
+    assert.equal(init?.method, undefined);
+    return Response.json([]);
+  }), (error: unknown) => error instanceof RuntimeRequestError
+    && error.code === "RECONCILIATION_REQUIRED");
+  assert.equal(createCalls, 1);
+});
+
+test("GitHub definite rejection fails atomically while invalid success requires reconciliation", async () => {
+  const rejected = await approvedFixtureAction();
+  await assert.rejects(executeApprovedGithubAction(rejected.store, {
+    runId: rejected.aggregate.run.id,
+    proposedActionId: rejected.actionId,
+    token: "rejected-secret",
+  }, async (_url, init) => init?.method === "POST"
+    ? Response.json({ message: "raw provider detail must not persist" }, { status: 422 })
+    : Response.json([])), (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "GITHUB_CREATE_REJECTED");
+  const failed = (await rejected.store.getAggregate(rejected.aggregate.run.id))!;
+  const failedCall = failed.toolCalls.find((item) => item.proposedActionId === rejected.actionId)!;
+  assert.equal(failed.run.status, "FAILED");
+  assert.equal(failed.proposedAction?.status, "FAILED");
+  assert.equal(failedCall.status, "COMPLETED");
+  assert.equal(failedCall.result?.status, "ERROR");
+  assert.doesNotMatch(JSON.stringify(failed), /rejected-secret|raw provider detail/);
+
+  const invalid = await approvedFixtureAction();
+  await assert.rejects(executeApprovedGithubAction(invalid.store, {
+    runId: invalid.aggregate.run.id,
+    proposedActionId: invalid.actionId,
+    token: "invalid-response-secret",
+  }, async (_url, init) => init?.method === "POST"
+    ? Response.json({
+        ...validGithubResponse(94),
+        html_url: "https://evil.example/example/releaseguard-demo/issues/94",
+      }, { status: 201 })
+    : Response.json([])), (error: unknown) => error instanceof RuntimeRequestError
+      && error.code === "RECONCILIATION_REQUIRED");
+  const pending = (await invalid.store.getAggregate(invalid.aggregate.run.id))!;
+  assert.equal(pending.run.status, "ACTION_EXECUTING");
+  assert.equal(pending.proposedAction?.status, "RECONCILIATION_REQUIRED");
+  assert.equal(pending.toolCalls.find((item) => item.proposedActionId === invalid.actionId)?.result,
+    null);
+  assert.doesNotMatch(JSON.stringify(pending), /invalid-response-secret|evil\.example/);
+});
+
+test("Expired pre-dispatch lease is reclaimed without leaving the Action suspended", async () => {
+  const { store, aggregate, actionId } = await approvedFixtureAction();
+  const approval = aggregate.approval!;
+  const call = aggregate.toolCalls.find((item) => item.proposedActionId === actionId)!;
+  const snapshot = aggregate.approvalSnapshots.find((item) => item.proposedActionId === actionId)!;
+  const claimedAt = "2026-07-28T00:00:00.000Z";
+  assert.equal(await store.claimGithubAction({
+    mode: "INITIAL",
+    runId: aggregate.run.id,
+    proposedActionId: actionId,
+    approvalId: approval.id,
+    approvalSnapshotId: snapshot.id,
+    toolCallId: call.id,
+    expectedLockVersion: aggregate.run.lockVersion,
+    previousAttemptId: null,
+    previousLeaseExpiresAt: null,
+    frozenTarget: { owner: "example", repo: "releaseguard-demo" },
+    attemptId: "GHA-crashed-before-dispatch",
+    claimedAt,
+    leaseExpiresAt: "2026-07-28T00:01:00.000Z",
+    auditEvent: {
+      id: "AE-crashed-claim", runId: aggregate.run.id, proposedActionId: actionId,
+      approvalId: approval.id, toolCallId: call.id, type: "ACTION_EXECUTION_STARTED",
+      actor: "ReleaseGuard Action Runtime", details: {}, createdAt: claimedAt,
+    },
+  }), true);
+  let createCalls = 0;
+  await executeApprovedGithubAction(store, {
+    runId: aggregate.run.id, proposedActionId: actionId, token: "lease-secret",
+  }, async (_url, init) => {
+    if (init?.method === "POST") {
+      createCalls += 1;
+      return Response.json(validGithubResponse(92), { status: 201 });
+    }
+    return Response.json([]);
+  });
+  const recovered = (await store.getAggregate(aggregate.run.id))!;
+  assert.equal(createCalls, 1);
+  assert.equal(recovered.run.status, "WAITING_ACTION_COMPLETION");
+  assert.ok(recovered.auditEvents.some((item) => item.type === "ACTION_EXECUTION_RECLAIMED"));
+});
+
+test("D1 GitHub claim and settlement use rollback-safe atomic batches", async () => {
+  const fixture = await approvedFixtureAction();
+  await executeApprovedGithubAction(fixture.store, {
+    runId: fixture.aggregate.run.id, proposedActionId: fixture.actionId, token: "d1-secret",
+  }, async (_url, init) => init?.method === "POST"
+    ? Response.json(validGithubResponse(93), { status: 201 })
+    : Response.json([]));
+  assert.ok(fixture.store.lastGithubClaimInput);
+  assert.ok(fixture.store.lastGithubSettlementInput);
+
+  const claimClient = new AtomicBatchD1Client();
+  claimClient.failPattern = /update ["`]tool_calls["`]/i;
+  const claimStore = new D1InvestigationStore(async () => drizzle(claimClient as never,
+    { schema: dbSchema }));
+  await assert.rejects(
+    claimStore.claimGithubAction(structuredClone(fixture.store.lastGithubClaimInput)),
+    /INJECTED_D1_BATCH_FAILURE/,
+  );
+  assert.equal(claimClient.batchCalls, 1);
+  assert.deepEqual(claimClient.committedQueries, []);
+
+  const completionClient = new AtomicBatchD1Client();
+  completionClient.failPattern = /insert into ["`]tool_results["`]/i;
+  const completionStore = new D1InvestigationStore(async () => drizzle(completionClient as never,
+    { schema: dbSchema }));
+  await assert.rejects(
+    completionStore.commitGithubActionSuccess(
+      structuredClone(fixture.store.lastGithubSettlementInput),
+    ),
+    /INJECTED_D1_BATCH_FAILURE/,
+  );
+  assert.equal(completionClient.batchCalls, 1);
+  assert.deepEqual(completionClient.committedQueries, []);
+});
+
+test("GitHub action migration only adds execution metadata and canonicalizes legacy success", () => {
+  const migration = investigationRuntimeSchema.find((statement) =>
+    statement.includes("CREATE TABLE IF NOT EXISTS tool_calls"));
+  assert.match(migration ?? "", /execution_attempt_id text/);
+  assert.match(migration ?? "", /execution_lease_expires_at text/);
+  assert.match(migration ?? "", /external_dispatch_started_at text/);
+  const sql = readFileSync("drizzle/0011_mixed_bulldozer.sql", "utf8");
+  assert.match(sql, /ADD `execution_attempt_id` text/);
+  assert.match(sql, /ADD `execution_lease_expires_at` text/);
+  assert.match(sql, /ADD `external_dispatch_started_at` text/);
+  assert.match(sql, /name` = 'create_github_issue'[\s\S]*status` = 'SUCCESS'/);
+  assert.doesNotMatch(sql, /DROP TABLE|CREATE TABLE|DELETE FROM/);
 });
 
 test("P4.3A confirms Action completion and atomically enters WAITING_VERIFICATION", async () => {
@@ -2233,7 +2727,7 @@ test("Case C: a valid approval cannot execute when the Run state is forged", asy
       token: "test-token",
     }),
     (error: unknown) =>
-      error instanceof RuntimeRequestError && error.code === "RUN_NOT_READY_FOR_ACTION",
+      error instanceof RuntimeRequestError && error.code === "INVALID_STATE",
   );
 });
 

@@ -7,6 +7,16 @@ import type {
   ToolCallWithResult,
   ToolResult,
 } from "./types";
+import {
+  GITHUB_ACTION_LEASE_MS,
+  GithubIssueResponseValidationError,
+  isCanonicalCompletedToolCall,
+  normalizeGithubTarget,
+  resolveValidatedGithubIssue,
+  validateGithubIssueResponse,
+  type FrozenGithubTarget,
+  type ValidatedGithubIssue,
+} from "./github-action-state";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
@@ -192,14 +202,6 @@ export async function decideProposedAction(
   return aggregate;
 }
 
-type GithubIssueOutput = {
-  number: number;
-  title: string;
-  url: string;
-  createdAt: string;
-  deduplicated: boolean;
-};
-
 const githubHeaders = (token: string) => ({
   Accept: "application/vnd.github+json",
   Authorization: `Bearer ${token}`,
@@ -208,46 +210,93 @@ const githubHeaders = (token: string) => ({
   "X-GitHub-Api-Version": "2022-11-28",
 });
 
-async function callGithub(
+class GithubExternalRequestError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    readonly outcomeUncertain: boolean,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const githubRequestContext = (input: {
+  target: FrozenGithubTarget;
+  token: string;
+  runId: string;
+  action: ProposedAction;
+  approval: Approval;
+}) => ({
+  marker: `<!-- releaseguard-action:${input.runId}:${input.action.id} -->`,
+  apiUrl: `https://api.github.com/repos/${encodeURIComponent(input.target.owner)}/${encodeURIComponent(input.target.repo)}/issues`,
+  headers: githubHeaders(input.token),
+});
+
+async function findExistingGithubIssue(
   fetcher: typeof fetch,
   input: {
-    owner: string;
-    repo: string;
+    target: FrozenGithubTarget;
     token: string;
     runId: string;
     action: ProposedAction;
     approval: Approval;
   },
-): Promise<GithubIssueOutput> {
-  const marker = `<!-- releaseguard-action:${input.runId}:${input.action.id} -->`;
-  const apiUrl = `https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues`;
-  const headers = githubHeaders(input.token);
-  const existingResponse = await fetcher(`${apiUrl}?state=all&per_page=100`, { headers });
-  if (!existingResponse.ok) {
-    const detail = await existingResponse.json().catch(() => null) as { message?: string } | null;
-    throw new RuntimeRequestError(
-      "GITHUB_READ_FAILED",
-      `GitHub 连接失败：${detail?.message || existingResponse.statusText}`,
-      existingResponse.status,
+): Promise<ValidatedGithubIssue | null> {
+  const { marker, apiUrl, headers } = githubRequestContext(input);
+  let existingResponse: Response;
+  try {
+    existingResponse = await fetcher(`${apiUrl}?state=all&per_page=100`, { headers });
+  } catch {
+    throw new GithubExternalRequestError(
+      "GITHUB_RECONCILIATION_READ_FAILED", 502, false,
+      "GitHub marker 核对请求未完成；尚未发出创建请求。",
     );
   }
-  const existing = await existingResponse.json() as Array<{
-    number: number;
-    title: string;
-    html_url: string;
-    body?: string | null;
-  }>;
-  const duplicate = existing.find((item) => item.body?.includes(marker));
-  if (duplicate) {
-    return {
-      number: duplicate.number,
-      title: duplicate.title,
-      url: duplicate.html_url,
-      createdAt: new Date().toISOString(),
-      deduplicated: true,
-    };
+  if (!existingResponse.ok) {
+    throw new GithubExternalRequestError(
+      "GITHUB_RECONCILIATION_READ_FAILED", existingResponse.status, false,
+      "GitHub marker 核对失败；尚未发出创建请求。",
+    );
   }
+  const existing = await existingResponse.json().catch(() => null);
+  if (!Array.isArray(existing)) {
+    throw new GithubExternalRequestError(
+      "INVALID_GITHUB_LIST_RESPONSE", 502, false,
+      "GitHub marker 核对响应格式不正确；尚未发出创建请求。",
+    );
+  }
+  const duplicate = existing.find((item) => item && typeof item === "object"
+    && typeof (item as { body?: unknown }).body === "string"
+    && (item as { body: string }).body.includes(marker));
+  if (!duplicate) return null;
+  try {
+    return validateGithubIssueResponse(duplicate, input.target, {
+      deduplicated: true,
+      observedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof GithubIssueResponseValidationError) {
+      throw new GithubExternalRequestError(
+        error.code, 502, true,
+        "Marker 命中的 GitHub Issue 响应未通过目标校验，需要人工核对。",
+      );
+    }
+    throw error;
+  }
+}
 
+async function createGithubIssue(
+  fetcher: typeof fetch,
+  input: {
+    target: FrozenGithubTarget;
+    token: string;
+    runId: string;
+    action: ProposedAction;
+    approval: Approval;
+  },
+): Promise<ValidatedGithubIssue> {
+  const { marker, apiUrl, headers } = githubRequestContext(input);
   const args = input.action.arguments;
   const confidence = typeof args.confidence === "string" ? args.confidence : "待人工复核";
   const body = [
@@ -269,33 +318,63 @@ async function callGithub(
     "",
     "> 此任务由服务端根据已批准的 ProposedAction 创建。请在合并与发布前继续执行代码评审和测试流程。",
   ].join("\n");
-  const createResponse = await fetcher(apiUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ title: `[P1][${String(args.incidentId ?? input.runId)}] ${input.action.title}`, body }),
-  });
-  const created = await createResponse.json() as {
-    number?: number;
-    title?: string;
-    html_url?: string;
-    created_at?: string;
-    message?: string;
-  };
-  if (!createResponse.ok || !created.number || !created.html_url) {
-    throw new RuntimeRequestError(
-      "GITHUB_CREATE_FAILED",
-      `GitHub Issue 创建失败：${created.message || createResponse.statusText}`,
-      createResponse.status,
+  let createResponse: Response;
+  try {
+    createResponse = await fetcher(apiUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: `[P1][${String(args.incidentId ?? input.runId)}] ${input.action.title}`,
+        body,
+      }),
+    });
+  } catch {
+    throw new GithubExternalRequestError(
+      "GITHUB_CREATE_OUTCOME_UNKNOWN", 502, true,
+      "GitHub 创建请求连接中断，外部结果未知，需要 marker reconciliation。",
     );
   }
-  return {
-    number: created.number,
-    title: created.title || input.action.title,
-    url: created.html_url,
-    createdAt: created.created_at || new Date().toISOString(),
-    deduplicated: false,
-  };
+  const created = await createResponse.json().catch(() => null);
+  if (!createResponse.ok) {
+    const uncertain = createResponse.status >= 500 || createResponse.status === 408;
+    throw new GithubExternalRequestError(
+      uncertain ? "GITHUB_CREATE_OUTCOME_UNKNOWN" : "GITHUB_CREATE_REJECTED",
+      createResponse.status,
+      uncertain,
+      uncertain
+        ? "GitHub 创建结果未知，需要 marker reconciliation。"
+        : "GitHub 明确拒绝了 Issue 创建请求。",
+    );
+  }
+  try {
+    return validateGithubIssueResponse(created, input.target, {
+      deduplicated: false,
+      observedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof GithubIssueResponseValidationError) {
+      throw new GithubExternalRequestError(
+        error.code, 502, true,
+        "GitHub 返回成功但 Issue 响应未通过目标校验，需要 marker reconciliation。",
+      );
+    }
+    throw error;
+  }
 }
+
+const activeSnapshotFor = (
+  aggregate: InvestigationAggregate,
+  action: ProposedAction,
+  approval: Approval,
+) => aggregate.approvalSnapshots.find((item) =>
+  item.runId === aggregate.run.id
+  && item.proposedActionId === action.id
+  && item.approvalId === approval.id
+  && item.revision === action.revision
+  && item.lifecycleStatus === "ACTIVE") ?? null;
+
+const executionError = (code: string, message: string, status = 409) =>
+  new RuntimeRequestError(code, message, status);
 
 export async function executeApprovedGithubAction(
   store: InvestigationStore,
@@ -312,7 +391,7 @@ export async function executeApprovedGithubAction(
     throw new RuntimeRequestError("GITHUB_TOKEN_REQUIRED", "GitHub 访问令牌不能为空。", 400);
   }
 
-  const context = validateActionContext(
+  let context = validateActionContext(
     await store.getAggregate(input.runId),
     input.runId,
     input.proposedActionId,
@@ -321,11 +400,16 @@ export async function executeApprovedGithubAction(
     (context.aggregate.run.status === "WAITING_ACTION_COMPLETION"
       || context.aggregate.run.status === "WAITING_VERIFICATION")
     && context.action.status === "SUCCEEDED"
-    && context.call.status === "SUCCESS"
-    && context.call.result?.status === "SUCCESS"
+    && context.approval.targetOwner
+    && context.approval.targetRepo
+    && isCanonicalCompletedToolCall(context.call)
+    && resolveValidatedGithubIssue(context.call, {
+      owner: context.approval.targetOwner ?? "",
+      repo: context.approval.targetRepo ?? "",
+    })
   ) {
     throw new RuntimeRequestError(
-      "ACTION_ALREADY_EXECUTED",
+      "ALREADY_COMPLETED",
       "该 ProposedAction 已成功执行，禁止重复创建 GitHub Issue。",
       409,
     );
@@ -336,57 +420,16 @@ export async function executeApprovedGithubAction(
   if (!context.approval.targetOwner || !context.approval.targetRepo) {
     throw new RuntimeRequestError("ACTION_TARGET_MISSING", "已批准动作缺少冻结的 GitHub 目标。", 409);
   }
-  if (context.aggregate.run.status !== "WAITING_APPROVAL") {
-    throw new RuntimeRequestError(
-      "RUN_NOT_READY_FOR_ACTION",
-      `Run 当前为 ${context.aggregate.run.status}，不能执行 Action。`,
-      409,
-    );
-  }
-  if (context.action.status !== "APPROVED" || context.call.status !== "WAITING_APPROVAL") {
-    throw new RuntimeRequestError("ACTION_NOT_EXECUTABLE", "ProposedAction 已执行或状态不正确。", 409);
+  const target = normalizeGithubTarget({
+    owner: context.approval.targetOwner,
+    repo: context.approval.targetRepo,
+  });
+  const snapshot = activeSnapshotFor(context.aggregate, context.action, context.approval);
+  if (!snapshot) {
+    throw executionError("APPROVAL_SNAPSHOT_INVALID", "没有找到当前批准动作的 active frozen snapshot。");
   }
 
-  const startedAt = new Date().toISOString();
-  const actionStarted = await store.updateProposedActionStatus(
-    context.action.id,
-    "APPROVED",
-    "EXECUTING",
-  );
-  const callStarted = await store.updateActionToolCall(
-    context.call.id,
-    "WAITING_APPROVAL",
-    "RUNNING",
-    { approvalId: context.approval.id, startedAt },
-  );
-  if (!actionStarted || !callStarted) {
-    throw new RuntimeRequestError("ACTION_REPLAY_BLOCKED", "Action 已被其他请求执行。", 409);
-  }
-  await store.transitionRun(input.runId, "ACTION_EXECUTING");
-  await store.saveAuditEvents([audit({
-    runId: input.runId,
-    proposedActionId: context.action.id,
-    approvalId: context.approval.id,
-    toolCallId: context.call.id,
-    type: "ACTION_EXECUTION_STARTED",
-    actor: "ReleaseGuard Action Runtime",
-    details: {
-      tool: context.call.name,
-      targetOwner: context.approval.targetOwner,
-      targetRepo: context.approval.targetRepo,
-    },
-    createdAt: startedAt,
-  })]);
-
-  try {
-    const output = await callGithub(fetcher, {
-      owner: context.approval.targetOwner,
-      repo: context.approval.targetRepo,
-      token: input.token.trim(),
-      runId: input.runId,
-      action: context.action,
-      approval: context.approval,
-    });
+  const persistSuccess = async (output: ValidatedGithubIssue, attemptId: string) => {
     const completedAt = new Date().toISOString();
     const result: ToolResult = {
       id: createId("TR"),
@@ -398,40 +441,36 @@ export async function executeApprovedGithubAction(
       retryable: false,
       createdAt: completedAt,
     };
-    const callCompleted = await store.completeActionToolCall(
-      context.call.id,
-      "RUNNING",
-      result,
-      completedAt,
-    );
-    const actionCompleted = await store.updateProposedActionStatus(
-      context.action.id,
-      "EXECUTING",
-      "SUCCEEDED",
-    );
-    if (!callCompleted || !actionCompleted) {
-      throw new RuntimeRequestError("ACTION_COMPLETION_RACE", "Action 执行结果无法安全写入。", 409);
-    }
-    await store.saveAuditEvents([audit({
+    const committed = await store.commitGithubActionSuccess({
       runId: input.runId,
       proposedActionId: context.action.id,
       approvalId: context.approval.id,
       toolCallId: context.call.id,
-      type: "ACTION_SUCCEEDED",
-      actor: "ReleaseGuard Action Runtime",
-      details: { ...output },
-      createdAt: completedAt,
-    })]);
-    await store.transitionRun(input.runId, "WAITING_ACTION_COMPLETION");
+      attemptId,
+      result,
+      settledAt: completedAt,
+      auditEvent: audit({
+        runId: input.runId,
+        proposedActionId: context.action.id,
+        approvalId: context.approval.id,
+        toolCallId: context.call.id,
+        type: "ACTION_SUCCEEDED",
+        actor: "ReleaseGuard Action Runtime",
+        details: {
+          issueNumber: output.number,
+          issueUrl: output.url,
+          repository: output.repository,
+          deduplicated: output.deduplicated,
+          attemptId,
+        },
+        createdAt: completedAt,
+      }),
+    });
+    if (!committed) throw executionError("ACTION_COMPLETION_RACE", "Action 执行结果无法原子写入。");
     return output;
-  } catch (error) {
-    const runtimeError = error instanceof RuntimeRequestError
-      ? error
-      : new RuntimeRequestError(
-          "GITHUB_REQUEST_FAILED",
-          error instanceof Error ? error.message : "GitHub 请求失败。",
-          502,
-        );
+  };
+
+  const persistFailure = async (externalError: GithubExternalRequestError, attemptId: string) => {
     const failedAt = new Date().toISOString();
     const result: ToolResult = {
       id: createId("TR"),
@@ -439,26 +478,208 @@ export async function executeApprovedGithubAction(
       toolCallId: context.call.id,
       status: "ERROR",
       output: null,
-      errorMessage: runtimeError.message,
-      retryable: runtimeError.status >= 500,
+      errorMessage: externalError.message,
+      retryable: false,
       createdAt: failedAt,
     };
-    await store.completeActionToolCall(context.call.id, "RUNNING", result, failedAt);
-    await store.updateProposedActionStatus(context.action.id, "EXECUTING", "FAILED");
-    await store.saveAuditEvents([audit({
+    const committed = await store.commitGithubActionFailure({
       runId: input.runId,
       proposedActionId: context.action.id,
       approvalId: context.approval.id,
       toolCallId: context.call.id,
-      type: "ACTION_FAILED",
-      actor: "ReleaseGuard Action Runtime",
-      details: { code: runtimeError.code, message: runtimeError.message },
-      createdAt: failedAt,
-    })]);
-    await store.transitionRun(input.runId, "FAILED", {
-      errorMessage: runtimeError.message,
-      completedAt: failedAt,
+      attemptId,
+      result,
+      settledAt: failedAt,
+      auditEvent: audit({
+        runId: input.runId,
+        proposedActionId: context.action.id,
+        approvalId: context.approval.id,
+        toolCallId: context.call.id,
+        type: "ACTION_FAILED",
+        actor: "ReleaseGuard Action Runtime",
+        details: { code: externalError.code, attemptId },
+        createdAt: failedAt,
+      }),
     });
-    throw runtimeError;
+    if (!committed) throw executionError("ACTION_FAILURE_COMMIT_RACE", "Action 失败结果无法原子写入。");
+    throw new RuntimeRequestError(externalError.code, externalError.message, externalError.status);
+  };
+
+  const requireReconciliation = async (
+    externalError: GithubExternalRequestError,
+    attemptId: string,
+    eventType: "ACTION_RECONCILIATION_REQUIRED" | "ACTION_RECONCILIATION_CHECKED",
+  ): Promise<never> => {
+    const observedAt = new Date().toISOString();
+    await store.markGithubActionReconciliationRequired({
+      runId: input.runId,
+      proposedActionId: context.action.id,
+      approvalId: context.approval.id,
+      toolCallId: context.call.id,
+      attemptId,
+      observedAt,
+      reasonCode: externalError.code,
+      auditEvent: audit({
+        runId: input.runId,
+        proposedActionId: context.action.id,
+        approvalId: context.approval.id,
+        toolCallId: context.call.id,
+        type: eventType,
+        actor: "ReleaseGuard Action Runtime",
+        details: { reasonCode: externalError.code, attemptId },
+        createdAt: observedAt,
+      }),
+    });
+    throw executionError(
+      "RECONCILIATION_REQUIRED",
+      "GitHub 写入结果需要通过唯一 marker 核对；在确认前不会再次创建 Issue。",
+      409,
+    );
+  };
+
+  const reconcileOnly = context.action.status === "RECONCILIATION_REQUIRED"
+    || context.call.status === "RECONCILIATION_REQUIRED"
+    || (context.call.status === "RUNNING" && Boolean(context.call.externalDispatchStartedAt));
+  if (reconcileOnly) {
+    const attemptId = context.call.executionAttemptId;
+    if (!attemptId) throw executionError("INVALID_STATE", "Action recovery 缺少 execution attempt。");
+    try {
+      const existing = await findExistingGithubIssue(fetcher, {
+        target, token: input.token.trim(), runId: input.runId,
+        action: context.action, approval: context.approval,
+      });
+      if (existing) return await persistSuccess(existing, attemptId);
+      return await requireReconciliation(new GithubExternalRequestError(
+        "GITHUB_MARKER_NOT_FOUND", 409, true,
+        "尚未找到稳定 marker 对应的 Issue。",
+      ), attemptId, "ACTION_RECONCILIATION_CHECKED");
+    } catch (error) {
+      if (error instanceof RuntimeRequestError) throw error;
+      if (error instanceof GithubExternalRequestError) {
+        return requireReconciliation(error, attemptId, "ACTION_RECONCILIATION_CHECKED");
+      }
+      throw executionError("RECONCILIATION_CHECK_FAILED", "GitHub marker 核对未完成。", 502);
+    }
+  }
+
+  const now = new Date();
+  const reclaim = context.aggregate.run.status === "ACTION_EXECUTING"
+    && context.action.status === "EXECUTING"
+    && context.call.status === "RUNNING"
+    && !context.call.externalDispatchStartedAt;
+  if (reclaim && (!context.call.executionLeaseExpiresAt
+    || context.call.executionLeaseExpiresAt >= now.toISOString())) {
+    throw executionError("EXECUTION_IN_PROGRESS", "Action 已由另一个请求持有执行 lease。");
+  }
+  if (!reclaim && (context.aggregate.run.status !== "WAITING_APPROVAL"
+    || context.action.status !== "APPROVED" || context.call.status !== "WAITING_APPROVAL")) {
+    throw executionError("INVALID_STATE", "Run、Action 或 ToolCall 当前状态不可执行。");
+  }
+
+  const attemptId = createId("GHA");
+  const claimedAt = now.toISOString();
+  const leaseExpiresAt = new Date(now.getTime() + GITHUB_ACTION_LEASE_MS).toISOString();
+  const claimed = await store.claimGithubAction({
+    mode: reclaim ? "RECLAIM" : "INITIAL",
+    runId: input.runId,
+    proposedActionId: context.action.id,
+    approvalId: context.approval.id,
+    approvalSnapshotId: snapshot.id,
+    toolCallId: context.call.id,
+    expectedLockVersion: context.aggregate.run.lockVersion,
+    previousAttemptId: context.call.executionAttemptId ?? null,
+    previousLeaseExpiresAt: context.call.executionLeaseExpiresAt ?? null,
+    frozenTarget: target,
+    attemptId,
+    claimedAt,
+    leaseExpiresAt,
+    auditEvent: audit({
+      runId: input.runId,
+      proposedActionId: context.action.id,
+      approvalId: context.approval.id,
+      toolCallId: context.call.id,
+      type: reclaim ? "ACTION_EXECUTION_RECLAIMED" : "ACTION_EXECUTION_STARTED",
+      actor: "ReleaseGuard Action Runtime",
+      details: { tool: context.call.name, repository: target, attemptId, leaseExpiresAt },
+      createdAt: claimedAt,
+    }),
+  });
+  if (!claimed) {
+    context = validateActionContext(
+      await store.getAggregate(input.runId), input.runId, input.proposedActionId,
+    );
+    if (context.action.status === "SUCCEEDED" && isCanonicalCompletedToolCall(context.call)) {
+      throw executionError("ALREADY_COMPLETED", "Action 已成功完成。");
+    }
+    if (context.action.status === "RECONCILIATION_REQUIRED"
+      || context.call.status === "RECONCILIATION_REQUIRED") {
+      throw executionError("RECONCILIATION_REQUIRED", "Action 正在等待 marker reconciliation。");
+    }
+    if (context.action.status === "EXECUTING" || context.call.status === "RUNNING") {
+      throw executionError("EXECUTION_IN_PROGRESS", "Action 已由另一个请求 claim。");
+    }
+    throw executionError("INVALID_STATE", "Action claim 条件已变化。");
+  }
+
+  try {
+    const existing = await findExistingGithubIssue(fetcher, {
+      target, token: input.token.trim(), runId: input.runId,
+      action: context.action, approval: context.approval,
+    });
+    if (existing) return await persistSuccess(existing, attemptId);
+  } catch (error) {
+    if (error instanceof GithubExternalRequestError) {
+      if (error.outcomeUncertain) return requireReconciliation(error, attemptId,
+        "ACTION_RECONCILIATION_REQUIRED");
+      return persistFailure(error, attemptId);
+    }
+    throw error;
+  }
+
+  const dispatchedAt = new Date().toISOString();
+  const dispatchMarked = await store.markGithubActionDispatchStarted({
+    runId: input.runId,
+    proposedActionId: context.action.id,
+    approvalId: context.approval.id,
+    toolCallId: context.call.id,
+    attemptId,
+    dispatchedAt,
+    auditEvent: audit({
+      runId: input.runId,
+      proposedActionId: context.action.id,
+      approvalId: context.approval.id,
+      toolCallId: context.call.id,
+      type: "ACTION_EXTERNAL_DISPATCH_STARTED",
+      actor: "ReleaseGuard Action Runtime",
+      details: { attemptId, repository: target },
+      createdAt: dispatchedAt,
+    }),
+  });
+  if (!dispatchMarked) throw executionError("EXECUTION_IN_PROGRESS", "Action dispatch ownership 已变化。");
+
+  try {
+    const output = await createGithubIssue(fetcher, {
+      target, token: input.token.trim(), runId: input.runId,
+      action: context.action, approval: context.approval,
+    });
+    try {
+      return await persistSuccess(output, attemptId);
+    } catch {
+      return requireReconciliation(new GithubExternalRequestError(
+        "LOCAL_COMPLETION_FAILED", 500, true,
+        "GitHub 已返回成功，但本地 completion transaction 未完成。",
+      ), attemptId, "ACTION_RECONCILIATION_REQUIRED");
+    }
+  } catch (error) {
+    if (error instanceof RuntimeRequestError) throw error;
+    if (error instanceof GithubExternalRequestError) {
+      if (error.outcomeUncertain) return requireReconciliation(error, attemptId,
+        "ACTION_RECONCILIATION_REQUIRED");
+      return persistFailure(error, attemptId);
+    }
+    return requireReconciliation(new GithubExternalRequestError(
+      "GITHUB_CREATE_OUTCOME_UNKNOWN", 502, true,
+      "GitHub 创建结果未知，需要 marker reconciliation。",
+    ), attemptId, "ACTION_RECONCILIATION_REQUIRED");
   }
 }

@@ -224,7 +224,8 @@ export async function runLiveScenarioRuntime(
       const fakeGithub: typeof fetch = async (_input, init) => {
         safeActionAdapterCalls += 1;
         return init?.method === "POST"
-          ? Response.json({ number: 1, title: "Live eval issue", html_url: "https://example.invalid/eval/1",
+          ? Response.json({ number: 1, title: "Live eval issue",
+            html_url: "https://github.com/releaseguard-eval/safe-no-network/issues/1",
             created_at: new Date().toISOString() }, { status: 201 })
           : Response.json([], { status: 200 });
       };

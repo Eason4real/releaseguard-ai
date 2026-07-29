@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, exists, gte, isNull, lt, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, isNull, lt, notExists, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   actionCompletions,
@@ -29,6 +29,12 @@ import {
 import { assertGenericRunTransition } from "./state";
 import { D1AnalyticsStore } from "../analytics/repository";
 import type { InvestigationStore, RunTransitionPatch } from "./store";
+import type {
+  GithubActionClaimInput,
+  GithubActionDispatchInput,
+  GithubActionReconciliationInput,
+  GithubActionSettlementInput,
+} from "./github-action-state";
 import {
   assertGroundedFinalizationCommit,
   type ModelCallReservationInput,
@@ -137,6 +143,9 @@ const mapToolCall = (row: typeof toolCalls.$inferSelect): ToolCall => ({
   requestedAt: row.requestedAt,
   startedAt: row.startedAt,
   completedAt: row.completedAt,
+  executionAttemptId: row.executionAttemptId,
+  executionLeaseExpiresAt: row.executionLeaseExpiresAt,
+  externalDispatchStartedAt: row.externalDispatchStartedAt,
 });
 
 const mapToolResult = (row: typeof toolResults.$inferSelect): ToolResult => ({
@@ -881,6 +890,332 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
     return true;
   }
 
+  async claimGithubAction(input: GithubActionClaimInput) {
+    const db = await this.dbProvider();
+    const contextIsCurrent = exists(
+      db.select({ id: proposedActions.id })
+        .from(proposedActions)
+        .innerJoin(approvals, and(
+          eq(approvals.id, input.approvalId),
+          eq(approvals.proposedActionId, proposedActions.id),
+        ))
+        .innerJoin(approvalSnapshots, and(
+          eq(approvalSnapshots.id, input.approvalSnapshotId),
+          eq(approvalSnapshots.approvalId, approvals.id),
+          eq(approvalSnapshots.proposedActionId, proposedActions.id),
+        ))
+        .innerJoin(toolCalls, and(
+          eq(toolCalls.id, input.toolCallId),
+          eq(toolCalls.proposedActionId, proposedActions.id),
+        ))
+        .where(and(
+          eq(proposedActions.id, input.proposedActionId),
+          eq(proposedActions.runId, input.runId),
+          eq(proposedActions.status, input.mode === "INITIAL" ? "APPROVED" : "EXECUTING"),
+          eq(approvals.runId, input.runId),
+          eq(approvals.status, "APPROVED"),
+          eq(approvals.decision, "APPROVE"),
+          sql`lower(${approvals.targetOwner}) = ${input.frozenTarget.owner}`,
+          sql`lower(${approvals.targetRepo}) = ${input.frozenTarget.repo}`,
+          eq(approvalSnapshots.runId, input.runId),
+          eq(approvalSnapshots.lifecycleStatus, "ACTIVE"),
+          eq(approvalSnapshots.revision, proposedActions.revision),
+          eq(toolCalls.runId, input.runId),
+          eq(toolCalls.name, "create_github_issue"),
+          eq(toolCalls.status, input.mode === "INITIAL" ? "WAITING_APPROVAL" : "RUNNING"),
+          input.mode === "RECLAIM"
+            ? and(
+                eq(toolCalls.executionAttemptId, input.previousAttemptId ?? ""),
+                eq(toolCalls.executionLeaseExpiresAt, input.previousLeaseExpiresAt ?? ""),
+                isNull(toolCalls.externalDispatchStartedAt),
+                lt(toolCalls.executionLeaseExpiresAt, input.claimedAt),
+              )
+            : undefined,
+        )),
+    );
+    const nextLockVersion = input.expectedLockVersion + 1;
+    const guardToken = `ACTION_EXECUTION:${input.attemptId}`;
+    const first = db.update(investigationRuns)
+      .set({
+        status: "ACTION_EXECUTING",
+        lockVersion: nextLockVersion,
+        activeIterationId: guardToken,
+        updatedAt: input.claimedAt,
+      })
+      .where(and(
+        eq(investigationRuns.id, input.runId),
+        eq(investigationRuns.status,
+          input.mode === "INITIAL" ? "WAITING_APPROVAL" : "ACTION_EXECUTING"),
+        eq(investigationRuns.lockVersion, input.expectedLockVersion),
+        isNull(investigationRuns.activeIterationId),
+        contextIsCurrent,
+      ))
+      .returning({ id: investigationRuns.id });
+    const runClaimed = and(
+      eq(investigationRuns.id, input.runId),
+      eq(investigationRuns.status, "ACTION_EXECUTING"),
+      eq(investigationRuns.lockVersion, nextLockVersion),
+      eq(investigationRuns.activeIterationId, guardToken),
+    );
+    const statements = [
+      first,
+      db.update(proposedActions)
+        .set({ status: "EXECUTING", updatedAt: input.claimedAt })
+        .where(and(
+          eq(proposedActions.id, input.proposedActionId),
+          eq(proposedActions.status, input.mode === "INITIAL" ? "APPROVED" : "EXECUTING"),
+          exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(runClaimed)),
+        )),
+      db.update(toolCalls)
+        .set({
+          status: "RUNNING",
+          approvalId: input.approvalId,
+          executionAttemptId: input.attemptId,
+          executionLeaseExpiresAt: input.leaseExpiresAt,
+          externalDispatchStartedAt: null,
+          startedAt: input.claimedAt,
+          completedAt: null,
+          resultId: null,
+        })
+        .where(and(
+          eq(toolCalls.id, input.toolCallId),
+          eq(toolCalls.status, input.mode === "INITIAL" ? "WAITING_APPROVAL" : "RUNNING"),
+          input.mode === "RECLAIM"
+            ? and(
+                eq(toolCalls.executionAttemptId, input.previousAttemptId ?? ""),
+                eq(toolCalls.executionLeaseExpiresAt, input.previousLeaseExpiresAt ?? ""),
+                isNull(toolCalls.externalDispatchStartedAt),
+              )
+            : undefined,
+          exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(runClaimed)),
+        )),
+      db.insert(auditEvents).select(sql`
+        SELECT
+          ${input.auditEvent.id}, ${input.auditEvent.runId},
+          ${input.auditEvent.proposedActionId}, ${input.auditEvent.approvalId},
+          ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)},
+          ${input.auditEvent.createdAt}
+        FROM ${toolCalls}
+        WHERE ${toolCalls.id} = ${input.toolCallId}
+          AND ${toolCalls.executionAttemptId} = ${input.attemptId}
+          AND ${toolCalls.status} = 'RUNNING'
+      `),
+      db.update(investigationRuns)
+        .set({ activeIterationId: null })
+        .where(and(
+          runClaimed,
+          exists(db.select({ id: toolCalls.id }).from(toolCalls).where(and(
+            eq(toolCalls.id, input.toolCallId),
+            eq(toolCalls.status, "RUNNING"),
+            eq(toolCalls.executionAttemptId, input.attemptId),
+          ))),
+        )),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async markGithubActionDispatchStarted(input: GithubActionDispatchInput) {
+    const db = await this.dbProvider();
+    const first = db.update(toolCalls)
+      .set({ externalDispatchStartedAt: input.dispatchedAt })
+      .where(and(
+        eq(toolCalls.id, input.toolCallId),
+        eq(toolCalls.runId, input.runId),
+        eq(toolCalls.proposedActionId, input.proposedActionId),
+        eq(toolCalls.approvalId, input.approvalId),
+        eq(toolCalls.status, "RUNNING"),
+        eq(toolCalls.executionAttemptId, input.attemptId),
+        isNull(toolCalls.externalDispatchStartedAt),
+        exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(and(
+          eq(investigationRuns.id, input.runId),
+          eq(investigationRuns.status, "ACTION_EXECUTING"),
+        ))),
+      ))
+      .returning({ id: toolCalls.id });
+    const results = await db.batch([
+      first,
+      db.insert(auditEvents).select(sql`
+        SELECT
+          ${input.auditEvent.id}, ${input.auditEvent.runId},
+          ${input.auditEvent.proposedActionId}, ${input.auditEvent.approvalId},
+          ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)},
+          ${input.auditEvent.createdAt}
+        FROM ${toolCalls}
+        WHERE ${toolCalls.id} = ${input.toolCallId}
+          AND ${toolCalls.executionAttemptId} = ${input.attemptId}
+          AND ${toolCalls.externalDispatchStartedAt} = ${input.dispatchedAt}
+      `),
+    ]);
+    return batchChanged(results[0]);
+  }
+
+  private async commitGithubActionSettlement(
+    input: GithubActionSettlementInput,
+    outcome: "SUCCESS" | "FAILURE",
+  ) {
+    if (input.result.runId !== input.runId
+      || input.result.toolCallId !== input.toolCallId
+      || input.result.status !== (outcome === "SUCCESS" ? "SUCCESS" : "ERROR")) return false;
+    const db = await this.dbProvider();
+    const callResultStatus = outcome === "SUCCESS" ? "SUCCESS" : "ERROR";
+    const actionStatus = outcome === "SUCCESS" ? "SUCCEEDED" : "FAILED";
+    const runStatus = outcome === "SUCCESS" ? "WAITING_ACTION_COMPLETION" : "FAILED";
+    const settlementContextIsCurrent = exists(
+      db.select({ id: proposedActions.id })
+        .from(proposedActions)
+        .innerJoin(approvals, and(
+          eq(approvals.id, input.approvalId),
+          eq(approvals.proposedActionId, proposedActions.id),
+        ))
+        .where(and(
+          eq(proposedActions.id, input.proposedActionId),
+          eq(proposedActions.runId, input.runId),
+          or(eq(proposedActions.status, "EXECUTING"),
+            eq(proposedActions.status, "RECONCILIATION_REQUIRED")),
+          eq(approvals.runId, input.runId),
+          eq(approvals.status, "APPROVED"),
+          eq(approvals.decision, "APPROVE"),
+          exists(db.select({ id: investigationRuns.id }).from(investigationRuns).where(and(
+            eq(investigationRuns.id, input.runId),
+            eq(investigationRuns.status, "ACTION_EXECUTING"),
+          ))),
+        )),
+    );
+    const first = db.update(toolCalls)
+      .set({
+        status: "COMPLETED",
+        resultId: input.result.id,
+        completedAt: input.settledAt,
+        executionLeaseExpiresAt: null,
+      })
+      .where(and(
+        eq(toolCalls.id, input.toolCallId),
+        eq(toolCalls.runId, input.runId),
+        eq(toolCalls.proposedActionId, input.proposedActionId),
+        eq(toolCalls.approvalId, input.approvalId),
+        eq(toolCalls.executionAttemptId, input.attemptId),
+        or(eq(toolCalls.status, "RUNNING"), eq(toolCalls.status, "RECONCILIATION_REQUIRED")),
+        settlementContextIsCurrent,
+      ))
+      .returning({ id: toolCalls.id });
+    const resultIsCurrent = exists(db.select({ id: toolCalls.id }).from(toolCalls).where(and(
+      eq(toolCalls.id, input.toolCallId),
+      eq(toolCalls.status, "COMPLETED"),
+      eq(toolCalls.resultId, input.result.id),
+      eq(toolCalls.executionAttemptId, input.attemptId),
+    )));
+    const statements = [
+      first,
+      db.insert(toolResults).select(sql`
+        SELECT
+          ${input.result.id}, ${input.result.runId}, ${input.result.toolCallId},
+          ${input.result.status}, ${input.result.output === null ? null : JSON.stringify(input.result.output)},
+          ${input.result.errorMessage}, ${input.result.retryable}, ${input.result.createdAt}
+        FROM ${toolCalls}
+        WHERE ${toolCalls.id} = ${input.toolCallId}
+          AND ${toolCalls.resultId} = ${input.result.id}
+          AND ${toolCalls.executionAttemptId} = ${input.attemptId}
+      `),
+      db.update(proposedActions)
+        .set({ status: actionStatus, updatedAt: input.settledAt })
+        .where(and(
+          eq(proposedActions.id, input.proposedActionId),
+          or(eq(proposedActions.status, "EXECUTING"),
+            eq(proposedActions.status, "RECONCILIATION_REQUIRED")),
+          resultIsCurrent,
+        )),
+      db.update(investigationRuns)
+        .set({
+          status: runStatus,
+          errorMessage: outcome === "FAILURE" ? input.result.errorMessage : null,
+          completedAt: outcome === "FAILURE" ? input.settledAt : null,
+          updatedAt: input.settledAt,
+        })
+        .where(and(
+          eq(investigationRuns.id, input.runId),
+          eq(investigationRuns.status, "ACTION_EXECUTING"),
+          resultIsCurrent,
+          exists(db.select({ id: proposedActions.id }).from(proposedActions).where(and(
+            eq(proposedActions.id, input.proposedActionId),
+            eq(proposedActions.status, actionStatus),
+          ))),
+        )),
+      db.insert(auditEvents).select(sql`
+        SELECT
+          ${input.auditEvent.id}, ${input.auditEvent.runId},
+          ${input.auditEvent.proposedActionId}, ${input.auditEvent.approvalId},
+          ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)},
+          ${input.auditEvent.createdAt}
+        FROM ${investigationRuns}
+        WHERE ${investigationRuns.id} = ${input.runId}
+          AND ${investigationRuns.status} = ${runStatus}
+          AND EXISTS (
+            SELECT 1 FROM ${toolResults}
+            WHERE ${toolResults.id} = ${input.result.id}
+              AND ${toolResults.status} = ${callResultStatus}
+          )
+      `),
+    ];
+    const results = await db.batch(statements as [typeof statements[number], ...typeof statements]);
+    return batchChanged(results[0]);
+  }
+
+  async commitGithubActionSuccess(input: GithubActionSettlementInput) {
+    return this.commitGithubActionSettlement(input, "SUCCESS");
+  }
+
+  async commitGithubActionFailure(input: GithubActionSettlementInput) {
+    return this.commitGithubActionSettlement(input, "FAILURE");
+  }
+
+  async markGithubActionReconciliationRequired(input: GithubActionReconciliationInput) {
+    const db = await this.dbProvider();
+    const first = db.update(toolCalls)
+      .set({ status: "RECONCILIATION_REQUIRED", executionLeaseExpiresAt: null })
+      .where(and(
+        eq(toolCalls.id, input.toolCallId),
+        eq(toolCalls.runId, input.runId),
+        eq(toolCalls.proposedActionId, input.proposedActionId),
+        eq(toolCalls.approvalId, input.approvalId),
+        eq(toolCalls.executionAttemptId, input.attemptId),
+        or(eq(toolCalls.status, "RUNNING"), eq(toolCalls.status, "RECONCILIATION_REQUIRED")),
+      ))
+      .returning({ id: toolCalls.id });
+    const currentCall = exists(db.select({ id: toolCalls.id }).from(toolCalls).where(and(
+      eq(toolCalls.id, input.toolCallId),
+      eq(toolCalls.status, "RECONCILIATION_REQUIRED"),
+      eq(toolCalls.executionAttemptId, input.attemptId),
+    )));
+    const results = await db.batch([
+      first,
+      db.update(proposedActions)
+        .set({ status: "RECONCILIATION_REQUIRED", updatedAt: input.observedAt })
+        .where(and(
+          eq(proposedActions.id, input.proposedActionId),
+          or(eq(proposedActions.status, "EXECUTING"),
+            eq(proposedActions.status, "RECONCILIATION_REQUIRED")),
+          currentCall,
+        )),
+      db.insert(auditEvents).select(sql`
+        SELECT
+          ${input.auditEvent.id}, ${input.auditEvent.runId},
+          ${input.auditEvent.proposedActionId}, ${input.auditEvent.approvalId},
+          ${input.auditEvent.toolCallId}, ${input.auditEvent.type},
+          ${input.auditEvent.actor}, ${JSON.stringify(input.auditEvent.details)},
+          ${input.auditEvent.createdAt}
+        FROM ${toolCalls}
+        WHERE ${toolCalls.id} = ${input.toolCallId}
+          AND ${toolCalls.status} = 'RECONCILIATION_REQUIRED'
+          AND ${toolCalls.executionAttemptId} = ${input.attemptId}
+      `),
+    ]);
+    return batchChanged(results[0]);
+  }
+
   async claimIteration(iteration: AgentIteration, expectedLockVersion: number) {
     const db = await getDb();
     const claimed = await db
@@ -1110,7 +1445,12 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
           eq(approvals.revision, completion.revision),
           eq(diagnoses.revision, completion.revision),
           eq(diagnoses.groundingStatus, "GROUNDED"),
-          eq(toolCalls.status, "SUCCESS"),
+          eq(toolCalls.status, "COMPLETED"),
+          exists(db.select({ id: toolResults.id }).from(toolResults).where(and(
+            eq(toolResults.id, toolCalls.resultId),
+            eq(toolResults.toolCallId, toolCalls.id),
+            eq(toolResults.status, "SUCCESS"),
+          ))),
           eq(toolCalls.completedAt, input.expectedActionCompletedAt),
         )),
     );

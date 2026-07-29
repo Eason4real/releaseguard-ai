@@ -111,7 +111,10 @@ export const investigationRuntimeSchema = [
     result_id text,
     requested_at text NOT NULL,
     started_at text,
-    completed_at text
+    completed_at text,
+    execution_attempt_id text,
+    execution_lease_expires_at text,
+    external_dispatch_started_at text
   )`,
   `CREATE TABLE IF NOT EXISTS tool_results (
     id text PRIMARY KEY NOT NULL,
