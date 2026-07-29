@@ -114,14 +114,80 @@ const requiredStringArray = (
     requiredString(item, decisionType, `${path}[${index}]`, `${label}[${index}]`, attempt));
 };
 
-const DECISION_CONTRACTS: Record<InvestigationDecision["type"], string> = {
-  CREATE_HYPOTHESES: "{type:'CREATE_HYPOTHESES',hypotheses:[{statement:string,supportIf:string,refuteIf:string}],rationale:string}; hypotheses 必须包含 1–3 项。",
-  ASSESS_EVIDENCE: "{type:'ASSESS_EVIDENCE',assessments:[{evidenceId:string,relations:[{targetHypothesisId:string,relation:'SUPPORTS'|'CONTRADICTS'|'NEUTRAL',explanation:string}]}],rationale:string}; assessments 和每项 relations 必须为非空数组。",
-  CALL_TOOL: "{type:'CALL_TOOL',toolName:string,arguments:object,targetHypothesisIds:string[],testIntent:'SUPPORT'|'REFUTE'|'DISCRIMINATE',rationale:string}",
-  ASK_HUMAN: "{type:'ASK_HUMAN',reasonCode:'HUMAN_CONTEXT_REQUIRED'|'NO_APPLICABLE_TOOL',question:string,rationale:string}",
-  FINALIZE: "{type:'FINALIZE',selectedHypothesisId:string,diagnosis:{summary:string,claims:[{type,statement,evidenceIds:string[],limitationType?}]},disposition:'OBSERVE'|'FIX'|'ROLLBACK'|'ESCALATE',rationale:string}",
-  STOP_INCONCLUSIVE: "{type:'STOP_INCONCLUSIVE',reasonCode:'INSUFFICIENT_EVIDENCE'|'NO_APPLICABLE_TOOL'|'MAX_TOOL_CALLS'|'MAX_ITERATIONS',reason:string,rationale:string}",
+type PlannerDecisionContractSource = {
+  schema: string | Readonly<Record<string, unknown>>;
+  requirements: readonly string[];
 };
+
+const DECISION_CONTRACT_SOURCES: Record<
+  InvestigationDecision["type"],
+  PlannerDecisionContractSource
+> = {
+  CREATE_HYPOTHESES: {
+    schema: "{type:'CREATE_HYPOTHESES',hypotheses:[{statement:string,supportIf:string,refuteIf:string}],rationale:string}; hypotheses 必须包含 1–3 项。",
+    requirements: [],
+  },
+  ASSESS_EVIDENCE: {
+    schema: {
+      type: "ASSESS_EVIDENCE",
+      rationale: "<required string>",
+      assessments: [{
+        evidenceId: "<required current Run Evidence id>",
+        relations: [{
+          targetHypothesisId: "<required active Hypothesis id>",
+          relation: "<SUPPORTS | CONTRADICTS | NEUTRAL>",
+          explanation: "<required string>",
+        }],
+      }],
+    },
+    requirements: [
+      "rationale、assessments、每项 evidenceId、relations，以及每条 relation 的 targetHypothesisId、relation、explanation 都是必填字段。",
+      "assessments 和每项 relations 必须为非空数组。",
+      "decision 顶层只放 type、rationale、assessments；evidenceId 和 relations 不得放在 decision 顶层。",
+      "relation 必须根据当前 Evidence 选择 SUPPORTS、CONTRADICTS 或 NEUTRAL，不得从结构示例推断业务结论。",
+    ],
+  },
+  CALL_TOOL: {
+    schema: "{type:'CALL_TOOL',toolName:string,arguments:object,targetHypothesisIds:string[],testIntent:'SUPPORT'|'REFUTE'|'DISCRIMINATE',rationale:string}",
+    requirements: [],
+  },
+  ASK_HUMAN: {
+    schema: "{type:'ASK_HUMAN',reasonCode:'HUMAN_CONTEXT_REQUIRED'|'NO_APPLICABLE_TOOL',question:string,rationale:string}",
+    requirements: [],
+  },
+  FINALIZE: {
+    schema: "{type:'FINALIZE',selectedHypothesisId:string,diagnosis:{summary:string,claims:[{type,statement,evidenceIds:string[],limitationType?}]},disposition:'OBSERVE'|'FIX'|'ROLLBACK'|'ESCALATE',rationale:string}",
+    requirements: [],
+  },
+  STOP_INCONCLUSIVE: {
+    schema: "{type:'STOP_INCONCLUSIVE',reasonCode:'INSUFFICIENT_EVIDENCE'|'NO_APPLICABLE_TOOL'|'MAX_TOOL_CALLS'|'MAX_ITERATIONS',reason:string,rationale:string}",
+    requirements: [],
+  },
+};
+
+export const getPlannerDecisionContractSource = (type: InvestigationDecision["type"]) =>
+  DECISION_CONTRACT_SOURCES[type];
+
+export const formatPlannerDecisionContract = (type: InvestigationDecision["type"]) => {
+  const source = getPlannerDecisionContractSource(type);
+  const schema = typeof source.schema === "string"
+    ? source.schema
+    : JSON.stringify(source.schema);
+  return [schema, ...source.requirements].join(" ");
+};
+
+export const buildInitialPlannerSystemPrompt = () => [
+  "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。",
+  "没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。",
+  "存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis。",
+  `ASSESS_EVIDENCE 正式 contract：${formatPlannerDecisionContract("ASSESS_EVIDENCE")}`,
+  "evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。",
+  "CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。",
+  "ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。",
+  "预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。",
+  "FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。",
+  "LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
+].join("\n");
 
 export function parseInvestigationDecision(content: string, attempt = 0): InvestigationDecision {
   const parsed = extractObject(content);
@@ -345,10 +411,10 @@ async function validationObservation(input: {
   };
 }
 
-const repairFeedback = (error: PlannerDecisionValidationError) => {
+export const buildPlannerRepairFeedback = (error: PlannerDecisionValidationError) => {
   const contract = error.decisionType
-    ? DECISION_CONTRACTS[error.decisionType]
-    : Object.values(DECISION_CONTRACTS).join("\n");
+    ? formatPlannerDecisionContract(error.decisionType)
+    : DECISION_TYPES.map(formatPlannerDecisionContract).join("\n");
   return [
     "上一个 Planner response 未通过正式 Contract validation。只修复 JSON 结构，不改变业务判断或引用的事实。",
     `validationError=${JSON.stringify({ code: error.code, path: error.path, decisionType: error.decisionType })}`,
@@ -402,8 +468,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
     const baseMessages: ModelMessage[] = [
       {
         role: "system",
-        content:
-          "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
+        content: buildInitialPlannerSystemPrompt(),
       },
       { role: "user", content: `可用工具：${JSON.stringify(modelToolDefinitions)}\n调查上下文：${JSON.stringify(compact)}` },
     ];
@@ -465,7 +530,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         messages = [
           ...baseMessages,
           { role: "assistant", content },
-          { role: "user", content: repairFeedback(error) },
+          { role: "user", content: buildPlannerRepairFeedback(error) },
         ];
       }
     }

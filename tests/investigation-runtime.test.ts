@@ -86,6 +86,10 @@ import { continueInvestigation } from "../lib/investigation/revision-runtime";
 import { submitInvestigationMessage } from "../lib/investigation/chat-runtime";
 import { DeterministicInvestigationPlanner } from "../lib/investigation/deterministic-planner";
 import {
+  buildInitialPlannerSystemPrompt,
+  buildPlannerRepairFeedback,
+  formatPlannerDecisionContract,
+  getPlannerDecisionContractSource,
   LLMInvestigationPlanner,
   PlannerDecisionValidationError,
   parseInvestigationDecision,
@@ -3509,7 +3513,48 @@ test("Agent trace presents validated wait reason and server budget instead of mo
   assert.doesNotMatch(decisionTrace?.publicSummary ?? "", /budget|预算.*耗尽/i);
 });
 
-test("LLM planner repairs missing, wrong-type and empty assessments without server completion", async (t) => {
+test("Initial and repair prompts share one structured ASSESS_EVIDENCE contract source", () => {
+  const source = getPlannerDecisionContractSource("ASSESS_EVIDENCE");
+  assert.notEqual(typeof source.schema, "string");
+  const schema = source.schema as Record<string, unknown>;
+  assert.deepEqual(Object.keys(schema), ["type", "rationale", "assessments"]);
+  assert.equal(schema.type, "ASSESS_EVIDENCE");
+  assert.equal(schema.rationale, "<required string>");
+  assert.ok(Array.isArray(schema.assessments));
+  const assessment = schema.assessments[0] as Record<string, unknown>;
+  assert.deepEqual(Object.keys(assessment), ["evidenceId", "relations"]);
+  assert.ok(Array.isArray(assessment.relations));
+  const relation = assessment.relations[0] as Record<string, unknown>;
+  assert.deepEqual(Object.keys(relation), [
+    "targetHypothesisId", "relation", "explanation",
+  ]);
+  assert.equal(relation.relation, "<SUPPORTS | CONTRADICTS | NEUTRAL>");
+  assert.match(source.requirements.join(" "), /evidenceId 和 relations 不得放在 decision 顶层/);
+
+  const flattened = JSON.stringify({
+    type: "ASSESS_EVIDENCE",
+    rationale: "Assess all pending evidence.",
+    evidenceId: "E-1",
+    relations: [],
+  });
+  let validationError: PlannerDecisionValidationError | null = null;
+  try {
+    parseInvestigationDecision(flattened);
+  } catch (error) {
+    if (error instanceof PlannerDecisionValidationError) validationError = error;
+  }
+  assert.ok(validationError);
+  assert.equal(validationError.path, "assessments");
+
+  const contract = formatPlannerDecisionContract("ASSESS_EVIDENCE");
+  const initialPrompt = buildInitialPlannerSystemPrompt();
+  const repairPrompt = buildPlannerRepairFeedback(validationError);
+  assert.ok(initialPrompt.includes(contract));
+  assert.ok(repairPrompt.includes(contract));
+  assert.match(initialPrompt, /ASSESS_EVIDENCE 正式 contract/);
+});
+
+test("LLM planner repairs malformed and flattened assessments without server completion", async (t) => {
   const malformedCases = [
     {
       name: "missing assessments",
@@ -3530,6 +3575,25 @@ test("LLM planner repairs missing, wrong-type and empty assessments without serv
       name: "empty assessments",
       value: { type: "ASSESS_EVIDENCE", assessments: [], rationale: "Assess pending evidence." },
       code: "INVALID_FIELD_VALUE",
+    },
+    {
+      name: "flattened evidence fields",
+      value: {
+        type: "ASSESS_EVIDENCE",
+        rationale: "Assess pending evidence.",
+        evidenceId: "E-FLAT",
+        relations: [],
+      },
+      code: "MISSING_REQUIRED_FIELD",
+    },
+    {
+      name: "evidenceRelations alias",
+      value: {
+        type: "ASSESS_EVIDENCE",
+        rationale: "Assess pending evidence.",
+        evidenceRelations: [],
+      },
+      code: "MISSING_REQUIRED_FIELD",
     },
   ] as const;
   for (const malformed of malformedCases) await t.test(malformed.name, async () => {
@@ -3594,7 +3658,7 @@ test("LLM planner repairs missing, wrong-type and empty assessments without serv
       assert.equal(observations[0].validationCode, malformed.code);
       assert.equal(observations[0].validationPath, "assessments");
       assert.equal(observations[0].structure.assessmentsFieldPresent,
-        malformed.name !== "missing assessments");
+        Object.hasOwn(malformed.value, "assessments"));
       const serialized = JSON.stringify(observations);
       assert.doesNotMatch(serialized,
         /test-only-secret|ephemeral-response-only|Authorization|apiKey|rawResponse|responseBody/);
@@ -3608,7 +3672,7 @@ test("LLM planner repairs missing, wrong-type and empty assessments without serv
   });
 });
 
-test("LLM planner strictly rejects missing, empty, and non-string business fields for every decision", () => {
+test("LLM planner strictly parses all six decisions and rejects malformed business fields", () => {
   const valid = {
     CREATE_HYPOTHESES: {
       type: "CREATE_HYPOTHESES", rationale: "Create competing hypotheses.",
@@ -3644,6 +3708,10 @@ test("LLM planner strictly rejects missing, empty, and non-string business field
       hypotheses: [{ ...valid.CREATE_HYPOTHESES.hypotheses[0], statement: 123 }] },
     path: "hypotheses[0].statement" },
     { decision: { ...valid.ASSESS_EVIDENCE, assessments: undefined }, path: "assessments" },
+    { decision: { ...valid.ASSESS_EVIDENCE, rationale: undefined }, path: "rationale" },
+    { decision: { ...valid.ASSESS_EVIDENCE,
+      assessments: [{ relations: valid.ASSESS_EVIDENCE.assessments[0].relations }] },
+    path: "assessments[0].evidenceId" },
     { decision: { ...valid.ASSESS_EVIDENCE, assessments: [{ evidenceId: "E-1", relations: [{
       targetHypothesisId: "H-1", relation: "NEUTRAL", explanation: { guessed: true },
     }] }] }, path: "assessments[0].relations[0].explanation" },
