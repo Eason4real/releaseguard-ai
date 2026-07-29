@@ -31,11 +31,11 @@ test("renders development preview metadata", async () => {
   );
   const html = await response.text();
   assert.match(html, developmentPreviewMeta);
-  assert.match(html, /事件调查/);
-  assert.match(html, /公开演示模式/);
-  assert.match(html, /运行公开演示/);
-  assert.match(html, /无共享数据与外部调用/);
-  assert.match(html, /STATIC FIXTURE/);
+  assert.match(html, /Agent 回放/);
+  assert.match(html, /CURATED AGENT REPLAY/);
+  assert.match(html, /开始回放/);
+  assert.match(html, /0 外部调用 · 0 共享数据/);
+  assert.match(html, /DETERMINISTIC_FIXTURE|确定性回放/);
   assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
   assert.match(html, /Detect/);
 });

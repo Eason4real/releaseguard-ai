@@ -19,9 +19,10 @@ import {
   resolveDeploymentMode,
 } from "../lib/deployment-mode";
 import {
-  createPublicDemoState,
-  publicDemoAuditRows,
-  transitionPublicDemo,
+  createPublicDemoReplayState,
+  getPublicDemoReplaySteps,
+  publicDemoReplayReducer,
+  selectPublicDemoReplay,
 } from "../lib/public-demo";
 
 const pageSource = async () => [
@@ -57,26 +58,28 @@ test("Hosted corpus import is impossible in Public Demo even when its schedule f
   assert.equal(isHostedCorpusImportEnabled("PRIVATE_LIVE", "true"), true);
 });
 
-test("Public Demo completes the fixture workflow entirely in a local state machine", () => {
-  let state = createPublicDemoState();
-  for (const event of [
-    "RUN_INVESTIGATION", "APPROVE", "SIMULATE_ACTION", "COMPLETE_ACTION", "VERIFY",
-  ] as const) state = transitionPublicDemo(state, event, `2026-07-29T00:00:0${publicDemoAuditRows(state).length}Z`);
-  assert.equal(state.stage, "VERIFIED");
-  assert.equal(publicDemoAuditRows(state).length, 5);
-  assert.equal(transitionPublicDemo(state, "RESET").stage, "IDLE");
+test("Public Demo completes the curated Agent replay entirely in a local state machine", () => {
+  let state = createPublicDemoReplayState();
+  for (let remaining = getPublicDemoReplaySteps("NORMAL").length; remaining > 0; remaining -= 1) {
+    state = publicDemoReplayReducer(state, { type: "NEXT" });
+  }
+  assert.equal(selectPublicDemoReplay(state).stage, "VERIFIED");
+  assert.equal(selectPublicDemoReplay(state).auditEvents.length > 20, true);
+  state = publicDemoReplayReducer(state, { type: "RESET" });
+  assert.equal(selectPublicDemoReplay(state).stage, "IDLE");
 });
 
 test("Public Demo UI has no persistence, credential fields, network calls or real issue links", async () => {
   const source = await readFile("app/public-demo.tsx", "utf8");
   const styles = await readFile("app/globals.css", "utf8");
-  assert.doesNotMatch(source, /fetch\(|sessionStorage|localStorage|apiKey|token|type=["']password|github\.com/i);
-  assert.match(source, /公开演示模式/);
-  assert.match(source, /模拟创建工作项/);
+  assert.doesNotMatch(source, /fetch\(|sessionStorage|localStorage|apiKey|type=["']password|github\.com|<input/i);
+  assert.match(source, /CURATED AGENT REPLAY/);
+  assert.match(source, /FAULT-INJECTION REPLAY/);
+  assert.match(source, /模拟工作项已创建|模拟创建本地工作项/);
   assert.match(source, /Action Completion/);
-  assert.match(source, /确定性 Verification/);
-  assert.match(source, /不读取 D1，不调用模型或 GitHub/);
-  assert.doesNotMatch(styles, /\.reset-button[^\{]*\{[^\}]*display\s*:\s*none/);
+  assert.match(source, /Verification/);
+  assert.match(source, /不调用真实模型、GitHub 或 D1/);
+  assert.doesNotMatch(styles, /\.replay-command-button\.reset[^\{]*\{[^\}]*display\s*:\s*none/);
 });
 
 test("Public and Private workspaces are split and Private Live never silently substitutes fixture", async () => {
