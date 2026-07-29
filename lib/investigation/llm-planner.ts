@@ -18,6 +18,10 @@ import {
 } from "./planner";
 import { getPendingEvidence } from "./hypothesis-invariants";
 import { ModelCallBudgetExhaustedError } from "./model-call-budget";
+import {
+  PlannerDecisionSemanticError,
+  validatePlannerDecisionSemantics,
+} from "./planner-decision-semantics";
 
 const DECISION_TYPES = [
   "CREATE_HYPOTHESES",
@@ -53,6 +57,7 @@ const detectDecisionType = (content: string, parsed: Record<string, unknown> | n
 
 export class PlannerDecisionValidationError extends Error {
   readonly name = "PlannerDecisionValidationError";
+  readonly validationKind = "SCHEMA" as const;
 
   constructor(
     readonly code: PlannerDecisionValidationCode,
@@ -466,7 +471,8 @@ async function validationObservation(input: {
   config: ModelConfig;
   attemptIndex: number;
   content: string;
-  error: PlannerDecisionValidationError;
+  error: PlannerDecisionValidationError | PlannerDecisionSemanticError;
+  responseStructure: PlannerResponseStructureObservation | null;
   latencyMs: number;
   usage: PlannerDecisionValidationObservation["usage"];
 }): Promise<PlannerDecisionValidationObservation> {
@@ -480,6 +486,7 @@ async function validationObservation(input: {
   }
   return {
     outcome: input.outcome,
+    validationKind: input.error.validationKind,
     provider: input.config.provider,
     model: input.config.model,
     attemptIndex: input.attemptIndex,
@@ -492,22 +499,28 @@ async function validationObservation(input: {
     latencyMs: input.latencyMs,
     usage: input.usage,
     structure,
+    responseStructure: input.responseStructure,
     createdAt: new Date().toISOString(),
   };
 }
 
-export const buildPlannerRepairFeedback = (error: PlannerDecisionValidationError) => {
+export const buildPlannerRepairFeedback = (
+  error: PlannerDecisionValidationError | PlannerDecisionSemanticError,
+) => {
   const contract = error.decisionType
     ? formatPlannerDecisionContract(error.decisionType)
     : DECISION_TYPES.map(formatPlannerDecisionContract).join("\n");
   return [
-    "上一个 Planner response 未通过正式 Contract validation。只修复 JSON 结构，不改变业务判断或引用的事实。",
-    `validationError=${JSON.stringify({ code: error.code, path: error.path, decisionType: error.decisionType })}`,
+    error.validationKind === "SCHEMA"
+      ? "上一个 Planner response 未通过正式 schema validation。只修复 JSON contract，不改变无关业务判断。"
+      : "上一个 Planner response 已通过 schema，但未通过服务端 context semantic validation。只修复被拒绝的结构化引用或决策条件，不改变无关业务判断。",
+    `validationError=${JSON.stringify({ kind: error.validationKind, code: error.code,
+      path: error.path, decisionType: error.decisionType })}`,
     error.decisionType
       ? `必须保持 decision type 为 ${error.decisionType}；重新输出一个完整合法的该类型 InvestigationDecision。`
       : "保持原本意图的 decision type；Server 不会替你选择或补全业务 decision。",
     `正式 contract：${contract}`,
-    "不得猜测 evidenceId、relation 或 Hypothesis，不得省略必填字段。仅输出修复后的完整 JSON。",
+    "必须只使用同一调查上下文中明确存在的 Evidence、Hypothesis 和工具；不得猜测、删除或由服务端补全业务字段。仅输出修复后的完整 JSON。",
   ].join("\n");
 };
 
@@ -559,7 +572,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
     ];
     const maxRepairs = (this.options.maxDecisionRepairAttempts ?? 1) <= 0 ? 0 : 1;
     let messages = baseMessages;
-    let repairError: PlannerDecisionValidationError | null = null;
+    let repairError: PlannerDecisionValidationError | PlannerDecisionSemanticError | null = null;
     for (let attemptIndex = 0; attemptIndex <= maxRepairs; attemptIndex += 1) {
       if (!context.modelCallBudget) {
         throw new Error("MODEL_CALL_BUDGET_CONTROLLER_REQUIRED");
@@ -608,6 +621,13 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         if (modelCallObservation) {
           modelCallObservation.responseStructure = await responseStructureObservation(content, decision);
         }
+        validatePlannerDecisionSemantics(decision, {
+          aggregate,
+          remainingIterations: context.remainingIterations,
+          remainingToolCalls: context.remainingToolCalls,
+          availableToolNames: modelToolDefinitions.map((item) => item.function.name),
+          attempt: attemptIndex,
+        });
         if (repairError) {
           this.observations.push(await validationObservation({
             outcome: "REPAIRED",
@@ -615,20 +635,24 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
             attemptIndex,
             content,
             error: repairError,
+            responseStructure: modelCallObservation?.responseStructure ?? null,
             latencyMs,
             usage: usageFromResponse(response),
           }));
         }
         return decision;
       } catch (error) {
-        if (!(error instanceof PlannerDecisionValidationError)) throw error;
+        if (!(error instanceof PlannerDecisionValidationError)
+          && !(error instanceof PlannerDecisionSemanticError)) throw error;
         const canRepair = attemptIndex < maxRepairs;
+        const modelCallObservation = this.modelCallObservations[observationIndex];
         const observation = await validationObservation({
           outcome: canRepair ? "REPAIR_ATTEMPTED" : "REPAIR_FAILED",
           config: this.config,
           attemptIndex,
           content,
           error,
+          responseStructure: modelCallObservation?.responseStructure ?? null,
           latencyMs,
           usage: usageFromResponse(response),
         });

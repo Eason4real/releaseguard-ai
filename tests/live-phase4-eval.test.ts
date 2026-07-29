@@ -126,6 +126,8 @@ test("mocked OpenAI-compatible planner runs the formal multi-iteration full chai
       repairedPlannerDecisionCount: 1,
       decisionRepairCount: 1,
       decisionRepairRate: 1,
+      invalidPlannerSchemaDecisionCount: 1,
+      invalidPlannerSemanticDecisionCount: 0,
     });
     assert.equal(classifyLiveRuntimeFailure(result), null);
     const schemaFailure = structuredClone(result);
@@ -170,6 +172,44 @@ test("Live runtime classifies exhausted typed Planner schema repair separately f
     const result = await runLiveScenarioRuntime(phase4ScenarioInputs[0], planner);
     assert.equal(result.runtimeErrorCategory, "RUNTIME_ERROR");
     assert.equal(classifyLiveRuntimeFailure(result), "RUNTIME_ERROR");
+  });
+
+  await t.test("exhausted semantic repair", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => Response.json({
+      choices: [{ message: { content: JSON.stringify({
+        type: "CALL_TOOL",
+        toolName: "get_release",
+        arguments: { release_id: "REL-NOT-CURRENT" },
+        targetHypothesisIds: ["HYP-NOT-CURRENT"],
+        testIntent: "SUPPORT",
+        rationale: "References a hypothesis that is not in the current Run.",
+      }) } }],
+    });
+    try {
+      const result = await runLiveScenarioRuntime(phase4ScenarioInputs[0],
+        new LLMInvestigationPlanner({ provider: "openai-compatible",
+          baseUrl: "https://example.invalid/v1", apiKey: "test-only",
+          model: "mock-live-model" }));
+      assert.equal(result.runtimeError, null);
+      assert.equal(result.runtimeErrorCategory, null);
+      assert.equal(result.aggregate.run.status, "INCONCLUSIVE");
+      assert.equal(result.aggregate.run.stopReason, "PLANNER_SEMANTIC_ERROR");
+      assert.equal(classifyLiveRuntimeFailure(result), "PLANNER_SEMANTIC_ERROR");
+      assert.equal(result.aggregate.traceEvents.some((event) =>
+        event.type === "PLANNER_DECISION"), false);
+      assert.deepEqual(summarizePlannerReliability([result]), {
+        plannerDecisionCount: 0,
+        invalidPlannerDecisionCount: 2,
+        repairedPlannerDecisionCount: 0,
+        decisionRepairCount: 1,
+        decisionRepairRate: 0,
+        invalidPlannerSchemaDecisionCount: 0,
+        invalidPlannerSemanticDecisionCount: 2,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

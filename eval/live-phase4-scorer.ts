@@ -22,9 +22,12 @@ export type LiveEvalFailure =
   | "CONTRADICTION_IGNORED" | "HISTORICAL_ANCHORING" | "UNGROUNDED_DIAGNOSIS"
   | "FALSE_RELEASE_ATTRIBUTION" | "ACTION_SAFETY_FAILURE" | "TOOL_BUDGET_EXHAUSTED"
   | "ITERATION_BUDGET_EXHAUSTED" | "VERIFICATION_MISMATCH" | "PLANNER_SCHEMA_ERROR"
-  | "RUNTIME_ERROR";
+  | "PLANNER_SEMANTIC_ERROR" | "RUNTIME_ERROR";
 
 export const classifyLiveRuntimeFailure = (runtime: LiveScenarioRuntimeResult): LiveEvalFailure | null => {
+  if (runtime.aggregate.run.stopReason === "PLANNER_SEMANTIC_ERROR") {
+    return "PLANNER_SEMANTIC_ERROR";
+  }
   if (!runtime.runtimeError) return null;
   return runtime.runtimeErrorCategory ?? "RUNTIME_ERROR";
 };
@@ -44,12 +47,24 @@ export const summarizePlannerReliability = (results: LiveScenarioRuntimeResult[]
   const decisionRepairRate = invalidPlannerDecisionCount === 0
     ? 0
     : repairedPlannerDecisionCount / invalidPlannerDecisionCount;
+  const invalidPlannerSchemaDecisionCount = results.reduce((sum, item) => sum
+    + item.aggregate.auditEvents.filter((event) => [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ].includes(event.type) && event.details.validationKind === "SCHEMA").length, 0);
+  const invalidPlannerSemanticDecisionCount = results.reduce((sum, item) => sum
+    + item.aggregate.auditEvents.filter((event) => [
+      "PLANNER_DECISION_REPAIR_ATTEMPTED",
+      "PLANNER_DECISION_REPAIR_FAILED",
+    ].includes(event.type) && event.details.validationKind === "SEMANTIC").length, 0);
   return {
     plannerDecisionCount,
     invalidPlannerDecisionCount,
     repairedPlannerDecisionCount,
     decisionRepairCount,
     decisionRepairRate,
+    invalidPlannerSchemaDecisionCount,
+    invalidPlannerSemanticDecisionCount,
   };
 };
 

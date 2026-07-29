@@ -6,6 +6,7 @@ import {
   canPresentCurrentInvestigation,
   presentationStatusFromRun,
   resolveActionPresentation,
+  resolveAuditEventLabel,
   resolveInvestigationConfidence,
   resolvePlannerUsagePresentation,
   resolveSuccessfulGithubIssue,
@@ -161,6 +162,27 @@ test("Planner usage presentation distinguishes complete, partial and unavailable
   });
   assert.equal(unavailable.total, "不可用");
   assert.notEqual(unavailable.total, "0");
+});
+
+test("Audit presentation distinguishes model observation, rejection, acceptance, repair and budget", () => {
+  const event = (type: InvestigationAggregate["auditEvents"][number]["type"]) => ({
+    type,
+  }) as InvestigationAggregate["auditEvents"][number];
+  assert.deepEqual([
+    "PLANNER_MODEL_CALL_OBSERVED",
+    "PLANNER_DECISION_REJECTED",
+    "PLANNER_DECISION_ACCEPTED",
+    "PLANNER_DECISION_REPAIR_ATTEMPTED",
+    "PLANNER_MODEL_CALL_BUDGET_EXHAUSTED",
+  ].map((type) => resolveAuditEventLabel(event(
+    type as InvestigationAggregate["auditEvents"][number]["type"],
+  ))), [
+    "模型响应已观测",
+    "Planner decision 已拒绝",
+    "Planner decision 已接受",
+    "Planner decision repair 已尝试",
+    "模型调用预算已耗尽",
+  ]);
 });
 
 const actionAggregate = (input: {

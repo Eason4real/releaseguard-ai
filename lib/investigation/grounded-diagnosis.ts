@@ -98,6 +98,7 @@ const validateLimitation = (
 export function validateGroundedDiagnosis(
   aggregate: InvestigationAggregate,
   proposal: GroundedDiagnosisProposal,
+  options: { validateLimitationText?: boolean } = {},
 ): ValidatedGroundedDiagnosis {
   const selectedHypothesis = aggregate.hypotheses.find((item) =>
     item.id === proposal.selectedHypothesisId);
@@ -144,7 +145,9 @@ export function validateGroundedDiagnosis(
 
   for (const [index, claim] of proposal.diagnosis.claims.entries()) {
     boundedText(claim.statement, `Diagnosis claim ${index + 1}`);
-    if (claim.type === "LIMITATION") validateLimitation(claim);
+    if (claim.type === "LIMITATION" && options.validateLimitationText !== false) {
+      validateLimitation(claim);
+    }
     const uniqueEvidenceIds = new Set(claim.evidenceIds);
     if (claim.evidenceIds.length > 50) {
       throw new Error("CLAIM_EVIDENCE_LIMIT: 一个 Claim 最多引用 50 条 Evidence。");

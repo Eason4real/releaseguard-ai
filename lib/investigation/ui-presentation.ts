@@ -1,8 +1,24 @@
 import type {
+  AuditEvent,
   Confidence,
   InvestigationAggregate,
   LegacyInvestigationResponse,
 } from "./types";
+
+const plannerAuditLabels: Partial<Record<AuditEvent["type"], string>> = {
+  PLANNER_MODEL_CALL_RESERVED: "模型调用额度已预留",
+  PLANNER_MODEL_CALL_OBSERVED: "模型响应已观测",
+  PLANNER_DECISION_REJECTED: "Planner decision 已拒绝",
+  PLANNER_DECISION_ACCEPTED: "Planner decision 已接受",
+  PLANNER_DECISION_REPAIR_ATTEMPTED: "Planner decision repair 已尝试",
+  PLANNER_DECISION_REPAIRED: "Planner decision repair 已成功",
+  PLANNER_DECISION_REPAIR_FAILED: "Planner decision repair 已耗尽",
+  PLANNER_MODEL_CALL_BUDGET_EXHAUSTED: "模型调用预算已耗尽",
+};
+
+export function resolveAuditEventLabel(event: AuditEvent) {
+  return plannerAuditLabels[event.type] ?? event.type;
+}
 
 export type InvestigationPresentationStatus = "idle" | "running" | "live" | "error" | "not_configured";
 

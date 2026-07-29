@@ -3553,6 +3553,46 @@ test("Server validates Planner stop semantics against authoritative remaining bu
   }, { remainingIterations: 2, remainingToolCalls: 3 }), PlannerDecisionSemanticError);
 });
 
+test("Server rejects CALL_TOOL targets and tools that are invalid for the current context", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const decision = (targetHypothesisIds: string[], toolName = "get_release") => ({
+    type: "CALL_TOOL" as const,
+    toolName,
+    arguments: { release_id: setup.release.id },
+    targetHypothesisIds,
+    testIntent: "SUPPORT" as const,
+    rationale: "Read current release facts.",
+  });
+  const context = {
+    aggregate,
+    remainingIterations: 4,
+    remainingToolCalls: 2,
+    availableToolNames: ["get_release"],
+  };
+
+  assert.throws(() => validatePlannerDecisionSemantics(decision(["HYP-MISSING"]), context),
+    (error) => error instanceof PlannerDecisionSemanticError
+      && error.validationKind === "SEMANTIC"
+      && error.code === "CALL_TOOL_TARGET_NOT_FOUND"
+      && error.path === "targetHypothesisIds[0]");
+
+  const inactive = structuredClone(aggregate);
+  inactive.hypotheses[0].status = "REJECTED";
+  assert.throws(() => validatePlannerDecisionSemantics(
+    decision([inactive.hypotheses[0].id]),
+    { ...context, aggregate: inactive },
+  ), (error) => error instanceof PlannerDecisionSemanticError
+    && error.code === "CALL_TOOL_TARGET_NOT_ACTIVE");
+
+  assert.throws(() => validatePlannerDecisionSemantics(
+    decision([aggregate.hypotheses[0].id], "query_metric"),
+    context,
+  ), (error) => error instanceof PlannerDecisionSemanticError
+    && error.code === "CALL_TOOL_UNAVAILABLE"
+    && error.path === "toolName");
+});
+
 test("Agent trace presents validated wait reason and server budget instead of model budget prose", async () => {
   const setup = await runningInvestigationWithHypotheses();
   const planner: InvestigationPlanner = {
@@ -3927,6 +3967,186 @@ test("LLM decision repair stays inside one AgentLoop iteration and persists safe
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("Semantic-invalid CALL_TOOL is repaired once before accepted trace or execution", async () => {
+  const setup = await runningInvestigationWithHypotheses(2);
+  const invalid = {
+    type: "CALL_TOOL",
+    toolName: "get_release",
+    arguments: { release_id: setup.release.id },
+    targetHypothesisIds: ["HYP-NOT-IN-RUN"],
+    testIntent: "SUPPORT",
+    rationale: "Read release facts for an invalid target.",
+  };
+  const valid = {
+    ...invalid,
+    targetHypothesisIds: [setup.hypotheses[0].id],
+    rationale: "Read release facts for the current active hypothesis.",
+  };
+  const responses = [invalid, valid];
+  let providerCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    return Response.json({ choices: [{ message: { content: JSON.stringify(responses.shift()) } }] });
+  };
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1", model: "semantic-repair-model",
+        apiKey: "test-only" }),
+      analytics: setup.store.analytics,
+      maxIterations: 1,
+    });
+    assert.equal(providerCalls, 2);
+    assert.equal(result?.run.modelCallCount, 2);
+    assert.equal(result?.toolCalls.filter((item) => item.proposedActionId === null).length, 1);
+    const rejected = result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_DECISION_REJECTED") ?? [];
+    assert.equal(rejected.length, 1);
+    assert.equal(rejected[0].details.validationKind, "SEMANTIC");
+    assert.equal(rejected[0].details.validationCode, "CALL_TOOL_TARGET_NOT_FOUND");
+    assert.equal((rejected[0].details.responseStructure as {
+      raw: { responseHash: string; responseLength: number; topLevelKeys: string[] };
+      normalized: { topLevelKeys: string[] };
+    }).raw.responseHash.length, 64);
+    assert.ok((rejected[0].details.responseStructure as {
+      raw: { topLevelKeys: string[] };
+    }).raw.topLevelKeys.includes("targetHypothesisIds"));
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_DECISION_ACCEPTED").length, 1);
+    assert.equal(result?.traceEvents.filter((event) =>
+      event.type === "PLANNER_DECISION").length, 1);
+    assert.equal(result?.traceEvents.find((event) =>
+      event.type === "PLANNER_DECISION")?.publicSummary, valid.rationale);
+    assert.doesNotMatch(JSON.stringify(rejected), /HYP-NOT-IN-RUN|Read release facts/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Semantic-invalid final reservation stops without repair dispatch or accepted artifacts", async () => {
+  const setup = await runningInvestigationWithHypotheses(1);
+  let providerCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    return Response.json({ choices: [{ message: { content: JSON.stringify({
+      type: "CALL_TOOL",
+      toolName: "get_release",
+      arguments: { release_id: setup.release.id },
+      targetHypothesisIds: ["HYP-NOT-IN-RUN"],
+      testIntent: "SUPPORT",
+      rationale: "Invalid final reservation decision.",
+    }) } }] });
+  };
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1", model: "semantic-budget-model",
+        apiKey: "test-only" }),
+      analytics: setup.store.analytics,
+    });
+    assert.equal(providerCalls, 1);
+    assert.equal(result?.run.modelCallCount, 1);
+    assert.equal(result?.run.maxModelCalls, 1);
+    assert.equal(result?.run.status, "INCONCLUSIVE");
+    assert.equal(result?.run.stopReason, "MODEL_CALL_BUDGET_EXHAUSTED");
+    assert.equal(result?.iterations.at(-1)?.status, "COMPLETED");
+    assert.equal(result?.iterations.at(-1)?.decisionType, null);
+    assert.equal(result?.toolCalls.length, 0);
+    assert.equal(result?.evidence.length, 0);
+    assert.equal(result?.hypothesisEvidenceLinks.length, 0);
+    assert.equal(result?.diagnoses.length, 0);
+    assert.equal(result?.proposedActions.length, 0);
+    assert.equal(result?.traceEvents.some((event) => event.type === "PLANNER_DECISION"), false);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_DECISION_REJECTED").length, 1);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_DECISION_ACCEPTED").length, 0);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_MODEL_CALL_BUDGET_EXHAUSTED").length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Exhausted semantic repair uses explicit INCONCLUSIVE taxonomy", async () => {
+  const setup = await runningInvestigationWithHypotheses(2);
+  let providerCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    return Response.json({ choices: [{ message: { content: JSON.stringify({
+      type: "CALL_TOOL",
+      toolName: "get_release",
+      arguments: { release_id: setup.release.id },
+      targetHypothesisIds: ["HYP-NOT-IN-RUN"],
+      testIntent: "SUPPORT",
+      rationale: "Still references an invalid target.",
+    }) } }] });
+  };
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1", model: "semantic-failure-model",
+        apiKey: "test-only" }),
+      analytics: setup.store.analytics,
+    });
+    assert.equal(providerCalls, 2);
+    assert.equal(result?.run.modelCallCount, 2);
+    assert.equal(result?.run.status, "INCONCLUSIVE");
+    assert.equal(result?.run.stopReason, "PLANNER_SEMANTIC_ERROR");
+    assert.equal(result?.run.errorMessage, null);
+    assert.equal(result?.iterations.at(-1)?.status, "COMPLETED");
+    assert.equal(result?.iterations.at(-1)?.decisionType, null);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_DECISION_REJECTED").length, 2);
+    assert.equal(result?.auditEvents.some((event) =>
+      event.type === "PLANNER_DECISION_REPAIR_FAILED"
+      && event.details.validationKind === "SEMANTIC"), true);
+    assert.equal(result?.auditEvents.some((event) =>
+      event.type === "PLANNER_DECISION_ACCEPTED"), false);
+    assert.equal(result?.traceEvents.some((event) => event.type === "PLANNER_DECISION"), false);
+    assert.equal(result?.toolCalls.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("A response is not accepted after its Run or iteration is no longer current", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan() {
+      await setup.store.transitionRun(setup.runId, "INCONCLUSIVE", {
+        stopReason: "PLANNER_ERROR",
+        completedAt: new Date().toISOString(),
+      });
+      return {
+        type: "CALL_TOOL",
+        toolName: "get_release",
+        arguments: { release_id: setup.release.id },
+        targetHypothesisIds: [setup.hypotheses[0].id],
+        testIntent: "SUPPORT",
+        rationale: "This response became stale before acceptance.",
+      };
+    },
+  };
+  const result = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    analytics: setup.store.analytics,
+  });
+  assert.equal(result?.run.status, "INCONCLUSIVE");
+  assert.equal(result?.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_ACCEPTED"), false);
+  assert.equal(result?.traceEvents.some((event) => event.type === "PLANNER_DECISION"), false);
+  assert.equal(result?.toolCalls.length, 0);
 });
 
 test("LLM decision repair is bounded and terminal invalid output leaves no assessment state", async () => {

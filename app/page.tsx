@@ -11,6 +11,7 @@ import {
   canPresentCurrentInvestigation,
   presentationStatusFromRun,
   resolveActionPresentation,
+  resolveAuditEventLabel,
   resolveInvestigationConfidence,
   resolvePlannerUsagePresentation,
   resolveSuccessfulGithubIssue,
@@ -630,7 +631,7 @@ function Audit({ stage, snapshot, decisions, githubIssue, workflowTimes, investi
     ...investigation.investigation.auditEvents.map((event) => ({
       at: event.createdAt,
       actor: event.actor,
-      action: `${event.type} · ${JSON.stringify(event.details)}`,
+      action: `${resolveAuditEventLabel(event)} · ${JSON.stringify(event.details)}`,
       permission: "服务端留痕",
     })),
   ] : [

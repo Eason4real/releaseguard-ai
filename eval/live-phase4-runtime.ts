@@ -7,6 +7,8 @@ import { startInvestigation } from "../lib/investigation/runtime";
 import type { InvestigationAggregate } from "../lib/investigation/types";
 import type { ModelResponseObservation } from "../lib/investigation/model";
 import { PlannerDecisionValidationError } from "../lib/investigation/llm-planner";
+import { PlannerDecisionSemanticError } from
+  "../lib/investigation/planner-decision-semantics";
 import {
   confirmActionCompletion,
   createVerificationAttempt,
@@ -132,6 +134,9 @@ class ObservedPlanner implements InvestigationPlanner {
   drainDecisionValidationObservations() {
     return this.inner.drainDecisionValidationObservations?.() ?? [];
   }
+  drainModelCallObservations() {
+    return this.inner.drainModelCallObservations?.() ?? [];
+  }
   async plan(context: PlannerContext) {
     const started = performance.now();
     try {
@@ -168,7 +173,7 @@ export type LiveScenarioRuntimeResult = {
   totalLatencyMs: number;
   safeActionAdapterCalls: number;
   runtimeError: string | null;
-  runtimeErrorCategory: "PLANNER_SCHEMA_ERROR" | "RUNTIME_ERROR" | null;
+  runtimeErrorCategory: "PLANNER_SCHEMA_ERROR" | "PLANNER_SEMANTIC_ERROR" | "RUNTIME_ERROR" | null;
 };
 
 export async function runLiveScenarioRuntime(
@@ -262,7 +267,9 @@ export async function runLiveScenarioRuntime(
     runtimeError = error instanceof Error ? error.message : "Unknown runtime error";
     runtimeErrorCategory = error instanceof PlannerDecisionValidationError
       ? "PLANNER_SCHEMA_ERROR"
-      : "RUNTIME_ERROR";
+      : error instanceof PlannerDecisionSemanticError
+        ? "PLANNER_SEMANTIC_ERROR"
+        : "RUNTIME_ERROR";
   }
   const aggregate = (await store.getAggregate(runId))!;
   return { scenarioId: scenario.id, aggregate, plannerCalls: observed.calls,

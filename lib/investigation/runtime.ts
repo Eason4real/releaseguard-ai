@@ -170,6 +170,7 @@ export async function finalizeInvestigation(
     totalTokens: number;
     publicRationale: string;
     traceEvent: InvestigationTraceEvent;
+    acceptedAuditEvent: AuditEvent;
   },
 ) {
   const now = new Date().toISOString();
@@ -346,6 +347,7 @@ export async function finalizeInvestigation(
   };
 
   const events: AuditEvent[] = [
+    input.acceptedAuditEvent,
     {
       id: createId("AE"),
       runId: input.runId,
