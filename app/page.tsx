@@ -9,12 +9,13 @@ import type {
 import {
   canApplyInvestigationResponse,
   canPresentCurrentInvestigation,
+  buildRuntimeAuditTimeline,
   presentationStatusFromRun,
   resolveActionPresentation,
-  resolveAuditEventLabel,
   resolveInvestigationConfidence,
   resolvePlannerUsagePresentation,
   resolveSuccessfulGithubIssue,
+  sortAuditTimelineRows,
 } from "@/lib/investigation/ui-presentation";
 
 type View = "overview" | "incident" | "approval" | "evidence" | "audit";
@@ -608,47 +609,22 @@ function EvidenceView({ items }: { items: EvidenceDisplay[] }) {
 
 function Audit({ stage, snapshot, decisions, githubIssue, workflowTimes, investigation }: { stage: Stage; snapshot: ApprovalSnapshot | null; decisions: ApprovalDecision[]; githubIssue: GithubIssue | null; workflowTimes: WorkflowTimes; investigation: InvestigationResult | null }) {
   const confidence = snapshot?.confidence ?? "";
-  const runtimeRows = investigation ? [
-    { at: investigation.investigation.run.createdAt, actor: "Runtime", action: `创建 InvestigationRun ${investigation.runId.slice(0, 18)}…`, permission: "服务端" },
-    ...investigation.investigation.toolCalls.map((call) => ({
-      at: call.requestedAt,
-      actor: "Tool Runtime",
-      action: `${call.name} · ${call.result?.status ?? call.status} · ${(call.result?.errorMessage ?? call.result?.id ?? "等待结果").slice(0, 180)}`,
-      permission: "只读",
-    })),
-    ...(investigation.investigation.diagnosis ? [{
-      at: investigation.investigation.diagnosis.createdAt,
-      actor: "Agent",
-      action: `保存结构化 Diagnosis · ${investigation.investigation.diagnosis.confidence}`,
-      permission: "只读",
-    }] : []),
-    ...(investigation.investigation.proposedAction ? [{
-      at: investigation.investigation.proposedAction.createdAt,
-      actor: "Runtime",
-      action: `提出 ${investigation.investigation.proposedAction.type} · ${investigation.investigation.proposedAction.status}`,
-      permission: "待操作",
-    }] : []),
-    ...investigation.investigation.auditEvents.map((event) => ({
-      at: event.createdAt,
-      actor: event.actor,
-      action: `${resolveAuditEventLabel(event)} · ${JSON.stringify(event.details)}`,
-      permission: "服务端留痕",
-    })),
-  ] : [
-    { at: workflowTimes.startedAt, actor: "System", action: "创建事件 RG-2026-0726-01", permission: "只读" },
-    { at: offsetIso(workflowTimes.startedAt, 66), actor: "Agent", action: "选择 4 个调查工具", permission: "只读" },
-    { at: offsetIso(workflowTimes.startedAt, 324), actor: "Agent", action: "输出根因假设与修复建议", permission: "只读" },
+  const formalDecisionTypes = new Set(investigation?.investigation.auditEvents.map((event) => event.type) ?? []);
+  const runtimeRows = investigation ? buildRuntimeAuditTimeline(investigation.investigation) : [
+    { id: "demo:event-created", at: workflowTimes.startedAt, actor: "System", action: "创建事件 RG-2026-0726-01 · derived", permission: "只读", source: "derived" as const, lifecycle: "created" as const, sortOrder: 0 },
+    { id: "demo:tools-selected", at: offsetIso(workflowTimes.startedAt, 66), actor: "Agent", action: "选择 4 个调查工具 · derived", permission: "只读", source: "derived" as const, lifecycle: "observation" as const, sortOrder: 20 },
+    { id: "demo:recommendation-created", at: offsetIso(workflowTimes.startedAt, 324), actor: "Agent", action: "输出根因假设与修复建议 · derived", permission: "只读", source: "derived" as const, lifecycle: "observation" as const, sortOrder: 25 },
   ];
-  const rows = [
+  const rows = sortAuditTimelineRows([
     ...runtimeRows,
-    ...(snapshot ? [{ at: snapshot.submittedAt, actor: "Agent", action: `冻结审批快照 · ${snapshot.provider}/${snapshot.model} · ${confidence}`, permission: "只读" }] : []),
-    ...decisions.map((item) => ({ at: item.decidedAt, actor: item.actor, action: `${item.decision === "approved" ? "批准" : "驳回"}修复方案 ${item.id} · ${item.note}`, permission: item.decision === "approved" ? "已授权" : "已归档" })),
-    ...(snapshot && stage === "pending" ? [{ at: offsetIso(snapshot.submittedAt, 1), actor: "产品经理", action: `等待审批方案 ${snapshot.id}`, permission: "待操作" }] : []),
-    ...(githubIssue ? [{ at: githubIssue.createdAt, actor: "Action Agent", action: `创建 GitHub Issue #${githubIssue.number}${githubIssue.deduplicated ? " · 命中防重复记录" : ""}`, permission: "已授权" }] : []),
-    ...(workflowTimes.fixedAt ? [{ at: workflowTimes.fixedAt, actor: "Repair Agent", action: "生成修复版本 Android 7.3.1", permission: "已授权" }] : []),
-    ...(workflowTimes.resolvedAt ? [{ at: workflowTimes.resolvedAt, actor: "Verifier", action: "成功率恢复至 95%，事件关闭", permission: "自动验证" }] : []),
-  ].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
-  return <div className="content detail-page"><section className="panel audit-table"><div className="panel-heading"><div><span className="section-kicker">IMMUTABLE AUDIT TRAIL</span><h2>事件操作记录</h2></div><span className="timezone-label">Australia/Sydney</span><button className="secondary-button">导出 JSON</button></div><div className="table-head"><span>时间</span><span>执行者</span><span>动作</span><span>权限</span></div>{rows.map((row) => <div className="table-row" key={`${row.at}-${row.actor}-${row.action}`}><time>{formatSydneyTime(row.at)}</time><strong>{row.actor}</strong><span>{row.action}</span><b>{row.permission}</b></div>)}</section></div>;
+    ...(snapshot ? [{ id: `snapshot:${snapshot.id}`, at: snapshot.submittedAt, actor: "Agent", action: `冻结审批快照 · ${snapshot.provider}/${snapshot.model} · ${confidence} · derived`, permission: "只读", source: "derived" as const, lifecycle: "created" as const, sortOrder: 35 }] : []),
+    ...decisions.filter((item) => !formalDecisionTypes.has(item.decision === "approved" ? "APPROVAL_APPROVED" : "APPROVAL_REJECTED")).map((item) => ({ id: `decision:${item.id}:${item.decision}`, at: item.decidedAt, actor: item.actor, action: `${item.decision === "approved" ? "批准" : "驳回"}修复方案 ${item.id} · ${item.note} · derived`, permission: item.decision === "approved" ? "已授权" : "已归档", source: "derived" as const, lifecycle: "status" as const, sortOrder: 50 })),
+    ...(snapshot && stage === "pending" ? [{ id: `approval-pending:${snapshot.id}`, at: offsetIso(snapshot.submittedAt, 1), actor: "产品经理", action: `等待审批方案 ${snapshot.id} · derived`, permission: "待操作", source: "derived" as const, lifecycle: "status" as const, sortOrder: 40 }] : []),
+    ...(!investigation && githubIssue ? [{ id: `demo:github-issue:${githubIssue.number}`, at: githubIssue.createdAt, actor: "Action Agent", action: `创建 GitHub Issue #${githubIssue.number}${githubIssue.deduplicated ? " · 命中防重复记录" : ""} · derived`, permission: "已授权", source: "derived" as const, lifecycle: "success" as const, sortOrder: 90 }] : []),
+    ...(workflowTimes.fixedAt ? [{ id: "workflow:fixed", at: workflowTimes.fixedAt, actor: "Repair Agent", action: "生成修复版本 Android 7.3.1 · derived", permission: "已授权", source: "derived" as const, lifecycle: "status" as const, sortOrder: 100 }] : []),
+    ...(workflowTimes.resolvedAt ? [{ id: "workflow:resolved", at: workflowTimes.resolvedAt, actor: "Verifier", action: "成功率恢复至 95%，事件关闭 · derived", permission: "自动验证", source: "derived" as const, lifecycle: "status" as const, sortOrder: 110 }] : []),
+  ]);
+  return <div className="content detail-page"><section className="panel audit-table"><div className="panel-heading"><div><span className="section-kicker">IMMUTABLE AUDIT TRAIL</span><h2>事件操作记录</h2></div><span className="timezone-label">Australia/Sydney</span><button className="secondary-button">导出 JSON</button></div><div className="table-head"><span>时间</span><span>执行者</span><span>动作</span><span>权限</span></div>{rows.map((row) => <div className="table-row" key={row.id}><time>{formatSydneyTime(row.at)}</time><strong>{row.actor}</strong><span>{row.action}</span><b>{row.permission}</b></div>)}</section></div>;
 }
 
 export default function Home() {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
+  buildRuntimeAuditTimeline,
   canApplyInvestigationResponse,
   canPresentCurrentInvestigation,
   presentationStatusFromRun,
@@ -183,6 +184,117 @@ test("Audit presentation distinguishes model observation, rejection, acceptance,
     "Planner decision repair 已尝试",
     "模型调用预算已耗尽",
   ]);
+});
+
+const githubTimelineAggregate = (input?: {
+  auditEvents?: InvestigationAggregate["auditEvents"];
+  sharedLifecycleTimestamp?: string;
+}) => {
+  const createdAt = "2026-07-29T03:38:18.000Z";
+  const claimAt = input?.sharedLifecycleTimestamp ?? "2026-07-29T03:50:26.000Z";
+  const dispatchAt = input?.sharedLifecycleTimestamp ?? "2026-07-29T03:50:27.000Z";
+  const succeededAt = input?.sharedLifecycleTimestamp ?? "2026-07-29T03:50:28.000Z";
+  const event = (
+    id: string,
+    type: InvestigationAggregate["auditEvents"][number]["type"],
+    at: string,
+    toolCallId: string | null,
+  ) => ({
+    id, runId: "RUN-1", proposedActionId: "PA-1", approvalId: "APR-1",
+    toolCallId, type, actor: "ReleaseGuard Action Runtime", details: {}, createdAt: at,
+  }) as InvestigationAggregate["auditEvents"][number];
+  const auditEvents = input && "auditEvents" in input ? input.auditEvents ?? [] : [
+    event("AUD-success", "ACTION_SUCCEEDED", succeededAt, "TC-1"),
+    event("AUD-created", "PROPOSED_ACTION_CREATED", createdAt, null),
+    event("AUD-dispatch", "ACTION_EXTERNAL_DISPATCH_STARTED", dispatchAt, "TC-1"),
+    event("AUD-claim", "ACTION_EXECUTION_STARTED", claimAt, "TC-1"),
+  ];
+  return {
+    run: { id: "RUN-1", createdAt },
+    toolCalls: [{
+      id: "TC-1", runId: "RUN-1", name: "create_github_issue", arguments: {},
+      canonicalSignature: "create_github_issue:{}", status: "COMPLETED",
+      proposedActionId: "PA-1", approvalId: "APR-1", agentIterationId: null,
+      triggerMessageId: null, cacheSourceToolCallId: null, iteration: 12, order: 1,
+      resultId: "TR-1", requestedAt: createdAt, startedAt: claimAt,
+      completedAt: succeededAt, externalDispatchStartedAt: dispatchAt,
+      result: {
+        id: "TR-1", runId: "RUN-1", toolCallId: "TC-1", status: "SUCCESS",
+        output: null, errorMessage: null, retryable: false, createdAt: succeededAt,
+      },
+    }],
+    diagnosis: null,
+    proposedAction: {
+      id: "PA-1", runId: "RUN-1", diagnosisId: "DX-1", type: "CREATE_GITHUB_ISSUE",
+      status: "SUCCEEDED", revision: 1, supersedesProposedActionId: null,
+      supersededAt: null, title: "Create issue", arguments: {}, rationale: "Approved",
+      createdAt, updatedAt: succeededAt,
+    },
+    approval: {
+      id: "APR-1", runId: "RUN-1", proposedActionId: "PA-1", status: "APPROVED",
+      decision: "APPROVE", reason: "Approved", requestedBy: "Agent", decidedBy: "Owner",
+      targetOwner: "acme", targetRepo: "repo", revision: 1,
+      supersedesApprovalId: null, withdrawnAt: null, createdAt, decidedAt: claimAt,
+    },
+    auditEvents,
+  } as unknown as InvestigationAggregate;
+};
+
+test("Audit timeline uses authoritative claim, dispatch and success times", () => {
+  const rows = buildRuntimeAuditTimeline(githubTimelineAggregate());
+  const actionRows = rows.filter((row) => ["created", "claim", "dispatch", "success"]
+    .includes(row.lifecycle) && row.id !== "derived:run-created:RUN-1");
+  assert.deepEqual(actionRows.map((row) => [row.lifecycle, row.at]), [
+    ["created", "2026-07-29T03:38:18.000Z"],
+    ["claim", "2026-07-29T03:50:26.000Z"],
+    ["dispatch", "2026-07-29T03:50:27.000Z"],
+    ["success", "2026-07-29T03:50:28.000Z"],
+  ]);
+  assert.equal(rows.some((row) => row.at === "2026-07-29T03:38:18.000Z"
+    && /SUCCEEDED|create_github_issue · SUCCESS/.test(row.action)), false);
+  assert.equal(rows.filter((row) => row.lifecycle === "success").length, 1);
+  assert.equal(rows.find((row) => row.lifecycle === "success")?.source, "audit");
+});
+
+test("Audit timeline is deterministic across hydration and equal timestamps", () => {
+  const timestamp = "2026-07-29T03:50:26.000Z";
+  const aggregate = githubTimelineAggregate({ sharedLifecycleTimestamp: timestamp });
+  const beforeRefresh = buildRuntimeAuditTimeline(aggregate);
+  const afterHydration = buildRuntimeAuditTimeline(structuredClone(aggregate));
+  assert.deepEqual(afterHydration, beforeRefresh);
+  assert.deepEqual(beforeRefresh.filter((row) => ["claim", "dispatch", "success"]
+    .includes(row.lifecycle)).map((row) => row.lifecycle), ["claim", "dispatch", "success"]);
+});
+
+test("Legacy action timeline marks lifecycle fallbacks as derived", () => {
+  const rows = buildRuntimeAuditTimeline(githubTimelineAggregate({ auditEvents: [] }));
+  const actionCreated = rows.find((row) => row.id === "derived:action-created:PA-1");
+  const claim = rows.find((row) => row.lifecycle === "claim");
+  const dispatch = rows.find((row) => row.lifecycle === "dispatch");
+  const success = rows.find((row) => row.lifecycle === "success");
+  assert.equal(actionCreated?.at, "2026-07-29T03:38:18.000Z");
+  assert.match(actionCreated?.action ?? "", /PENDING_APPROVAL · derived/);
+  assert.deepEqual([claim?.at, dispatch?.at, success?.at], [
+    "2026-07-29T03:50:26.000Z",
+    "2026-07-29T03:50:27.000Z",
+    "2026-07-29T03:50:28.000Z",
+  ]);
+  assert.ok([actionCreated, claim, dispatch, success].every((row) => row?.source === "derived"));
+  assert.equal(rows.some((row) => row.at === "2026-07-29T03:38:18.000Z"
+    && row.lifecycle === "success"), false);
+});
+
+test("Formal action success suppresses the legacy derived success row", () => {
+  const rows = buildRuntimeAuditTimeline(githubTimelineAggregate());
+  assert.equal(rows.filter((row) => row.lifecycle === "success").length, 1);
+  assert.equal(rows.some((row) => row.id === "derived:action-success:PA-1"), false);
+  assert.equal(rows.some((row) => row.id === "audit:AUD-success"), true);
+});
+
+test("Audit UI only synthesizes browser workflow success without a runtime aggregate", async () => {
+  const source = await pageSource();
+  assert.match(source, /!investigation && githubIssue/);
+  assert.doesNotMatch(source, /at: call\.requestedAt[\s\S]{0,240}call\.result\?\.status/);
 });
 
 const actionAggregate = (input: {
