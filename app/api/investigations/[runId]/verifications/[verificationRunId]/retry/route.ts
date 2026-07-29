@@ -2,11 +2,14 @@ import { RuntimeRequestError } from "@/lib/investigation/action-runtime";
 import type { Phase4InvestigationStore } from "@/lib/investigation/phase4-store";
 import { D1InvestigationStore } from "@/lib/investigation/repository";
 import { retryVerificationAttempt } from "@/lib/investigation/verification-runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 export async function handleVerificationRetryPost(
   request: Request, runId: string, verificationRunId: string,
   store: Phase4InvestigationStore = new D1InvestigationStore(),
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const body = await request.json() as { clientRequestId?: string };
     if (!body.clientRequestId?.trim()) {
@@ -26,6 +29,8 @@ export async function handleVerificationRetryPost(
 export async function POST(request: Request, context: {
   params: Promise<{ runId: string; verificationRunId: string }>;
 }) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   const { runId, verificationRunId } = await context.params;
   return handleVerificationRetryPost(request, runId, verificationRunId);
 }

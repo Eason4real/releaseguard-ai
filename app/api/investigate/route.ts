@@ -20,6 +20,7 @@ import {
   ModelCallBudgetConfigurationError,
   resolveMaxModelCalls,
 } from "@/lib/investigation/model-call-budget";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 type RequestPayload = {
   question?: string;
@@ -29,6 +30,8 @@ type RequestPayload = {
 };
 
 export async function GET(request: Request) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const runId = new URL(request.url).searchParams.get("runId");
     const store = new D1InvestigationStore();
@@ -63,6 +66,8 @@ export async function handleInvestigatePost(
   request: Request,
   dependencies: InvestigatePostDependencies = {},
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   const store = dependencies.store ?? new D1InvestigationStore();
   const analytics = dependencies.analytics ?? new D1AnalyticsStore();
   const retrieverFactory = dependencies.createRetrievers ?? createRuntimeRetrievers;

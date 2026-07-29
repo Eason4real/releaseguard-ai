@@ -84,6 +84,13 @@ described below and apply all SQL migrations in `drizzle/`.
 
 Only names are listed here; this package contains no values.
 
+### Deployment safety
+
+- `RELEASEGUARD_DEPLOYMENT_MODE` — `PUBLIC_DEMO` by default; explicitly set
+  `PRIVATE_LIVE` only behind access control for a single trusted operator.
+- `RELEASEGUARD_SCHEMA_MODE` — keep `EXPLICIT` in production. `LOCAL_AUTO` is accepted
+  only in development/test and must not replace ordered production migrations.
+
 ### Hosted/runtime model configuration
 
 - `DEEPSEEK_API_KEY` — optional server-side DeepSeek key
@@ -199,4 +206,3 @@ explicitly intended and authorized.
 This migration package includes `.env.example` only. It does not include
 `.env`, API keys, GitHub tokens, hosted environment values, dependency
 directories, build outputs, local databases, Wrangler state, or runtime caches.
-

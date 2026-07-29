@@ -2,10 +2,45 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 import { investigationRuntimeSchema } from "./runtime-schema";
 import { DEFAULT_MAX_MODEL_CALLS } from "../lib/investigation/model-call-budget";
+import { isLocalSchemaAutoMigrationEnabled } from "../lib/deployment-mode";
 
-let initialization: Promise<void> | null = null;
+type D1Database = Parameters<typeof drizzle>[0];
 
-async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
+let schemaReadiness: Promise<void> | null = null;
+
+const requiredRuntimeColumns = {
+  investigation_runs: ["model_call_count", "max_model_calls", "stop_reason"],
+  tool_calls: ["execution_attempt_id", "execution_lease_expires_at", "external_dispatch_started_at"],
+  hypotheses: ["support_if", "refute_if"],
+  diagnoses: ["selected_hypothesis_id", "grounding_status", "disposition"],
+  verification_policy_snapshots: ["baseline_value", "minimum_improvement_threshold"],
+  incident_documents: ["corpus_type", "index_status"],
+  public_incident_import_attempts: ["status", "content_hash"],
+} as const;
+
+export class RuntimeSchemaMigrationRequiredError extends Error {
+  readonly code = "DATABASE_MIGRATION_REQUIRED";
+
+  constructor(readonly missing: string[]) {
+    super("The production database schema is not ready. Apply ordered Drizzle migrations before serving traffic.");
+    this.name = "RuntimeSchemaMigrationRequiredError";
+  }
+}
+
+export async function assertRuntimeSchemaReady(d1: D1Database) {
+  const missing: string[] = [];
+  for (const [table, expectedColumns] of Object.entries(requiredRuntimeColumns)) {
+    const info = await d1.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+    const columns = new Set(info.results.map((column: { name: string }) => column.name));
+    if (columns.size === 0) missing.push(table);
+    else expectedColumns.forEach((column) => {
+      if (!columns.has(column)) missing.push(`${table}.${column}`);
+    });
+  }
+  if (missing.length > 0) throw new RuntimeSchemaMigrationRequiredError(missing);
+}
+
+async function initializeRuntimeSchema(d1: D1Database) {
   const tableStatements = investigationRuntimeSchema.filter((statement) =>
     statement.trimStart().startsWith("CREATE TABLE"));
   const indexStatements = investigationRuntimeSchema.filter((statement) =>
@@ -123,12 +158,14 @@ export async function getDb() {
       "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
     );
   }
-  initialization ??= initializeRuntimeSchema(env.DB)
+  schemaReadiness ??= (isLocalSchemaAutoMigrationEnabled()
+    ? initializeRuntimeSchema(env.DB)
+    : assertRuntimeSchemaReady(env.DB))
     .catch((error: unknown) => {
-      initialization = null;
+      schemaReadiness = null;
       throw error;
     });
-  await initialization;
+  await schemaReadiness;
 
   return drizzle(env.DB, { schema });
 }

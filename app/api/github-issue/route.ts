@@ -3,6 +3,7 @@ import {
   RuntimeRequestError,
 } from "@/lib/investigation/action-runtime";
 import { D1InvestigationStore } from "@/lib/investigation/repository";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 type GithubRequest = {
   runId?: string;
@@ -19,6 +20,8 @@ const json = (body: unknown, status = 200) =>
   });
 
 export async function POST(request: Request) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   let payload: GithubRequest;
   try {
     payload = await request.json() as GithubRequest;

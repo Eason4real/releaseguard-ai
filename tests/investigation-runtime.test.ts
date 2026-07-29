@@ -36,8 +36,16 @@ import {
   assertGenericRunTransition,
   assertRunTransition,
 } from "../lib/investigation/state";
+import { POST as approvalRoute } from "../app/api/approvals/route";
+import { GET as deploymentModeRoute } from "../app/api/deployment-mode/route";
+import { POST as githubConnectionRoute } from "../app/api/github-connection/route";
 import { POST as githubIssueRoute } from "../app/api/github-issue/route";
-import { handleInvestigatePost } from "../app/api/investigate/route";
+import {
+  GET as investigateGetRoute,
+  handleInvestigatePost,
+} from "../app/api/investigate/route";
+import { POST as continueRoute } from "../app/api/investigations/[runId]/continue/route";
+import { POST as messageRoute } from "../app/api/investigations/[runId]/messages/route";
 import type { RunTransitionPatch } from "../lib/investigation/store";
 import type {
   GithubActionClaimInput,
@@ -134,6 +142,110 @@ import {
 } from "../app/api/investigations/[runId]/verifications/route";
 import { handleVerificationEvaluatePost } from
   "../app/api/investigations/[runId]/verifications/[verificationRunId]/evaluate/route";
+import { handleVerificationReopenPost } from
+  "../app/api/investigations/[runId]/verifications/[verificationRunId]/reopen/route";
+import { handleVerificationRetryPost } from
+  "../app/api/investigations/[runId]/verifications/[verificationRunId]/retry/route";
+import { PUBLIC_DEMO_DISABLED_CODE } from "../lib/deployment-mode";
+import {
+  assertRuntimeSchemaReady,
+  RuntimeSchemaMigrationRequiredError,
+} from "../db/index";
+
+test("PUBLIC_DEMO blocks every shared investigation API before D1, model or GitHub access", async () => {
+  const previousMode = process.env.RELEASEGUARD_DEPLOYMENT_MODE;
+  const originalFetch = globalThis.fetch;
+  let networkCalls = 0;
+  let dependencyCalls = 0;
+  process.env.RELEASEGUARD_DEPLOYMENT_MODE = "PUBLIC_DEMO";
+  globalThis.fetch = async () => {
+    networkCalls += 1;
+    throw new Error("PUBLIC_DEMO_NETWORK_CALL");
+  };
+  const blockedDependency = new Proxy({}, {
+    get() {
+      dependencyCalls += 1;
+      throw new Error("PUBLIC_DEMO_D1_ACCESS");
+    },
+  });
+
+  try {
+    const modeResponse = await deploymentModeRoute();
+    assert.deepEqual(await modeResponse.json(), { mode: "PUBLIC_DEMO" });
+
+    const request = (path: string) => new Request(`http://localhost${path}?mode=PRIVATE_LIVE`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-ReleaseGuard-Deployment-Mode": "PRIVATE_LIVE",
+      },
+      body: JSON.stringify({ mode: "PRIVATE_LIVE", apiKey: "must-not-be-read", token: "must-not-be-read" }),
+    });
+    const responses = [
+      await investigateGetRoute(new Request("http://localhost/api/investigate?mode=PRIVATE_LIVE", {
+        headers: { "X-ReleaseGuard-Deployment-Mode": "PRIVATE_LIVE" },
+      })),
+      await handleInvestigatePost(request("/api/investigate"), {
+        store: blockedDependency as never,
+        analytics: blockedDependency as never,
+        createRetrievers: async () => {
+          dependencyCalls += 1;
+          throw new Error("PUBLIC_DEMO_RETRIEVER_ACCESS");
+        },
+      }),
+      await approvalRoute(request("/api/approvals")),
+      await githubConnectionRoute(request("/api/github-connection")),
+      await githubIssueRoute(request("/api/github-issue")),
+      await messageRoute(request("/api/investigations/RUN-other/messages"), {
+        params: Promise.resolve({ runId: "RUN-other" }),
+      }),
+      await continueRoute(request("/api/investigations/RUN-other/continue"), {
+        params: Promise.resolve({ runId: "RUN-other" }),
+      }),
+      await handleActionCompletionPost(request("/action-completion"), "RUN-other", blockedDependency as never),
+      await handleVerificationPost(request("/verifications"), "RUN-other", blockedDependency as never),
+      await handleVerificationGet("RUN-other", blockedDependency as never),
+      await handleVerificationEvaluatePost(request("/evaluate"), "RUN-other", "VR-other", blockedDependency as never),
+      await handleVerificationReopenPost(request("/reopen"), "RUN-other", "VR-other", blockedDependency as never),
+      await handleVerificationRetryPost(request("/retry"), "RUN-other", "VR-other", blockedDependency as never),
+    ];
+
+    for (const response of responses) {
+      assert.equal(response.status, 403);
+      const body = await response.json() as { code?: string; error?: string };
+      assert.deepEqual(Object.keys(body).sort(), ["code", "error"]);
+      assert.equal(body.code, PUBLIC_DEMO_DISABLED_CODE);
+      assert.doesNotMatch(body.error ?? "", /D1|SQL|stack|must-not-be-read|PUBLIC_DEMO_D1_ACCESS/);
+    }
+    assert.equal(networkCalls, 0);
+    assert.equal(dependencyCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousMode === undefined) delete process.env.RELEASEGUARD_DEPLOYMENT_MODE;
+    else process.env.RELEASEGUARD_DEPLOYMENT_MODE = previousMode;
+  }
+});
+
+test("Explicit production schema readiness is read-only and fails before serving an unmigrated D1", async () => {
+  let mutationCalls = 0;
+  const probe = {
+    prepare(query: string) {
+      assert.match(query, /^PRAGMA table_info\([a-z_]+\)$/);
+      return {
+        async all() { return { results: [] }; },
+        async run() { mutationCalls += 1; return {}; },
+      };
+    },
+    async batch() { mutationCalls += 1; return []; },
+  };
+  await assert.rejects(
+    assertRuntimeSchemaReady(probe as never),
+    (error: unknown) => error instanceof RuntimeSchemaMigrationRequiredError
+      && error.code === "DATABASE_MIGRATION_REQUIRED"
+      && error.missing.includes("investigation_runs"),
+  );
+  assert.equal(mutationCalls, 0);
+});
 
 class MemoryStore implements Phase4InvestigationStore {
   analytics = new MemoryAnalyticsStore();

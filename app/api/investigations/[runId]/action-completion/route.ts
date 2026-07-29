@@ -2,6 +2,7 @@ import { RuntimeRequestError } from "@/lib/investigation/action-runtime";
 import type { Phase4InvestigationStore } from "@/lib/investigation/phase4-store";
 import { D1InvestigationStore } from "@/lib/investigation/repository";
 import { confirmActionCompletion } from "@/lib/investigation/verification-runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 type ActionCompletionRequest = {
   clientRequestId?: string;
@@ -15,6 +16,8 @@ export async function handleActionCompletionPost(
   runId: string,
   store: Phase4InvestigationStore = new D1InvestigationStore(),
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const body = await request.json() as ActionCompletionRequest;
     if (
@@ -50,6 +53,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   const { runId } = await context.params;
   return handleActionCompletionPost(request, runId);
 }

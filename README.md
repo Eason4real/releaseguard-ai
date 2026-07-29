@@ -98,6 +98,30 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm run validate:artifact`: recheck an existing artifact's manifest and ESM `default.fetch` export
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
+## Deployment Modes
+
+`RELEASEGUARD_DEPLOYMENT_MODE` is server-owned. It accepts only:
+
+- `PUBLIC_DEMO` (the safe default): renders a browser-memory deterministic demo and returns
+  `PUBLIC_DEMO_OPERATION_DISABLED` for every API that reads shared investigation data,
+  writes runtime state, calls a model, or calls GitHub.
+- `PRIVATE_LIVE`: enables the existing D1, model, approval, verification, and approved GitHub
+  runtime. Deploy it only behind access control for one trusted operator; this version does
+  not implement multi-tenant ownership.
+
+Production schema changes are explicit. Keep `RELEASEGUARD_SCHEMA_MODE=EXPLICIT` in hosted
+environments and apply ordered files under `drizzle/` before deploying code. Local development
+or tests may opt into compatibility initialization with
+`RELEASEGUARD_SCHEMA_MODE=LOCAL_AUTO`, but only when `NODE_ENV` is `development` or `test`.
+
+For local Private Live development:
+
+```bash
+RELEASEGUARD_DEPLOYMENT_MODE=PRIVATE_LIVE \
+RELEASEGUARD_SCHEMA_MODE=LOCAL_AUTO \
+npm run dev
+```
+
 Use build and validation commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
 
 The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.

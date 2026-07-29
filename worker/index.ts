@@ -5,6 +5,7 @@ import {
   runHostedPublicCorpusImport,
   type PublicCorpusHostedBindings,
 } from "../lib/retrieval/public-incidents/hosted";
+import { isHostedCorpusImportEnabled } from "../lib/deployment-mode";
 
 interface Env extends PublicCorpusHostedBindings {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -16,6 +17,7 @@ interface Env extends PublicCorpusHostedBindings {
     };
   };
   PUBLIC_CORPUS_IMPORT_ENABLED?: string;
+  RELEASEGUARD_DEPLOYMENT_MODE?: string;
 }
 
 interface ExecutionContext {
@@ -47,7 +49,10 @@ const worker = {
     return handler.fetch(request, env, ctx);
   },
   async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (env.PUBLIC_CORPUS_IMPORT_ENABLED !== "true") return;
+    if (!isHostedCorpusImportEnabled(
+      env.RELEASEGUARD_DEPLOYMENT_MODE,
+      env.PUBLIC_CORPUS_IMPORT_ENABLED,
+    )) return;
     ctx.waitUntil(runHostedPublicCorpusImport(env).then((report) => {
       console.log(JSON.stringify({ event: "PUBLIC_CORPUS_IMPORT", report }));
       if (report.failed > 0 || report.partial > 0) throw new Error("PUBLIC_CORPUS_IMPORT_INCOMPLETE");

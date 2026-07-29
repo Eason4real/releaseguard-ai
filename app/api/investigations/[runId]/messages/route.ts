@@ -7,11 +7,14 @@ import { D1InvestigationStore } from "@/lib/investigation/repository";
 import { toLegacyResponse } from "@/lib/investigation/runtime";
 import type { InvestigationMessageIntent } from "@/lib/investigation/types";
 import { createRuntimeRetrievers } from "@/lib/retrieval/runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const { runId } = await context.params;
     const body = await request.json() as {

@@ -6,6 +6,8 @@ type GithubConnectionRequest = {
   };
 };
 
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -13,6 +15,8 @@ const json = (body: unknown, status = 200) =>
   });
 
 export async function POST(request: Request) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   let payload: GithubConnectionRequest;
   try {
     payload = await request.json() as GithubConnectionRequest;

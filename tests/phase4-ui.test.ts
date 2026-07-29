@@ -13,8 +13,83 @@ import {
   resolveSuccessfulGithubIssue,
 } from "../lib/investigation/ui-presentation";
 import type { InvestigationAggregate, LegacyInvestigationResponse } from "../lib/investigation/types";
+import {
+  isHostedCorpusImportEnabled,
+  isLocalSchemaAutoMigrationEnabled,
+  resolveDeploymentMode,
+} from "../lib/deployment-mode";
+import {
+  createPublicDemoState,
+  publicDemoAuditRows,
+  transitionPublicDemo,
+} from "../lib/public-demo";
 
-const pageSource = () => readFile("app/page.tsx", "utf8");
+const pageSource = async () => [
+  await readFile("app/page.tsx", "utf8"),
+  await readFile("app/private-live-workspace.tsx", "utf8"),
+  await readFile("app/public-demo.tsx", "utf8"),
+].join("\n");
+
+test("Deployment mode defaults safe and only an exact server value enables Private Live", () => {
+  assert.equal(resolveDeploymentMode(undefined), "PUBLIC_DEMO");
+  assert.equal(resolveDeploymentMode("PUBLIC_DEMO"), "PUBLIC_DEMO");
+  assert.equal(resolveDeploymentMode("private_live"), "PUBLIC_DEMO");
+  assert.equal(resolveDeploymentMode("PRIVATE_LIVE"), "PRIVATE_LIVE");
+});
+
+test("Runtime schema auto-migration is limited to explicit local and test execution", () => {
+  assert.equal(isLocalSchemaAutoMigrationEnabled({}), false);
+  assert.equal(isLocalSchemaAutoMigrationEnabled({
+    NODE_ENV: "production", RELEASEGUARD_SCHEMA_MODE: "LOCAL_AUTO",
+  }), false);
+  assert.equal(isLocalSchemaAutoMigrationEnabled({
+    NODE_ENV: "development", RELEASEGUARD_SCHEMA_MODE: "LOCAL_AUTO",
+  }), true);
+  assert.equal(isLocalSchemaAutoMigrationEnabled({
+    NODE_ENV: "test", RELEASEGUARD_SCHEMA_MODE: "LOCAL_AUTO",
+  }), true);
+});
+
+test("Hosted corpus import is impossible in Public Demo even when its schedule flag is set", () => {
+  assert.equal(isHostedCorpusImportEnabled("PUBLIC_DEMO", "true"), false);
+  assert.equal(isHostedCorpusImportEnabled(undefined, "true"), false);
+  assert.equal(isHostedCorpusImportEnabled("PRIVATE_LIVE", "false"), false);
+  assert.equal(isHostedCorpusImportEnabled("PRIVATE_LIVE", "true"), true);
+});
+
+test("Public Demo completes the fixture workflow entirely in a local state machine", () => {
+  let state = createPublicDemoState();
+  for (const event of [
+    "RUN_INVESTIGATION", "APPROVE", "SIMULATE_ACTION", "COMPLETE_ACTION", "VERIFY",
+  ] as const) state = transitionPublicDemo(state, event, `2026-07-29T00:00:0${publicDemoAuditRows(state).length}Z`);
+  assert.equal(state.stage, "VERIFIED");
+  assert.equal(publicDemoAuditRows(state).length, 5);
+  assert.equal(transitionPublicDemo(state, "RESET").stage, "IDLE");
+});
+
+test("Public Demo UI has no persistence, credential fields, network calls or real issue links", async () => {
+  const source = await readFile("app/public-demo.tsx", "utf8");
+  const styles = await readFile("app/globals.css", "utf8");
+  assert.doesNotMatch(source, /fetch\(|sessionStorage|localStorage|apiKey|token|type=["']password|github\.com/i);
+  assert.match(source, /公开演示模式/);
+  assert.match(source, /模拟创建工作项/);
+  assert.match(source, /Action Completion/);
+  assert.match(source, /确定性 Verification/);
+  assert.match(source, /不读取 D1，不调用模型或 GitHub/);
+  assert.doesNotMatch(styles, /\.reset-button[^\{]*\{[^\}]*display\s*:\s*none/);
+});
+
+test("Public and Private workspaces are split and Private Live never silently substitutes fixture", async () => {
+  const shell = await readFile("app/page.tsx", "utf8");
+  const privateSource = await readFile("app/private-live-workspace.tsx", "utf8");
+  assert.match(shell, /lazy\(\(\) => import\("\.\/private-live-workspace"\)\)/);
+  assert.match(shell, /useState<DeploymentMode>\("PUBLIC_DEMO"\)/);
+  assert.match(privateSource, /if \(!modelConfig\)/);
+  assert.match(privateSource, /fixture: false/);
+  assert.doesNotMatch(privateSource, /fixture: !modelConfig/);
+  assert.doesNotMatch(privateSource, /Eason4real|releaseguard-demo/);
+  assert.match(privateSource, /私有 Live 模式/);
+});
 
 test("Phase 4 UI renders claim evidence and marks historical RAG provenance", async () => {
   const source = await pageSource();

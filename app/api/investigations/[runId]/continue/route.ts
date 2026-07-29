@@ -2,11 +2,14 @@ import { D1InvestigationStore } from "@/lib/investigation/repository";
 import { continueInvestigation } from "@/lib/investigation/revision-runtime";
 import { RuntimeRequestError } from "@/lib/investigation/action-runtime";
 import { toLegacyResponse } from "@/lib/investigation/runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const { runId } = await context.params;
     const body = await request.json() as { clientRequestId?: string; reason?: string };

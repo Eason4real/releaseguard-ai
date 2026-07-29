@@ -80,6 +80,34 @@ button { color: inherit; }
 .model-config-button i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #98a2b3; }
 .model-config-button.connected { border-color: #a8dfca; color: #137752; background: #f2fbf7; }
 .model-config-button.connected i { background: var(--green); box-shadow: 0 0 0 3px rgba(22,163,106,.1); }
+.deployment-mode-badge { display: inline-flex; align-items: center; min-height: 30px; border: 1px solid #b8c2d3; border-radius: 6px; padding: 0 10px; color: #344054; background: #f8fafc; font-size: 11px; font-weight: 750; }
+.deployment-mode-badge.public { border-color: #8bd7bd; color: #116149; background: #eefbf6; }
+.public-mode-notice { display: flex; align-items: center; gap: 12px; margin: 0 28px; border-bottom: 1px solid #dce5e1; padding: 10px 0; color: #344054; font-size: 12px; }
+.public-mode-notice b { color: #116149; }
+.public-mode-notice span { min-width: 0; }
+.mode-loading { display: grid; min-height: 100vh; place-items: center; color: #475467; background: #f6f8fb; }
+.demo-metric { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; min-height: 220px; gap: 20px; padding: 32px; }
+.demo-metric div { border-left: 3px solid #98a2b3; padding-left: 16px; }
+.demo-metric div:last-child { border-color: #e5484d; }
+.demo-metric small { display: block; color: #667085; font-size: 11px; }
+.demo-metric b { display: block; margin-top: 7px; color: #101828; font-size: 30px; }
+.demo-metric span { color: #98a2b3; font-size: 24px; }
+.demo-evidence-list { display: grid; gap: 10px; padding: 18px 20px 22px; }
+.demo-evidence-list article { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 10px; border: 1px solid #e1e6ee; border-radius: 6px; padding: 13px; background: #fff; }
+.demo-evidence-list article > span { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 50%; color: #116149; background: #e9f8f2; }
+.demo-evidence-list p { margin: 4px 0; color: #344054; }
+.demo-evidence-list small { color: #667085; }
+.demo-empty { display: grid; min-height: 260px; place-items: center; align-content: center; gap: 12px; text-align: center; }
+.demo-empty p { color: #667085; }
+.demo-action-sequence { display: grid; gap: 12px; }
+.demo-step { display: grid; grid-template-columns: 34px minmax(0,1fr) minmax(150px,auto); align-items: center; gap: 14px; padding: 17px 18px; opacity: .68; }
+.demo-step.current, .demo-step.complete { opacity: 1; }
+.demo-step > span { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #cbd5e1; border-radius: 50%; font-weight: 750; }
+.demo-step.current { border-color: #77cdb0; }
+.demo-step.complete > span { border-color: #77cdb0; color: #116149; background: #e9f8f2; }
+.demo-step h3 { margin: 0; font-size: 15px; }
+.demo-step p { margin: 4px 0 0; color: #667085; font-size: 12px; }
+.demo-step button { min-width: 150px; }
 .content { padding: 24px 30px 40px; max-width: 1540px; margin: 0 auto; }
 .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .kpi-card, .panel { background: #fff; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(16,24,40,.035); }
@@ -399,7 +427,7 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
   .table-head, .table-row { grid-template-columns: 72px 90px 1fr; }
   .table-head span:last-child, .table-row b { display: none; }
   .evidence-list article { grid-template-columns: auto 1fr; }
-  .evidence-list article > b, .reset-button { display: none; }
+  .evidence-list article > b { display: none; }
   .model-modal { padding: 19px; }
   .execution-actions { align-items: stretch; flex-direction: column; }
   .demo-launcher-actions { width: 100%; align-items: stretch; flex-direction: column; }
@@ -407,6 +435,10 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
   .execution-actions .connector-ready, .execution-actions .connector-missing { margin-right: 0; }
   .issue-created { grid-template-columns: auto 1fr; }
   .issue-created a { grid-column: 2; }
+  .public-mode-notice { margin: 0 14px; align-items: flex-start; flex-direction: column; }
+  .demo-metric { min-height: 180px; padding: 20px; }
+  .demo-step { grid-template-columns: 32px minmax(0,1fr); }
+  .demo-step button { grid-column: 2; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }

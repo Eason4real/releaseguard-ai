@@ -306,7 +306,7 @@ test("REAL_PUBLIC remains low-authority historical evidence", async () => {
 });
 
 test("mixed historical corpus UI never upgrades fixture evidence to REAL PUBLIC", async () => {
-  const source = await readFile("app/page.tsx", "utf8");
+  const source = await readFile("app/private-live-workspace.tsx", "utf8");
   assert.match(source, /MIXED/);
   assert.match(source, /labeled per item/);
 });

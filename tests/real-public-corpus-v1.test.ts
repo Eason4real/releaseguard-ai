@@ -50,7 +50,7 @@ test("corpus version and curation metadata survive retrieval preparation", async
 });
 
 test("REAL_PUBLIC historical memory UI exposes provenance without presenting current-event fact", async () => {
-  const source = await readFile("app/page.tsx", "utf8");
+  const source = await readFile("app/private-live-workspace.tsx", "utf8");
   assert.match(source, /REAL PUBLIC HISTORICAL MEMORY/);
   assert.match(source, /Historical clue only/);
   assert.match(source, /originalSourceUrl/);

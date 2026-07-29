@@ -18,6 +18,12 @@ await build({
 
 const result = spawnSync(process.execPath, ["--test", outputFile.pathname], {
   stdio: "inherit",
+  env: {
+    ...process.env,
+    NODE_ENV: "test",
+    RELEASEGUARD_DEPLOYMENT_MODE: "PRIVATE_LIVE",
+    RELEASEGUARD_SCHEMA_MODE: "LOCAL_AUTO",
+  },
 });
 await rm(outputFile, { force: true });
 process.exitCode = result.status ?? 1;

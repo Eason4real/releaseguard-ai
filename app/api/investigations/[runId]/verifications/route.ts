@@ -5,6 +5,7 @@ import {
   createVerificationAttempt,
   listVerificationHistory,
 } from "@/lib/investigation/verification-runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 type VerificationRequest = { clientRequestId?: string };
 
@@ -23,6 +24,8 @@ export async function handleVerificationPost(
   runId: string,
   store: Phase4InvestigationStore = new D1InvestigationStore(),
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     const body = await request.json() as VerificationRequest;
     if (!body.clientRequestId?.trim()) {
@@ -44,6 +47,8 @@ export async function handleVerificationGet(
   runId: string,
   store: Phase4InvestigationStore = new D1InvestigationStore(),
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   try {
     return Response.json({ verifications: await listVerificationHistory(store, runId) });
   } catch (error) {
@@ -55,6 +60,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   const { runId } = await context.params;
   return handleVerificationPost(request, runId);
 }
@@ -63,6 +70,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ runId: string }> },
 ) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   const { runId } = await context.params;
   return handleVerificationGet(runId);
 }

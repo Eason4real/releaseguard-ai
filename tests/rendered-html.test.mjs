@@ -32,11 +32,10 @@ test("renders development preview metadata", async () => {
   const html = await response.text();
   assert.match(html, developmentPreviewMeta);
   assert.match(html, /事件调查/);
-  assert.match(html, /开始演示/);
-  assert.match(html, /Analytics scenario/);
-  assert.match(html, /Feedback corpus/);
-  assert.match(html, /Historical incident corpus/);
-  assert.match(html, /Deterministic verification data/);
-  assert.match(html, /REAL WRITE/);
+  assert.match(html, /公开演示模式/);
+  assert.match(html, /运行公开演示/);
+  assert.match(html, /无共享数据与外部调用/);
+  assert.match(html, /STATIC FIXTURE/);
+  assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
   assert.match(html, /Detect/);
 });

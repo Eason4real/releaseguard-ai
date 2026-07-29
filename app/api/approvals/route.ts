@@ -4,6 +4,7 @@ import {
 } from "@/lib/investigation/action-runtime";
 import { D1InvestigationStore } from "@/lib/investigation/repository";
 import { toLegacyResponse } from "@/lib/investigation/runtime";
+import { blockPublicDemoOperation } from "@/lib/deployment-mode";
 
 type ApprovalRequest = {
   runId?: string;
@@ -17,6 +18,8 @@ type ApprovalRequest = {
 };
 
 export async function POST(request: Request) {
+  const blocked = blockPublicDemoOperation();
+  if (blocked) return blocked;
   let payload: ApprovalRequest;
   try {
     payload = await request.json() as ApprovalRequest;
