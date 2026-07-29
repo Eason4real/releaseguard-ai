@@ -3,6 +3,8 @@ import { calculateHypothesisConfidence } from "./confidence";
 import type { InvestigationPlanner } from "./planner";
 import type { Phase3InvestigationStore } from "./phase3-store";
 import { createToolSignature } from "./state";
+import { validatePlannerDecisionSemantics } from "./planner-decision-semantics";
+import { summarizePlannerUsage } from "./planner-usage";
 import {
   executeAndRecordTool,
   finalizeInvestigation,
@@ -27,20 +29,52 @@ import {
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 
-async function persistPlannerValidationObservations(
+const usageCompleteness = (usage: {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+} | null) => {
+  if (!usage || Object.values(usage).every((value) => value === null)) return "UNAVAILABLE";
+  return Object.values(usage).every((value) => value !== null) ? "COMPLETE" : "PARTIAL";
+};
+
+async function persistPlannerObservations(
   store: Phase3InvestigationStore,
   planner: InvestigationPlanner,
   runId: string,
   iteration: AgentIteration,
 ) {
+  const modelCalls = planner.drainModelCallObservations?.() ?? [];
   const observations = planner.drainDecisionValidationObservations?.() ?? [];
-  if (observations.length === 0) return;
+  if (modelCalls.length === 0 && observations.length === 0) return;
   const eventType: Record<(typeof observations)[number]["outcome"], AuditEvent["type"]> = {
     REPAIR_ATTEMPTED: "PLANNER_DECISION_REPAIR_ATTEMPTED",
     REPAIRED: "PLANNER_DECISION_REPAIRED",
     REPAIR_FAILED: "PLANNER_DECISION_REPAIR_FAILED",
   };
-  await store.saveAuditEvents(observations.map((observation) => ({
+  await store.saveAuditEvents([
+    ...modelCalls.map((observation): AuditEvent => ({
+      id: createId("AE"),
+      runId,
+      proposedActionId: null,
+      approvalId: null,
+      toolCallId: null,
+      type: "PLANNER_MODEL_CALL_OBSERVED",
+      actor: "LLM_PLANNER",
+      details: {
+        iterationId: iteration.id,
+        iterationSequence: iteration.sequence,
+        provider: observation.provider,
+        model: observation.model,
+        attemptIndex: observation.attemptIndex,
+        status: observation.status,
+        latencyMs: observation.latencyMs,
+        usage: observation.usage,
+        usageCompleteness: usageCompleteness(observation.usage),
+      },
+      createdAt: observation.createdAt,
+    })),
+    ...observations.map((observation): AuditEvent => ({
     id: createId("AE"),
     runId,
     proposedActionId: null,
@@ -65,7 +99,8 @@ async function persistPlannerValidationObservations(
       structure: observation.structure,
     },
     createdAt: observation.createdAt,
-  })));
+    })),
+  ]);
 }
 
 const boundedText = (value: string, label: string) => {
@@ -173,7 +208,11 @@ export async function runAgentLoop(
         remainingIterations: maxIterations - localRound,
         remainingToolCalls: maxToolCalls - callsThisInvocation,
       });
-      await persistPlannerValidationObservations(store, input.planner, input.runId, iteration);
+      await persistPlannerObservations(store, input.planner, input.runId, iteration);
+      const semantics = validatePlannerDecisionSemantics(decision, {
+        remainingIterations: maxIterations - localRound,
+        remainingToolCalls: maxToolCalls - callsThisInvocation,
+      });
       const traceSequence = (current.traceEvents.at(-1)?.sequence ?? 0) + 1;
       const decisionTrace = trace(
         input.runId,
@@ -181,8 +220,12 @@ export async function runAgentLoop(
         traceSequence,
         "PLANNER_DECISION",
         "AGENT",
-        decision.rationale,
-        { decisionType: decision.type },
+        semantics.publicSummary ?? decision.rationale,
+        {
+          decisionType: decision.type,
+          decisionReasonCode: semantics.reasonCode,
+          budget: semantics.budget,
+        },
       );
       if (decision.type !== "ASSESS_EVIDENCE" && decision.type !== "FINALIZE") {
         await store.saveTraceEvents([decisionTrace]);
@@ -315,7 +358,7 @@ export async function runAgentLoop(
           };
         });
         decisionTrace.details = {
-          decisionType: decision.type,
+          ...decisionTrace.details,
           assessedEvidenceIds: [...pendingIds],
           assessments: decision.assessments,
         };
@@ -451,6 +494,7 @@ export async function runAgentLoop(
           );
         }
         const beforeFinal = await store.getAggregate(input.runId);
+        const usage = summarizePlannerUsage(beforeFinal?.auditEvents ?? []);
         await finalizeInvestigation(store, {
           runId: input.runId,
           iterationId: iteration.id,
@@ -459,7 +503,7 @@ export async function runAgentLoop(
             diagnosis: decision.diagnosis,
             disposition: decision.disposition,
           },
-          totalTokens: beforeFinal?.run.totalTokens ?? 0,
+          totalTokens: usage.totalTokens ?? beforeFinal?.run.totalTokens ?? 0,
           publicRationale: decision.rationale,
           traceEvent: decisionTrace,
         });
@@ -476,13 +520,13 @@ export async function runAgentLoop(
       await stopInconclusive(
         store,
         input.runId,
-        "PLANNER_STOPPED",
-        decision.rationale || decision.reason,
+        semantics.stopReason ?? "PLANNER_STOPPED",
+        semantics.publicSummary ?? "Planner 已停止调查。",
       );
       return store.getAggregate(input.runId);
     } catch (error) {
       try {
-        await persistPlannerValidationObservations(store, input.planner, input.runId, iteration);
+        await persistPlannerObservations(store, input.planner, input.runId, iteration);
       } catch {
         // Failure-state persistence remains authoritative if diagnostic audit storage is unavailable.
       }

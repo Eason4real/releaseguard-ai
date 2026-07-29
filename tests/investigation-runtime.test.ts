@@ -22,6 +22,7 @@ import {
 import {
   executeAndRecordTool,
   startInvestigation,
+  toLegacyResponse,
 } from "../lib/investigation/runtime";
 import { runFixtureInvestigation } from "../lib/investigation/fixture-runtime";
 import { runAgentLoop } from "../lib/investigation/agent-loop";
@@ -95,6 +96,11 @@ import {
   InMemoryIncidentRetriever,
 } from "../lib/retrieval/local-retrievers";
 import { calculateHypothesisConfidence } from "../lib/investigation/confidence";
+import { summarizePlannerUsage } from "../lib/investigation/planner-usage";
+import {
+  PlannerDecisionSemanticError,
+  validatePlannerDecisionSemantics,
+} from "../lib/investigation/planner-decision-semantics";
 import {
   confirmActionCompletion,
   createVerificationAttempt,
@@ -2322,6 +2328,7 @@ test("P4.1 stores competing hypotheses and never adds default SUPPORTS links", a
       }
       return {
         type: "STOP_INCONCLUSIVE",
+        reasonCode: "INSUFFICIENT_EVIDENCE",
         reason: "测试完成",
         rationale: "评价已持久化，结束测试运行。",
       };
@@ -2468,6 +2475,7 @@ test("P4.1 treats a legacy partial Evidence x Hypothesis matrix as pending", asy
       }
       return {
         type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
         question: "矩阵已完整，是否继续？",
         rationale: "暂停以检查持久化结果。",
       };
@@ -2570,6 +2578,7 @@ test("P4.1 adding H3 makes previously assessed Evidence pending again", async ()
       }
       return {
         type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
         question: "矩阵已完整。",
         rationale: "测试暂停。",
       };
@@ -2605,6 +2614,7 @@ test("P4.1 serializes concurrent human hypotheses at the three-active limit", as
     async plan() {
       return {
         type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
         question: "测试暂停。",
         rationale: "人工新增完成后暂停。",
       };
@@ -2644,6 +2654,7 @@ test("P4.1 rejects a fourth human hypothesis and legacy over-limit recovery", as
     async plan() {
       return {
         type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
         question: "测试暂停。",
         rationale: "不应执行。",
       };
@@ -2674,6 +2685,7 @@ test("P4.1 rejects a fourth human hypothesis and legacy over-limit recovery", as
       plannerCalled = true;
       return {
         type: "STOP_INCONCLUSIVE",
+        reasonCode: "INSUFFICIENT_EVIDENCE",
         reason: "不应执行",
         rationale: "不应执行",
       };
@@ -3389,6 +3401,114 @@ test("P4.2 LLMPlanner rejects model-supplied confidence and grounding fields", a
   }
 });
 
+test("Planner usage summary covers initial-only, repair-only, combined, missing and partial usage", () => {
+  const event = (
+    id: string,
+    attemptIndex: number,
+    usage: { promptTokens: number | null; completionTokens: number | null; totalTokens: number | null } | null,
+  ): AuditEvent => ({
+    id,
+    runId: "RUN-USAGE",
+    proposedActionId: null,
+    approvalId: null,
+    toolCallId: null,
+    type: "PLANNER_MODEL_CALL_OBSERVED",
+    actor: "LLM_PLANNER",
+    details: { attemptIndex, usage },
+    createdAt: new Date().toISOString(),
+  });
+  const initial = event("AE-INITIAL", 0,
+    { promptTokens: 10, completionTokens: 4, totalTokens: 14 });
+  const repair = event("AE-REPAIR", 1,
+    { promptTokens: 12, completionTokens: 3, totalTokens: 15 });
+
+  assert.deepEqual(summarizePlannerUsage([initial]), {
+    inputTokens: 10, outputTokens: 4, totalTokens: 14, completeness: "COMPLETE",
+    modelCallCount: 1, usageObservedCallCount: 1, source: "MODEL_CALL_OBSERVATIONS",
+  });
+  assert.deepEqual(summarizePlannerUsage([repair]), {
+    inputTokens: 12, outputTokens: 3, totalTokens: 15, completeness: "COMPLETE",
+    modelCallCount: 1, usageObservedCallCount: 1, source: "MODEL_CALL_OBSERVATIONS",
+  });
+  assert.deepEqual(summarizePlannerUsage([initial, repair]), {
+    inputTokens: 22, outputTokens: 7, totalTokens: 29, completeness: "COMPLETE",
+    modelCallCount: 2, usageObservedCallCount: 2, source: "MODEL_CALL_OBSERVATIONS",
+  });
+  assert.deepEqual(summarizePlannerUsage([event("AE-MISSING", 0, null)]), {
+    inputTokens: null, outputTokens: null, totalTokens: null, completeness: "UNAVAILABLE",
+    modelCallCount: 1, usageObservedCallCount: 0, source: "MODEL_CALL_OBSERVATIONS",
+  });
+  assert.deepEqual(summarizePlannerUsage([
+    event("AE-PARTIAL-1", 0, { promptTokens: 9, completionTokens: null, totalTokens: null }),
+    event("AE-PARTIAL-2", 1, null),
+  ]), {
+    inputTokens: 9, outputTokens: null, totalTokens: null, completeness: "PARTIAL",
+    modelCallCount: 2, usageObservedCallCount: 1, source: "MODEL_CALL_OBSERVATIONS",
+  });
+});
+
+test("Server validates Planner stop semantics against authoritative remaining budget", () => {
+  const exhaustedTools = validatePlannerDecisionSemantics({
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "MAX_TOOL_CALLS",
+    reason: "No calls remain.",
+    rationale: "Stop.",
+  }, { remainingIterations: 4, remainingToolCalls: 0 });
+  assert.equal(exhaustedTools.stopReason, "MAX_TOOL_CALLS");
+  assert.equal(exhaustedTools.budget.toolBudgetExhausted, true);
+
+  assert.throws(() => validatePlannerDecisionSemantics({
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "MAX_TOOL_CALLS",
+    reason: "Budget looks low.",
+    rationale: "Stop.",
+  }, { remainingIterations: 4, remainingToolCalls: 1 }),
+  (error) => error instanceof PlannerDecisionSemanticError
+    && error.code === "STOP_REASON_BUDGET_MISMATCH");
+
+  const exhaustedIterations = validatePlannerDecisionSemantics({
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "MAX_ITERATIONS",
+    reason: "This is the final round.",
+    rationale: "Stop.",
+  }, { remainingIterations: 1, remainingToolCalls: 3 });
+  assert.equal(exhaustedIterations.stopReason, "MAX_ITERATIONS");
+  assert.throws(() => validatePlannerDecisionSemantics({
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "MAX_ITERATIONS",
+    reason: "Rounds remain.",
+    rationale: "Stop.",
+  }, { remainingIterations: 2, remainingToolCalls: 3 }), PlannerDecisionSemanticError);
+});
+
+test("Agent trace presents validated wait reason and server budget instead of model budget prose", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan() {
+      return {
+        type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
+        question: "Please provide the unavailable server error distribution.",
+        rationale: "The tool budget is exhausted.",
+      };
+    },
+  };
+  const result = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner,
+    maxIterations: 4,
+    maxToolCalls: 10,
+  });
+  const decisionTrace = result?.traceEvents.find((item) => item.type === "PLANNER_DECISION");
+  assert.equal(result?.run.status, "WAITING_HUMAN_INPUT");
+  assert.equal(decisionTrace?.publicSummary,
+    "继续调查需要当前工具无法取得的人工上下文。");
+  assert.equal((decisionTrace?.details.budget as { remainingToolCalls: number }).remainingToolCalls, 10);
+  assert.equal(decisionTrace?.details.decisionReasonCode, "HUMAN_CONTEXT_REQUIRED");
+  assert.doesNotMatch(decisionTrace?.publicSummary ?? "", /budget|预算.*耗尽/i);
+});
+
 test("LLM planner repairs missing, wrong-type and empty assessments without server completion", async (t) => {
   const malformedCases = [
     {
@@ -3504,7 +3624,8 @@ test("LLM planner strictly rejects missing, empty, and non-string business field
       type: "CALL_TOOL", rationale: "Query release metadata.", toolName: "get_release",
       arguments: { release_id: "REL-1" }, targetHypothesisIds: ["H-1"], testIntent: "DISCRIMINATE",
     },
-    ASK_HUMAN: { type: "ASK_HUMAN", rationale: "Request missing context.", question: "Which cohort changed?" },
+    ASK_HUMAN: { type: "ASK_HUMAN", reasonCode: "HUMAN_CONTEXT_REQUIRED",
+      rationale: "Request missing context.", question: "Which cohort changed?" },
     FINALIZE: {
       type: "FINALIZE", rationale: "Finalize grounded findings.", selectedHypothesisId: "H-1",
       diagnosis: { summary: "Release regression is supported.", claims: [{ type: "ROOT_CAUSE",
@@ -3512,6 +3633,7 @@ test("LLM planner strictly rejects missing, empty, and non-string business field
     },
     STOP_INCONCLUSIVE: {
       type: "STOP_INCONCLUSIVE", rationale: "Available evidence is insufficient.",
+      reasonCode: "INSUFFICIENT_EVIDENCE",
       reason: "The required current metric is unavailable.",
     },
   } as const;
@@ -3527,11 +3649,13 @@ test("LLM planner strictly rejects missing, empty, and non-string business field
     }] }] }, path: "assessments[0].relations[0].explanation" },
     { decision: { ...valid.CALL_TOOL, testIntent: 1 }, path: "testIntent" },
     { decision: { ...valid.CALL_TOOL, targetHypothesisIds: [1] }, path: "targetHypothesisIds[0]" },
+    { decision: { ...valid.ASK_HUMAN, reasonCode: "BUDGET_LOOKS_LOW" }, path: "reasonCode" },
     { decision: { ...valid.ASK_HUMAN, question: "" }, path: "question" },
     { decision: { ...valid.FINALIZE, disposition: undefined }, path: "disposition" },
     { decision: { ...valid.FINALIZE, diagnosis: { ...valid.FINALIZE.diagnosis, claims: [{
       ...valid.FINALIZE.diagnosis.claims[0], statement: 123,
     }] } }, path: "diagnosis.claims[0].statement" },
+    { decision: { ...valid.STOP_INCONCLUSIVE, reasonCode: "ALMOST_EXHAUSTED" }, path: "reasonCode" },
     { decision: { ...valid.STOP_INCONCLUSIVE, reason: undefined }, path: "reason" },
   ];
   for (const item of malformed) {
@@ -3548,8 +3672,10 @@ test("LLM planner strictly rejects missing, empty, and non-string business field
 test("LLM planner asks the same model to repair a missing STOP reason instead of filling it", async () => {
   const setup = await runningInvestigationWithHypotheses();
   const responses = [
-    { type: "STOP_INCONCLUSIVE", rationale: "Current evidence is insufficient." },
-    { type: "STOP_INCONCLUSIVE", reason: "The current metric source is unavailable.",
+    { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+      rationale: "Current evidence is insufficient." },
+    { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "The current metric source is unavailable.",
       rationale: "Current evidence is insufficient." },
   ];
   let modelCalls = 0;
@@ -3565,7 +3691,8 @@ test("LLM planner asks the same model to repair a missing STOP reason instead of
       trigger: "INITIAL", humanMessage: null, remainingIterations: 2, remainingToolCalls: 1 });
     assert.equal(modelCalls, 2);
     assert.deepEqual(decision, {
-      type: "STOP_INCONCLUSIVE", reason: "The current metric source is unavailable.",
+      type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "The current metric source is unavailable.",
       rationale: "Current evidence is insufficient.",
     });
     assert.deepEqual(planner.drainDecisionValidationObservations().map((item) => item.outcome),
@@ -3601,7 +3728,8 @@ test("LLM decision repair stays inside one AgentLoop iteration and persists safe
   const decisions = [
     { type: "ASSESS_EVIDENCE", rationale: "Malformed first attempt." },
     assessment,
-    { type: "STOP_INCONCLUSIVE", reason: "More current evidence is required.", rationale: "Stop safely." },
+    { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "More current evidence is required.", rationale: "Stop safely." },
   ];
   let modelCalls = 0;
   const originalFetch = globalThis.fetch;
@@ -3642,7 +3770,21 @@ test("LLM decision repair stays inside one AgentLoop iteration and persists safe
     ]);
     assert.equal(repairEvents[0].details.iterationId, repairEvents[1].details.iterationId);
     assert.equal(repairEvents[0].details.iterationSequence, 1);
+    const modelCallEvents = completed?.auditEvents.filter((event) =>
+      event.type === "PLANNER_MODEL_CALL_OBSERVED") ?? [];
+    assert.equal(modelCallEvents.length, 3);
+    assert.deepEqual(modelCallEvents.map((event) => event.details.attemptIndex), [0, 1, 0]);
+    assert.deepEqual(toLegacyResponse(completed!, { mode: "live", parseStatus: "direct" }).usage, {
+      input_tokens: 15,
+      output_tokens: 6,
+      total_tokens: 21,
+      completeness: "COMPLETE",
+      model_call_count: 3,
+      usage_observed_call_count: 3,
+    });
     assert.doesNotMatch(JSON.stringify(repairEvents),
+      /never-persist-this-secret|Authorization|Malformed first attempt|rawResponse|responseBody/);
+    assert.doesNotMatch(JSON.stringify(modelCallEvents),
       /never-persist-this-secret|Authorization|Malformed first attempt|rawResponse|responseBody/);
   } finally {
     globalThis.fetch = originalFetch;

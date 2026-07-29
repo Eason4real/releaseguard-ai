@@ -5,9 +5,12 @@ import {
   canApplyInvestigationResponse,
   canPresentCurrentInvestigation,
   presentationStatusFromRun,
+  resolveActionPresentation,
   resolveInvestigationConfidence,
+  resolvePlannerUsagePresentation,
+  resolveSuccessfulGithubIssue,
 } from "../lib/investigation/ui-presentation";
-import type { LegacyInvestigationResponse } from "../lib/investigation/types";
+import type { InvestigationAggregate, LegacyInvestigationResponse } from "../lib/investigation/types";
 
 const pageSource = () => readFile("app/page.tsx", "utf8");
 
@@ -126,4 +129,103 @@ test("Starting a new Web investigation clears stale artifacts and guards concurr
   assert.match(source, /if \(requestId !== investigationRequest\.current\) return;/);
   assert.match(source, /<b>调查失败<\/b>/);
   assert.doesNotMatch(source, /const confidence[^\n]*:\s*"HIGH"/);
+});
+
+test("Planner usage presentation distinguishes complete, partial and unavailable values", () => {
+  assert.deepEqual(resolvePlannerUsagePresentation({
+    input_tokens: 1_200,
+    output_tokens: 300,
+    total_tokens: 1_500,
+    completeness: "COMPLETE",
+    model_call_count: 2,
+    usage_observed_call_count: 2,
+  }), {
+    input: "1,200", output: "300", total: "1,500",
+    completeness: "COMPLETE", completenessLabel: "完整",
+  });
+  assert.equal(resolvePlannerUsagePresentation({
+    input_tokens: 900,
+    output_tokens: null,
+    total_tokens: null,
+    completeness: "PARTIAL",
+    model_call_count: 2,
+    usage_observed_call_count: 1,
+  }).completenessLabel, "部分");
+  const unavailable = resolvePlannerUsagePresentation({
+    input_tokens: null,
+    output_tokens: null,
+    total_tokens: null,
+    completeness: "UNAVAILABLE",
+    model_call_count: 1,
+    usage_observed_call_count: 0,
+  });
+  assert.equal(unavailable.total, "不可用");
+  assert.notEqual(unavailable.total, "0");
+});
+
+const actionAggregate = (input: {
+  actionStatus: string;
+  callStatus: string;
+  approvalStatus?: string;
+  resultStatus?: string | null;
+  output?: unknown;
+}) => ({
+  proposedAction: { id: "PA-1", status: input.actionStatus },
+  approval: { id: "APR-1", status: input.approvalStatus ?? "PENDING" },
+  toolCalls: [{
+    id: "TC-1",
+    name: "create_github_issue",
+    proposedActionId: "PA-1",
+    status: input.callStatus,
+    result: input.resultStatus ? {
+      status: input.resultStatus,
+      output: input.output ?? null,
+      errorMessage: input.resultStatus === "ERROR" ? "GitHub rejected the request." : null,
+    } : null,
+  }],
+}) as unknown as InvestigationAggregate;
+
+test("Action presentation is derived from persisted approval, tool and result state", () => {
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "PENDING_APPROVAL", callStatus: "WAITING_APPROVAL",
+  })).state, "WAITING_APPROVAL");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "EXECUTING", callStatus: "RUNNING", approvalStatus: "APPROVED",
+  })).state, "RUNNING");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "SUCCEEDED", callStatus: "COMPLETED", approvalStatus: "APPROVED",
+    resultStatus: "SUCCESS",
+    output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
+      createdAt: "2026-07-29T00:00:00.000Z" },
+  })).state, "SUCCEEDED");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "FAILED", callStatus: "COMPLETED", approvalStatus: "APPROVED",
+    resultStatus: "ERROR",
+  })).state, "FAILED");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "REJECTED", callStatus: "DENIED", approvalStatus: "REJECTED",
+  })).state, "REJECTED");
+  assert.equal(resolveActionPresentation(actionAggregate({
+    actionStatus: "CANCELLED", callStatus: "CANCELLED", approvalStatus: "WITHDRAWN",
+  })).state, "CANCELLED");
+});
+
+test("Action presentation never reports success without a completed call and valid result", () => {
+  const missingResult = resolveActionPresentation(actionAggregate({
+    actionStatus: "SUCCEEDED", callStatus: "COMPLETED", approvalStatus: "APPROVED",
+  }));
+  assert.equal(missingResult.state, "FAILED");
+  assert.doesNotMatch(missingResult.title, /已创建/);
+  assert.equal(resolveSuccessfulGithubIssue(actionAggregate({
+    actionStatus: "SUCCEEDED", callStatus: "WAITING_APPROVAL", approvalStatus: "APPROVED",
+    resultStatus: "SUCCESS",
+    output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
+      createdAt: "2026-07-29T00:00:00.000Z" },
+  })), null);
+  assert.equal(resolveSuccessfulGithubIssue(actionAggregate({
+    actionStatus: "PENDING_APPROVAL", callStatus: "COMPLETED", approvalStatus: "PENDING",
+    resultStatus: "SUCCESS",
+    output: { number: 42, title: "Release fix", url: "https://github.com/acme/repo/issues/42",
+      createdAt: "2026-07-29T00:00:00.000Z" },
+  })), null);
 });

@@ -205,6 +205,7 @@ export type Approval = {
 };
 
 export type AuditEventType =
+  | "PLANNER_MODEL_CALL_OBSERVED"
   | "PLANNER_DECISION_REPAIR_ATTEMPTED"
   | "PLANNER_DECISION_REPAIRED"
   | "PLANNER_DECISION_REPAIR_FAILED"
@@ -248,6 +249,7 @@ export type InvestigationStopReason =
   | "NO_APPLICABLE_TOOL"
   | "SUFFICIENT_EVIDENCE"
   | "HUMAN_REQUESTED_FINALIZE"
+  | "INSUFFICIENT_EVIDENCE"
   | "PLANNER_STOPPED"
   | "PLANNER_ERROR";
 
@@ -526,6 +528,13 @@ export type LegacyInvestigationResponse = {
     parse_status: "direct" | "repaired" | "raw" | "fixture";
     raw_conclusion: string | null;
   };
-  usage?: { total_tokens?: number };
+  usage: {
+    input_tokens: number | null;
+    output_tokens: number | null;
+    total_tokens: number | null;
+    completeness: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+    model_call_count: number;
+    usage_observed_call_count: number;
+  };
   investigation: InvestigationAggregate;
 };

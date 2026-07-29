@@ -1,4 +1,5 @@
 import { canonicalize, createToolSignature } from "./state";
+import { summarizePlannerUsage } from "./planner-usage";
 import type { AnalyticsStore } from "../analytics/store";
 import type { InvestigationStore } from "./store";
 import type { Phase3InvestigationStore } from "./phase3-store";
@@ -455,6 +456,7 @@ export function toLegacyResponse(
     rawConclusion?: string | null;
   },
 ): LegacyInvestigationResponse {
+  const usage = summarizePlannerUsage(aggregate.auditEvents);
   return {
     mode: options.mode,
     provider: aggregate.run.provider,
@@ -478,7 +480,14 @@ export function toLegacyResponse(
       parse_status: options.parseStatus,
       raw_conclusion: options.rawConclusion ?? null,
     },
-    usage: { total_tokens: aggregate.run.totalTokens },
+    usage: {
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      total_tokens: usage.totalTokens,
+      completeness: usage.completeness,
+      model_call_count: usage.modelCallCount,
+      usage_observed_call_count: usage.usageObservedCallCount,
+    },
     investigation: aggregate,
   };
 }

@@ -14,6 +14,7 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
     if (!event || !release) {
       return {
         type: "STOP_INCONCLUSIVE" as const,
+        reasonCode: "INSUFFICIENT_EVIDENCE" as const,
         reason: "缺少 RiskEvent 或 Release 上下文",
         rationale: "统计事件或发布记录不完整，无法开始可靠调查。",
       };
@@ -87,6 +88,7 @@ export class DeterministicInvestigationPlanner implements InvestigationPlanner {
     if (assessable.length === 0) {
       return {
         type: "STOP_INCONCLUSIVE" as const,
+        reasonCode: "NO_APPLICABLE_TOOL" as const,
         reason: "所有竞争假设均已被当前证据否定",
         rationale: "现有工具无法形成新的可验证假设，安全停止调查。",
       };

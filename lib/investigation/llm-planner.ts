@@ -5,12 +5,15 @@ import {
   type ModelMessage,
 } from "./model";
 import { modelToolDefinitions } from "./tools";
-import type {
-  InvestigationDecision,
-  InvestigationPlanner,
-  PlannerContext,
-  PlannerDecisionValidationCode,
-  PlannerDecisionValidationObservation,
+import {
+  PLANNER_STOP_REASON_CODES,
+  PLANNER_WAIT_REASON_CODES,
+  type InvestigationDecision,
+  type InvestigationPlanner,
+  type PlannerContext,
+  type PlannerModelCallObservation,
+  type PlannerDecisionValidationCode,
+  type PlannerDecisionValidationObservation,
 } from "./planner";
 import { getPendingEvidence } from "./hypothesis-invariants";
 
@@ -115,9 +118,9 @@ const DECISION_CONTRACTS: Record<InvestigationDecision["type"], string> = {
   CREATE_HYPOTHESES: "{type:'CREATE_HYPOTHESES',hypotheses:[{statement:string,supportIf:string,refuteIf:string}],rationale:string}; hypotheses 必须包含 1–3 项。",
   ASSESS_EVIDENCE: "{type:'ASSESS_EVIDENCE',assessments:[{evidenceId:string,relations:[{targetHypothesisId:string,relation:'SUPPORTS'|'CONTRADICTS'|'NEUTRAL',explanation:string}]}],rationale:string}; assessments 和每项 relations 必须为非空数组。",
   CALL_TOOL: "{type:'CALL_TOOL',toolName:string,arguments:object,targetHypothesisIds:string[],testIntent:'SUPPORT'|'REFUTE'|'DISCRIMINATE',rationale:string}",
-  ASK_HUMAN: "{type:'ASK_HUMAN',question:string,rationale:string}",
+  ASK_HUMAN: "{type:'ASK_HUMAN',reasonCode:'HUMAN_CONTEXT_REQUIRED'|'NO_APPLICABLE_TOOL',question:string,rationale:string}",
   FINALIZE: "{type:'FINALIZE',selectedHypothesisId:string,diagnosis:{summary:string,claims:[{type,statement,evidenceIds:string[],limitationType?}]},disposition:'OBSERVE'|'FIX'|'ROLLBACK'|'ESCALATE',rationale:string}",
-  STOP_INCONCLUSIVE: "{type:'STOP_INCONCLUSIVE',reason:string,rationale:string}",
+  STOP_INCONCLUSIVE: "{type:'STOP_INCONCLUSIVE',reasonCode:'INSUFFICIENT_EVIDENCE'|'NO_APPLICABLE_TOOL'|'MAX_TOOL_CALLS'|'MAX_ITERATIONS',reason:string,rationale:string}",
 };
 
 export function parseInvestigationDecision(content: string, attempt = 0): InvestigationDecision {
@@ -226,12 +229,24 @@ export function parseInvestigationDecision(content: string, attempt = 0): Invest
       rationale };
   }
   if (type === "ASK_HUMAN") {
+    const reasonCode = requiredString(parsed.reasonCode, type, "reasonCode",
+      "Planner ASK_HUMAN reasonCode", attempt);
+    if (!PLANNER_WAIT_REASON_CODES.includes(reasonCode as (typeof PLANNER_WAIT_REASON_CODES)[number])) {
+      return validationError("INVALID_FIELD_VALUE", type, "reasonCode",
+        "Planner ASK_HUMAN reasonCode 不合法。", attempt);
+    }
     const question = requiredString(parsed.question, type, "question", "Planner ASK_HUMAN question", attempt);
-    return { type, question, rationale };
+    return { type, reasonCode: reasonCode as (typeof PLANNER_WAIT_REASON_CODES)[number], question, rationale };
   }
   if (type === "STOP_INCONCLUSIVE") {
+    const reasonCode = requiredString(parsed.reasonCode, type, "reasonCode",
+      "Planner STOP_INCONCLUSIVE reasonCode", attempt);
+    if (!PLANNER_STOP_REASON_CODES.includes(reasonCode as (typeof PLANNER_STOP_REASON_CODES)[number])) {
+      return validationError("INVALID_FIELD_VALUE", type, "reasonCode",
+        "Planner STOP_INCONCLUSIVE reasonCode 不合法。", attempt);
+    }
     const reason = requiredString(parsed.reason, type, "reason", "Planner STOP_INCONCLUSIVE reason", attempt);
-    return { type, reason, rationale };
+    return { type, reasonCode: reasonCode as (typeof PLANNER_STOP_REASON_CODES)[number], reason, rationale };
   }
   requiredString(parsed.selectedHypothesisId, type, "selectedHypothesisId",
     "Planner FINALIZE selectedHypothesisId", attempt);
@@ -347,12 +362,17 @@ const repairFeedback = (error: PlannerDecisionValidationError) => {
 
 export class LLMInvestigationPlanner implements InvestigationPlanner {
   readonly type = "LLM" as const;
+  private readonly modelCallObservations: PlannerModelCallObservation[] = [];
   private readonly observations: PlannerDecisionValidationObservation[] = [];
 
   constructor(
     private readonly config: ModelConfig,
     private readonly options: { maxDecisionRepairAttempts?: number } = {},
   ) {}
+
+  drainModelCallObservations() {
+    return this.modelCallObservations.splice(0);
+  }
 
   drainDecisionValidationObservations() {
     return this.observations.splice(0);
@@ -383,7 +403,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       {
         role: "system",
         content:
-          "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 包含 question、rationale；STOP_INCONCLUSIVE 包含 reason、rationale。FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
+          "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis，包含 targetHypothesisId、relation(SUPPORTS/CONTRADICTS/NEUTRAL)、explanation。evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
       },
       { role: "user", content: `可用工具：${JSON.stringify(modelToolDefinitions)}\n调查上下文：${JSON.stringify(compact)}` },
     ];
@@ -394,7 +414,18 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       const started = performance.now();
       const response = await callModel({
         ...this.config,
-        responseObserver: (observation) => this.config.responseObserver?.({ ...observation, attemptIndex }),
+        responseObserver: (observation) => {
+          this.modelCallObservations.push({
+            provider: this.config.provider,
+            model: observation.model,
+            attemptIndex,
+            latencyMs: observation.latencyMs,
+            status: observation.status,
+            usage: observation.usage,
+            createdAt: new Date().toISOString(),
+          });
+          this.config.responseObserver?.({ ...observation, attemptIndex });
+        },
       }, messages, { enableTools: false });
       const latencyMs = performance.now() - started;
       const content = response.choices?.[0]?.message?.content ?? "";

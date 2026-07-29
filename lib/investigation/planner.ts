@@ -61,6 +61,34 @@ export type PlannerDecisionValidationObservation = {
   createdAt: string;
 };
 
+export type PlannerModelCallObservation = {
+  provider: string;
+  model: string;
+  attemptIndex: number;
+  latencyMs: number;
+  status: "SUCCESS" | "ERROR";
+  usage: {
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+  } | null;
+  createdAt: string;
+};
+
+export const PLANNER_WAIT_REASON_CODES = [
+  "HUMAN_CONTEXT_REQUIRED",
+  "NO_APPLICABLE_TOOL",
+] as const;
+export type PlannerWaitReasonCode = (typeof PLANNER_WAIT_REASON_CODES)[number];
+
+export const PLANNER_STOP_REASON_CODES = [
+  "INSUFFICIENT_EVIDENCE",
+  "NO_APPLICABLE_TOOL",
+  "MAX_TOOL_CALLS",
+  "MAX_ITERATIONS",
+] as const;
+export type PlannerStopReasonCode = (typeof PLANNER_STOP_REASON_CODES)[number];
+
 export type InvestigationDecision =
   | {
       type: "CREATE_HYPOTHESES";
@@ -93,6 +121,7 @@ export type InvestigationDecision =
     }
   | {
       type: "ASK_HUMAN";
+      reasonCode: PlannerWaitReasonCode;
       question: string;
       rationale: string;
     }
@@ -105,6 +134,7 @@ export type InvestigationDecision =
     }
   | {
       type: "STOP_INCONCLUSIVE";
+      reasonCode: PlannerStopReasonCode;
       reason: string;
       rationale: string;
     };
@@ -112,5 +142,6 @@ export type InvestigationDecision =
 export interface InvestigationPlanner {
   readonly type: "LLM" | "DETERMINISTIC";
   plan(context: PlannerContext): Promise<InvestigationDecision>;
+  drainModelCallObservations?(): PlannerModelCallObservation[];
   drainDecisionValidationObservations?(): PlannerDecisionValidationObservation[];
 }
