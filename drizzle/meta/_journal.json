@@ -71,6 +71,13 @@
       "when": 1785220430590,
       "tag": "0009_windy_wallop",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785287655862,
+      "tag": "0010_cool_spyke",
+      "breakpoints": true
     }
   ]
 }

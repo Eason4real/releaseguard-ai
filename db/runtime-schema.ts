@@ -1,6 +1,8 @@
 // D1 migrations remain the deployment source of truth. These idempotent
 // statements make local previews and newly provisioned bindings usable before
 // the first request, without relying on browser storage.
+import { DEFAULT_MAX_MODEL_CALLS } from "../lib/investigation/model-call-budget";
+
 export const investigationRuntimeSchema = [
   `CREATE TABLE IF NOT EXISTS releases (
     id text PRIMARY KEY NOT NULL,
@@ -73,6 +75,8 @@ export const investigationRuntimeSchema = [
     current_iteration integer DEFAULT 0 NOT NULL,
     active_iteration_id text,
     lock_version integer DEFAULT 0 NOT NULL,
+    model_call_count integer DEFAULT 0 NOT NULL,
+    max_model_calls integer DEFAULT ${DEFAULT_MAX_MODEL_CALLS} NOT NULL,
     stop_reason text,
     current_diagnosis_revision integer DEFAULT 0 NOT NULL,
     total_tokens integer DEFAULT 0 NOT NULL,

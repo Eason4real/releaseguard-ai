@@ -5,6 +5,7 @@ import type { Phase3InvestigationStore } from "./phase3-store";
 import { createToolSignature } from "./state";
 import { validatePlannerDecisionSemantics } from "./planner-decision-semantics";
 import { summarizePlannerUsage } from "./planner-usage";
+import { ModelCallBudgetExhaustedError } from "./model-call-budget";
 import {
   executeAndRecordTool,
   finalizeInvestigation,
@@ -67,10 +68,13 @@ async function persistPlannerObservations(
         provider: observation.provider,
         model: observation.model,
         attemptIndex: observation.attemptIndex,
+        reservationId: observation.reservationId,
+        reservationOrdinal: observation.reservationOrdinal,
         status: observation.status,
         latencyMs: observation.latencyMs,
         usage: observation.usage,
         usageCompleteness: usageCompleteness(observation.usage),
+        responseStructure: observation.responseStructure,
       },
       createdAt: observation.createdAt,
     })),
@@ -157,6 +161,7 @@ export async function runAgentLoop(
     triggerMessageId?: string | null;
     maxIterations?: number;
     maxToolCalls?: number;
+    signal?: AbortSignal;
     feedbackRetriever?: FeedbackRetriever;
     incidentRetriever?: IncidentRetriever;
   },
@@ -207,6 +212,19 @@ export async function runAgentLoop(
         humanMessage: input.humanMessage ?? null,
         remainingIterations: maxIterations - localRound,
         remainingToolCalls: maxToolCalls - callsThisInvocation,
+        signal: input.signal,
+        modelCallBudget: {
+          reserve: ({ attemptIndex, provider, model }) => store.reserveModelCall({
+            reservationId: createId("MCR"),
+            runId: input.runId,
+            iterationId: iteration.id,
+            iterationSequence: iteration.sequence,
+            provider,
+            model,
+            attemptIndex,
+            reservedAt: new Date().toISOString(),
+          }),
+        },
       });
       await persistPlannerObservations(store, input.planner, input.runId, iteration);
       const semantics = validatePlannerDecisionSemantics(decision, {
@@ -529,6 +547,35 @@ export async function runAgentLoop(
         await persistPlannerObservations(store, input.planner, input.runId, iteration);
       } catch {
         // Failure-state persistence remains authoritative if diagnostic audit storage is unavailable.
+      }
+      if (error instanceof ModelCallBudgetExhaustedError) {
+        const now = new Date().toISOString();
+        const summary = `服务端模型调用预算已耗尽（${error.modelCallCount}/${error.maxModelCalls}），调查以证据不足结束。`;
+        await store.saveAuditEvents([{
+          id: createId("AE"),
+          runId: input.runId,
+          proposedActionId: null,
+          approvalId: null,
+          toolCallId: null,
+          type: "PLANNER_MODEL_CALL_BUDGET_EXHAUSTED",
+          actor: "ReleaseGuard Runtime",
+          details: {
+            reason: error.code,
+            modelCallCount: error.modelCallCount,
+            maxModelCalls: error.maxModelCalls,
+            iterationId: iteration.id,
+            iterationSequence: iteration.sequence,
+          },
+          createdAt: now,
+        }]);
+        await store.completeIteration(iteration.id, "COMPLETED", null, summary, now);
+        await stopInconclusive(
+          store,
+          input.runId,
+          "MODEL_CALL_BUDGET_EXHAUSTED",
+          summary,
+        );
+        return store.getAggregate(input.runId);
       }
       await store.completeIteration(
         iteration.id,

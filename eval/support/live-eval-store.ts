@@ -7,8 +7,10 @@ import type {
 } from "../../lib/investigation/phase4-store";
 import {
   assertGroundedFinalizationCommit,
+  type ModelCallReservationInput,
   type GroundedFinalizationCommit,
 } from "../../lib/investigation/phase3-store";
+import { MODEL_CALL_HARD_LIMIT } from "../../lib/investigation/model-call-budget";
 import { assertGenericRunTransition } from "../../lib/investigation/state";
 import type { RunTransitionPatch } from "../../lib/investigation/store";
 import type * as T from "../../lib/investigation/types";
@@ -68,6 +70,31 @@ export class LiveEvalStore implements Phase4InvestigationStore {
   }
   async saveEvidence(items: T.Evidence[]) { items.forEach((item) => this.evidence.set(item.id, copy(item))); }
   async saveAuditEvents(items: T.AuditEvent[]) { items.forEach((item) => this.audits.set(item.id, copy(item))); }
+  async reserveModelCall(input: ModelCallReservationInput) {
+    const run = this.runs.get(input.runId);
+    if (!run) throw new Error("Run not found");
+    if (run.status !== "RUNNING" || run.activeIterationId !== input.iterationId) {
+      throw new Error("MODEL_CALL_RESERVATION_PRECONDITION_FAILED");
+    }
+    const maxModelCalls = Math.min(run.maxModelCalls, MODEL_CALL_HARD_LIMIT);
+    if (run.modelCallCount >= maxModelCalls) {
+      return { reserved: false as const, modelCallCount: run.modelCallCount, maxModelCalls };
+    }
+    const modelCallCount = run.modelCallCount + 1;
+    this.runs.set(run.id, { ...run, modelCallCount, updatedAt: input.reservedAt });
+    const reservation = { id: input.reservationId, ordinal: modelCallCount,
+      maxModelCalls, reservedAt: input.reservedAt };
+    this.audits.set(input.reservationId, {
+      id: input.reservationId, runId: input.runId, proposedActionId: null,
+      approvalId: null, toolCallId: null, type: "PLANNER_MODEL_CALL_RESERVED",
+      actor: "ReleaseGuard Runtime", details: { reservationId: reservation.id,
+        reservationOrdinal: reservation.ordinal, maxModelCalls,
+        iterationId: input.iterationId, iterationSequence: input.iterationSequence,
+        provider: input.provider, model: input.model, attemptIndex: input.attemptIndex },
+      createdAt: input.reservedAt,
+    });
+    return { reserved: true as const, reservation };
+  }
 
   async decideApproval(approvalId: string, decision: "APPROVE" | "REJECT", patch: {
     reason: string | null; decidedBy: string; targetOwner: string | null;

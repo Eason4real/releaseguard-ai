@@ -58,6 +58,7 @@ export async function POST(
       analytics: new D1AnalyticsStore(),
       feedbackRetriever: retrievers.feedbackRetriever,
       incidentRetriever: retrievers.incidentRetriever,
+      signal: request.signal,
     });
     if (!result) throw new Error("消息处理后无法恢复 Run。");
     return Response.json(toLegacyResponse(result, {

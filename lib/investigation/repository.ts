@@ -31,8 +31,13 @@ import { D1AnalyticsStore } from "../analytics/repository";
 import type { InvestigationStore, RunTransitionPatch } from "./store";
 import {
   assertGroundedFinalizationCommit,
+  type ModelCallReservationInput,
   type GroundedFinalizationCommit,
 } from "./phase3-store";
+import {
+  MODEL_CALL_HARD_LIMIT,
+  type ModelCallReservationResult,
+} from "./model-call-budget";
 import type {
   ActionCompletionCommit,
   Phase4InvestigationStore,
@@ -102,6 +107,8 @@ const mapRun = (row: typeof investigationRuns.$inferSelect): InvestigationRun =>
   currentIteration: row.currentIteration,
   activeIterationId: row.activeIterationId,
   lockVersion: row.lockVersion,
+  modelCallCount: row.modelCallCount,
+  maxModelCalls: row.maxModelCalls,
   stopReason: row.stopReason as InvestigationRun["stopReason"],
   currentDiagnosisRevision: row.currentDiagnosisRevision,
   totalTokens: row.totalTokens,
@@ -712,6 +719,78 @@ export class D1InvestigationStore implements InvestigationStore, Phase4Investiga
       detailsJson: JSON.stringify(event.details),
       createdAt: event.createdAt,
     })));
+  }
+
+  async reserveModelCall(
+    input: ModelCallReservationInput,
+  ): Promise<ModelCallReservationResult> {
+    const db = await this.dbProvider();
+    const rows = await db
+      .update(investigationRuns)
+      .set({
+        modelCallCount: sql`${investigationRuns.modelCallCount} + 1`,
+        updatedAt: input.reservedAt,
+      })
+      .where(and(
+        eq(investigationRuns.id, input.runId),
+        eq(investigationRuns.status, "RUNNING"),
+        eq(investigationRuns.activeIterationId, input.iterationId),
+        lt(investigationRuns.modelCallCount, investigationRuns.maxModelCalls),
+        lt(investigationRuns.modelCallCount, MODEL_CALL_HARD_LIMIT),
+      ))
+      .returning({
+        modelCallCount: investigationRuns.modelCallCount,
+        maxModelCalls: investigationRuns.maxModelCalls,
+      });
+    if (!rows[0]) {
+      const current = await db.select({
+        status: investigationRuns.status,
+        activeIterationId: investigationRuns.activeIterationId,
+        modelCallCount: investigationRuns.modelCallCount,
+        maxModelCalls: investigationRuns.maxModelCalls,
+      }).from(investigationRuns).where(eq(investigationRuns.id, input.runId)).limit(1);
+      if (!current[0]) throw new Error("InvestigationRun 不存在。");
+      const effectiveMax = Math.min(current[0].maxModelCalls, MODEL_CALL_HARD_LIMIT);
+      if (
+        current[0].status !== "RUNNING"
+        || current[0].activeIterationId !== input.iterationId
+        || current[0].modelCallCount < effectiveMax
+      ) {
+        throw new Error("MODEL_CALL_RESERVATION_PRECONDITION_FAILED");
+      }
+      return {
+        reserved: false,
+        modelCallCount: current[0].modelCallCount,
+        maxModelCalls: effectiveMax,
+      };
+    }
+    const reservation = {
+      id: input.reservationId,
+      ordinal: rows[0].modelCallCount,
+      maxModelCalls: Math.min(rows[0].maxModelCalls, MODEL_CALL_HARD_LIMIT),
+      reservedAt: input.reservedAt,
+    };
+    await this.saveAuditEvents([{
+      id: input.reservationId,
+      runId: input.runId,
+      proposedActionId: null,
+      approvalId: null,
+      toolCallId: null,
+      type: "PLANNER_MODEL_CALL_RESERVED",
+      actor: "ReleaseGuard Runtime",
+      details: {
+        reservationId: reservation.id,
+        reservationOrdinal: reservation.ordinal,
+        maxModelCalls: reservation.maxModelCalls,
+        iterationId: input.iterationId,
+        iterationSequence: input.iterationSequence,
+        provider: input.provider,
+        model: input.model,
+        attemptIndex: input.attemptIndex,
+      },
+      createdAt: input.reservedAt,
+    }]);
+    return { reserved: true, reservation };
   }
 
   async decideApproval(

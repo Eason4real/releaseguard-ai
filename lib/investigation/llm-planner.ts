@@ -11,11 +11,13 @@ import {
   type InvestigationDecision,
   type InvestigationPlanner,
   type PlannerContext,
+  type PlannerResponseStructureObservation,
   type PlannerModelCallObservation,
   type PlannerDecisionValidationCode,
   type PlannerDecisionValidationObservation,
 } from "./planner";
 import { getPendingEvidence } from "./hypothesis-invariants";
+import { ModelCallBudgetExhaustedError } from "./model-call-budget";
 
 const DECISION_TYPES = [
   "CREATE_HYPOTHESES",
@@ -366,9 +368,92 @@ const sha256 = async (value: string) => {
 
 const fieldType = (value: unknown) => Array.isArray(value) ? "array" : value === null ? "null" : typeof value;
 const safeTopLevelKey = (key: string) =>
-  /authorization|api[-_]?key|secret|token|password|cookie|headers?/i.test(key)
+  !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(key)
+    || /authorization|api[-_]?key|secret|token|password|cookie|headers?/i.test(key)
     ? "[REDACTED]"
-    : key.slice(0, 120);
+    : key;
+
+const safeObjectKeys = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+  ? Object.keys(value as Record<string, unknown>).sort().slice(0, 50).map(safeTopLevelKey)
+  : [];
+
+const decisionShape = (
+  value: Record<string, unknown>,
+  decisionType: InvestigationDecision["type"],
+): Record<string, unknown> => {
+  if (decisionType === "ASSESS_EVIDENCE") {
+    const assessments = value.assessments;
+    const assessmentItems = Array.isArray(assessments)
+      ? assessments.filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      : [];
+    const relations = assessmentItems.flatMap((item) => {
+      const candidate = (item as Record<string, unknown>).relations;
+      return Array.isArray(candidate) ? candidate : [];
+    });
+    return {
+      assessmentsFieldType: fieldType(assessments),
+      assessmentsArrayLength: Array.isArray(assessments) ? assessments.length : null,
+      assessmentObjectCount: assessmentItems.length,
+      assessmentKeySets: assessmentItems.map(safeObjectKeys),
+      relationsArrayLengths: assessmentItems.map((item) => {
+        const candidate = (item as Record<string, unknown>).relations;
+        return Array.isArray(candidate) ? candidate.length : null;
+      }),
+      relationObjectCount: relations.filter((item) =>
+        item && typeof item === "object" && !Array.isArray(item)).length,
+      relationKeySets: relations.map(safeObjectKeys),
+    };
+  }
+  if (decisionType === "CREATE_HYPOTHESES") {
+    const hypotheses = value.hypotheses;
+    return {
+      hypothesesFieldType: fieldType(hypotheses),
+      hypothesesArrayLength: Array.isArray(hypotheses) ? hypotheses.length : null,
+      hypothesisKeySets: Array.isArray(hypotheses) ? hypotheses.map(safeObjectKeys) : [],
+    };
+  }
+  if (decisionType === "CALL_TOOL") {
+    return {
+      argumentsFieldType: fieldType(value.arguments),
+      argumentKeys: safeObjectKeys(value.arguments),
+      targetHypothesisIdsCount: Array.isArray(value.targetHypothesisIds)
+        ? value.targetHypothesisIds.length
+        : null,
+    };
+  }
+  if (decisionType === "FINALIZE") {
+    const diagnosis = value.diagnosis as Record<string, unknown> | undefined;
+    return {
+      diagnosisFieldType: fieldType(value.diagnosis),
+      diagnosisKeys: safeObjectKeys(value.diagnosis),
+      claimsArrayLength: Array.isArray(diagnosis?.claims) ? diagnosis.claims.length : null,
+      claimKeySets: Array.isArray(diagnosis?.claims) ? diagnosis.claims.map(safeObjectKeys) : [],
+    };
+  }
+  return {};
+};
+
+async function responseStructureObservation(
+  content: string,
+  decision: InvestigationDecision,
+): Promise<PlannerResponseStructureObservation> {
+  const raw = extractObject(content) ?? {};
+  const normalized = decision as unknown as Record<string, unknown>;
+  return {
+    raw: {
+      responseHash: await sha256(content),
+      responseLength: content.length,
+      topLevelKeys: safeObjectKeys(raw),
+      decisionType: decision.type,
+      shape: decisionShape(raw, decision.type),
+    },
+    normalized: {
+      topLevelKeys: safeObjectKeys(normalized),
+      decisionType: decision.type,
+      shape: decisionShape(normalized, decision.type),
+    },
+  };
+}
 
 const usageFromResponse = (response: Awaited<ReturnType<typeof callModel>>) => response.usage ? {
   promptTokens: response.usage.prompt_tokens ?? null,
@@ -476,22 +561,41 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
     let messages = baseMessages;
     let repairError: PlannerDecisionValidationError | null = null;
     for (let attemptIndex = 0; attemptIndex <= maxRepairs; attemptIndex += 1) {
+      if (!context.modelCallBudget) {
+        throw new Error("MODEL_CALL_BUDGET_CONTROLLER_REQUIRED");
+      }
+      const reservationResult = await context.modelCallBudget.reserve({
+        attemptIndex,
+        provider: this.config.provider,
+        model: this.config.model,
+      });
+      if (!reservationResult.reserved) {
+        throw new ModelCallBudgetExhaustedError(
+          reservationResult.modelCallCount,
+          reservationResult.maxModelCalls,
+        );
+      }
+      const reservation = reservationResult.reservation;
+      const observationIndex = this.modelCallObservations.length;
       const started = performance.now();
       const response = await callModel({
         ...this.config,
         responseObserver: (observation) => {
           this.modelCallObservations.push({
+            reservationId: reservation.id,
+            reservationOrdinal: reservation.ordinal,
             provider: this.config.provider,
             model: observation.model,
             attemptIndex,
             latencyMs: observation.latencyMs,
             status: observation.status,
             usage: observation.usage,
+            responseStructure: null,
             createdAt: new Date().toISOString(),
           });
           this.config.responseObserver?.({ ...observation, attemptIndex });
         },
-      }, messages, { enableTools: false });
+      }, messages, { enableTools: false, signal: context.signal });
       const latencyMs = performance.now() - started;
       const content = response.choices?.[0]?.message?.content ?? "";
       try {
@@ -499,6 +603,10 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         if (repairError?.decisionType && decision.type !== repairError.decisionType) {
           return validationError("INVALID_FIELD_VALUE", repairError.decisionType, "type",
             `Planner repair 必须保持 decision type 为 ${repairError.decisionType}。`, attemptIndex);
+        }
+        const modelCallObservation = this.modelCallObservations[observationIndex];
+        if (modelCallObservation) {
+          modelCallObservation.responseStructure = await responseStructureObservation(content, decision);
         }
         if (repairError) {
           this.observations.push(await validationObservation({

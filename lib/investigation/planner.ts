@@ -6,6 +6,7 @@ import type {
   EvidenceRelation,
   InvestigationAggregate,
 } from "./types";
+import type { ModelCallReservationResult } from "./model-call-budget";
 
 export type DiagnosisClaimDraft =
   | {
@@ -31,6 +32,14 @@ export type PlannerContext = {
   humanMessage: string | null;
   remainingIterations: number;
   remainingToolCalls: number;
+  signal?: AbortSignal;
+  modelCallBudget?: {
+    reserve(input: {
+      attemptIndex: number;
+      provider: string;
+      model: string;
+    }): Promise<ModelCallReservationResult>;
+  };
 };
 
 export type PlannerDecisionValidationCode =
@@ -62,17 +71,35 @@ export type PlannerDecisionValidationObservation = {
 };
 
 export type PlannerModelCallObservation = {
+  reservationId: string;
+  reservationOrdinal: number;
   provider: string;
   model: string;
   attemptIndex: number;
   latencyMs: number;
-  status: "SUCCESS" | "ERROR";
+  status: "SUCCESS" | "ERROR" | "TIMEOUT" | "CANCELLED";
   usage: {
     promptTokens: number | null;
     completionTokens: number | null;
     totalTokens: number | null;
   } | null;
+  responseStructure: PlannerResponseStructureObservation | null;
   createdAt: string;
+};
+
+export type PlannerResponseStructureObservation = {
+  raw: {
+    responseHash: string;
+    responseLength: number;
+    topLevelKeys: string[];
+    decisionType: InvestigationDecision["type"];
+    shape: Record<string, unknown>;
+  };
+  normalized: {
+    topLevelKeys: string[];
+    decisionType: InvestigationDecision["type"];
+    shape: Record<string, unknown>;
+  };
 };
 
 export const PLANNER_WAIT_REASON_CODES = [

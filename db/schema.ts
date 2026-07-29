@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { DEFAULT_MAX_MODEL_CALLS } from "../lib/investigation/model-call-budget";
 
 export const releases = sqliteTable("releases", {
   id: text("id").primaryKey(),
@@ -90,6 +91,8 @@ export const investigationRuns = sqliteTable("investigation_runs", {
   currentIteration: integer("current_iteration").notNull().default(0),
   activeIterationId: text("active_iteration_id"),
   lockVersion: integer("lock_version").notNull().default(0),
+  modelCallCount: integer("model_call_count").notNull().default(0),
+  maxModelCalls: integer("max_model_calls").notNull().default(DEFAULT_MAX_MODEL_CALLS),
   stopReason: text("stop_reason"),
   currentDiagnosisRevision: integer("current_diagnosis_revision").notNull().default(0),
   totalTokens: integer("total_tokens").notNull().default(0),

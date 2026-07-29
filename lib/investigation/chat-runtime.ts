@@ -39,6 +39,7 @@ export async function submitInvestigationMessage(
     analytics?: AnalyticsStore;
     feedbackRetriever?: FeedbackRetriever;
     incidentRetriever?: IncidentRetriever;
+    signal?: AbortSignal;
   },
 ) {
   let aggregate = await store.getAggregate(input.runId);
@@ -235,5 +236,6 @@ export async function submitInvestigationMessage(
     maxToolCalls: 3,
     feedbackRetriever: input.feedbackRetriever,
     incidentRetriever: input.incidentRetriever,
+    signal: input.signal,
   });
 }

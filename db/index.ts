@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 import { investigationRuntimeSchema } from "./runtime-schema";
+import { DEFAULT_MAX_MODEL_CALLS } from "../lib/investigation/model-call-budget";
 
 let initialization: Promise<void> | null = null;
 
@@ -42,6 +43,8 @@ async function initializeRuntimeSchema(d1: Parameters<typeof drizzle>[0]) {
   if (!runColumns.has("current_iteration")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN current_iteration integer DEFAULT 0 NOT NULL"));
   if (!runColumns.has("active_iteration_id")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN active_iteration_id text"));
   if (!runColumns.has("lock_version")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN lock_version integer DEFAULT 0 NOT NULL"));
+  if (!runColumns.has("model_call_count")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN model_call_count integer DEFAULT 0 NOT NULL"));
+  if (!runColumns.has("max_model_calls")) upgrades.push(d1.prepare(`ALTER TABLE investigation_runs ADD COLUMN max_model_calls integer DEFAULT ${DEFAULT_MAX_MODEL_CALLS} NOT NULL`));
   if (!runColumns.has("stop_reason")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN stop_reason text"));
   if (!runColumns.has("current_diagnosis_revision")) upgrades.push(d1.prepare("ALTER TABLE investigation_runs ADD COLUMN current_diagnosis_revision integer DEFAULT 0 NOT NULL"));
   if (!toolColumns.has("proposed_action_id")) {

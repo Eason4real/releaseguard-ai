@@ -16,10 +16,15 @@ import { ensureAndroid730RiskEvent } from "@/lib/fixtures/android-730";
 import { createRuntimeRetrievers } from "@/lib/retrieval/runtime";
 import type { Phase3InvestigationStore } from "@/lib/investigation/phase3-store";
 import type { FeedbackRetriever, IncidentRetriever } from "@/lib/retrieval/types";
+import {
+  ModelCallBudgetConfigurationError,
+  resolveMaxModelCalls,
+} from "@/lib/investigation/model-call-budget";
 
 type RequestPayload = {
   question?: string;
   fixture?: boolean;
+  maxModelCalls?: number;
   config?: Partial<ModelConfig>;
 };
 
@@ -69,6 +74,7 @@ export async function handleInvestigatePost(
     if (!question || question.length > 1000) {
       return Response.json({ error: "调查问题不能为空且不能超过 1000 字。" }, { status: 400 });
     }
+    const maxModelCalls = resolveMaxModelCalls(payload.maxModelCalls);
 
     if (payload.fixture) {
       const retrievers = await retrieverFactory();
@@ -105,6 +111,7 @@ export async function handleInvestigatePost(
       incidentId: event.id,
       riskEventId: event.id,
       releaseId: release.id,
+      maxModelCalls,
     });
     const retrievers = await retrieverFactory();
     const aggregate = await runAgentLoop(store, {
@@ -114,6 +121,7 @@ export async function handleInvestigatePost(
       trigger: "INITIAL",
       feedbackRetriever: retrievers.feedbackRetriever,
       incidentRetriever: retrievers.incidentRetriever,
+      signal: request.signal,
     });
     if (!aggregate) throw new Error("调查完成，但运行记录读取失败。");
     return Response.json(toLegacyResponse(aggregate, {
@@ -121,6 +129,9 @@ export async function handleInvestigatePost(
       parseStatus: "direct",
     }));
   } catch (error) {
+    if (error instanceof ModelCallBudgetConfigurationError) {
+      return Response.json({ code: error.code, error: error.message }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : "未知错误";
     const redacted = secretToRedact ? message.replaceAll(secretToRedact, "[redacted]") : message;
     const safeMessage = redacted.replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]");

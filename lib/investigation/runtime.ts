@@ -27,6 +27,7 @@ import type {
   ToolResult,
 } from "./types";
 import type { FeedbackRetriever, IncidentRetriever } from "../retrieval/types";
+import { resolveMaxModelCalls } from "./model-call-budget";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 const sha256 = async (value: unknown) => {
@@ -44,6 +45,7 @@ export async function startInvestigation(
     incidentId?: string;
     riskEventId?: string | null;
     releaseId?: string | null;
+    maxModelCalls?: number;
   },
 ) {
   const now = new Date().toISOString();
@@ -60,6 +62,8 @@ export async function startInvestigation(
     currentIteration: 0,
     activeIterationId: null,
     lockVersion: 0,
+    modelCallCount: 0,
+    maxModelCalls: resolveMaxModelCalls(input.maxModelCalls),
     stopReason: null,
     currentDiagnosisRevision: 0,
     totalTokens: 0,

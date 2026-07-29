@@ -40,8 +40,10 @@ import { handleInvestigatePost } from "../app/api/investigate/route";
 import type { RunTransitionPatch } from "../lib/investigation/store";
 import {
   assertGroundedFinalizationCommit,
+  type ModelCallReservationInput,
   type GroundedFinalizationCommit,
 } from "../lib/investigation/phase3-store";
+import { MODEL_CALL_HARD_LIMIT } from "../lib/investigation/model-call-budget";
 import type {
   ActionCompletionCommit,
   Phase4InvestigationStore,
@@ -305,6 +307,47 @@ class MemoryStore implements Phase4InvestigationStore {
 
   async saveAuditEvents(events: AuditEvent[]) {
     events.forEach((event) => this.audits.set(event.id, structuredClone(event)));
+  }
+
+  async reserveModelCall(input: ModelCallReservationInput) {
+    const run = this.runs.get(input.runId);
+    if (!run) throw new Error("Run not found");
+    if (run.status !== "RUNNING" || run.activeIterationId !== input.iterationId) {
+      throw new Error("MODEL_CALL_RESERVATION_PRECONDITION_FAILED");
+    }
+    const maxModelCalls = Math.min(run.maxModelCalls, MODEL_CALL_HARD_LIMIT);
+    if (run.modelCallCount >= maxModelCalls) {
+      return { reserved: false as const, modelCallCount: run.modelCallCount, maxModelCalls };
+    }
+    const modelCallCount = run.modelCallCount + 1;
+    this.runs.set(run.id, { ...run, modelCallCount, updatedAt: input.reservedAt });
+    const reservation = {
+      id: input.reservationId,
+      ordinal: modelCallCount,
+      maxModelCalls,
+      reservedAt: input.reservedAt,
+    };
+    this.audits.set(input.reservationId, {
+      id: input.reservationId,
+      runId: input.runId,
+      proposedActionId: null,
+      approvalId: null,
+      toolCallId: null,
+      type: "PLANNER_MODEL_CALL_RESERVED",
+      actor: "ReleaseGuard Runtime",
+      details: {
+        reservationId: reservation.id,
+        reservationOrdinal: reservation.ordinal,
+        maxModelCalls,
+        iterationId: input.iterationId,
+        iterationSequence: input.iterationSequence,
+        provider: input.provider,
+        model: input.model,
+        attemptIndex: input.attemptIndex,
+      },
+      createdAt: input.reservedAt,
+    });
+    return { reserved: true as const, reservation };
   }
 
   async decideApproval(
@@ -1100,7 +1143,30 @@ const hypothesisLink = (
   createdAt: "2026-07-27T00:00:00.000Z",
 });
 
-async function runningInvestigationWithHypotheses() {
+const standaloneModelCallBudget = (
+  maxModelCalls = MODEL_CALL_HARD_LIMIT,
+): NonNullable<PlannerContext["modelCallBudget"]> => {
+  let modelCallCount = 0;
+  return {
+    async reserve() {
+      if (modelCallCount >= maxModelCalls) {
+        return { reserved: false, modelCallCount, maxModelCalls };
+      }
+      modelCallCount += 1;
+      return {
+        reserved: true,
+        reservation: {
+          id: `MCR-STANDALONE-${modelCallCount}`,
+          ordinal: modelCallCount,
+          maxModelCalls,
+          reservedAt: new Date().toISOString(),
+        },
+      };
+    },
+  };
+};
+
+async function runningInvestigationWithHypotheses(maxModelCalls?: number) {
   const store = new MemoryStore();
   const { event, release } = await ensureAndroid730RiskEvent(store.analytics);
   const runId = await startInvestigation(store, {
@@ -1110,6 +1176,7 @@ async function runningInvestigationWithHypotheses() {
     incidentId: event.id,
     riskEventId: event.id,
     releaseId: release.id,
+    maxModelCalls,
   });
   const hypotheses = [
     hypothesis(runId, "HYP-RELEASE", "发布回归导致领券失败"),
@@ -3397,6 +3464,7 @@ test("P4.2 LLMPlanner rejects model-supplied confidence and grounding fields", a
         humanMessage: null,
         remainingIterations: 4,
         remainingToolCalls: 2,
+        modelCallBudget: standaloneModelCallBudget(),
       }),
       /Grounded Contract/,
     );
@@ -3643,6 +3711,7 @@ test("LLM planner repairs malformed and flattened assessments without server com
         humanMessage: null,
         remainingIterations: 4,
         remainingToolCalls: 2,
+        modelCallBudget: standaloneModelCallBudget(),
       });
       assert.equal(decision.type, "ASSESS_EVIDENCE");
       assert.equal(requests.length, 2);
@@ -3756,7 +3825,8 @@ test("LLM planner asks the same model to repair a missing STOP reason instead of
     const planner = new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
       baseUrl: "https://example.invalid/v1", model: "repair-test-model", apiKey: "test-only" });
     const decision = await planner.plan({ aggregate: (await setup.store.getAggregate(setup.runId))!,
-      trigger: "INITIAL", humanMessage: null, remainingIterations: 2, remainingToolCalls: 1 });
+      trigger: "INITIAL", humanMessage: null, remainingIterations: 2, remainingToolCalls: 1,
+      modelCallBudget: standaloneModelCallBudget() });
     assert.equal(modelCalls, 2);
     assert.deepEqual(decision, {
       type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
@@ -3922,6 +3992,351 @@ test("LLM decision repair is bounded and terminal invalid output leaves no asses
   }
 });
 
+test("Server model-call budget reserves before dispatch and blocks the N+1 call", async () => {
+  const setup = await runningInvestigationWithHypotheses(1);
+  setup.store.hypotheses.clear();
+  let providerCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    return Response.json({
+      choices: [{ message: { content: JSON.stringify({
+        type: "CREATE_HYPOTHESES",
+        hypotheses: [{
+          statement: "Release regression",
+          supportIf: "The anomaly is isolated to the release.",
+          refuteIf: "The anomaly also affects control versions.",
+        }],
+        rationale: "Create a testable hypothesis.",
+      }) } }],
+    });
+  };
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({
+        provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1",
+        model: "budget-test-model",
+        apiKey: "budget-test-secret",
+      }),
+      maxIterations: 4,
+    });
+    assert.equal(providerCalls, 1);
+    assert.equal(result?.run.modelCallCount, 1);
+    assert.equal(result?.run.maxModelCalls, 1);
+    assert.equal(result?.run.status, "INCONCLUSIVE");
+    assert.equal(result?.run.stopReason, "MODEL_CALL_BUDGET_EXHAUSTED");
+    assert.equal(result?.run.errorMessage, null);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_MODEL_CALL_RESERVED").length, 1);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_MODEL_CALL_OBSERVED").length, 1);
+    assert.equal(result?.auditEvents.filter((event) =>
+      event.type === "PLANNER_MODEL_CALL_BUDGET_EXHAUSTED").length, 1);
+    assert.equal(result?.iterations.at(-1)?.status, "COMPLETED");
+    assert.equal(result?.iterations.at(-1)?.decisionType, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Initial and repair calls share the persisted Run model-call budget", async (t) => {
+  await t.test("repair uses the second and final reservation", async () => {
+    const setup = await runningInvestigationWithHypotheses(2);
+    const responses = [
+      { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+        rationale: "Missing required reason." },
+      { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+        reason: "The available evidence cannot distinguish the hypotheses.",
+        rationale: "Stop without overstating the evidence." },
+    ];
+    let providerCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      return Response.json({ choices: [{ message: { content: JSON.stringify(responses.shift()) } }] });
+    };
+    try {
+      const result = await runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+          baseUrl: "https://example.invalid/v1", model: "budget-test-model",
+          apiKey: "test-only" }),
+      });
+      assert.equal(providerCalls, 2);
+      assert.equal(result?.run.modelCallCount, 2);
+      assert.deepEqual(result?.auditEvents.filter((event) =>
+        event.type === "PLANNER_MODEL_CALL_RESERVED")
+        .map((event) => event.details.reservationOrdinal), [1, 2]);
+      const modelEvents = result?.auditEvents.filter((event) =>
+        event.type === "PLANNER_MODEL_CALL_OBSERVED") ?? [];
+      assert.equal(modelEvents[0].details.responseStructure, null);
+      assert.equal((modelEvents[1].details.responseStructure as {
+        raw: { decisionType: string; responseHash: string };
+      }).raw.decisionType, "STOP_INCONCLUSIVE");
+      assert.equal((modelEvents[1].details.responseStructure as {
+        raw: { decisionType: string; responseHash: string };
+      }).raw.responseHash.length, 64);
+      assert.equal(result?.auditEvents.some((event) =>
+        event.type === "PLANNER_DECISION_REPAIRED"), true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  await t.test("initial consuming the final reservation cannot dispatch repair", async () => {
+    const setup = await runningInvestigationWithHypotheses(1);
+    let providerCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      return Response.json({ choices: [{ message: { content: JSON.stringify({
+        type: "STOP_INCONCLUSIVE",
+        reasonCode: "INSUFFICIENT_EVIDENCE",
+        rationale: "Missing required reason.",
+      }) } }] });
+    };
+    try {
+      const result = await runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+          baseUrl: "https://example.invalid/v1", model: "budget-test-model",
+          apiKey: "test-only" }),
+      });
+      assert.equal(providerCalls, 1);
+      assert.equal(result?.run.modelCallCount, 1);
+      assert.equal(result?.run.status, "INCONCLUSIVE");
+      assert.equal(result?.run.stopReason, "MODEL_CALL_BUDGET_EXHAUSTED");
+      assert.equal(result?.auditEvents.some((event) =>
+        event.type === "PLANNER_DECISION_REPAIR_ATTEMPTED"), true);
+      assert.equal(result?.auditEvents.some((event) =>
+        event.type === "PLANNER_DECISION_REPAIR_FAILED"), false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+test("Failed, timed out, and cancelled Provider dispatches consume reservations", async (t) => {
+  const runCase = async (
+    expectedStatus: "ERROR" | "TIMEOUT" | "CANCELLED",
+    configure: (controller: AbortController) => typeof globalThis.fetch,
+    requestTimeoutMs = 75_000,
+  ) => {
+    const setup = await runningInvestigationWithHypotheses(3);
+    const controller = new AbortController();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = configure(controller);
+    try {
+      await assert.rejects(runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+          baseUrl: "https://example.invalid/v1", model: "dispatch-status-model",
+          apiKey: "test-only", requestTimeoutMs }),
+        signal: controller.signal,
+      }));
+      const result = await setup.store.getAggregate(setup.runId);
+      assert.equal(result?.run.modelCallCount, 1);
+      assert.equal(result?.run.status, "FAILED");
+      const observed = result?.auditEvents.find((event) =>
+        event.type === "PLANNER_MODEL_CALL_OBSERVED");
+      assert.equal(observed?.details.status, expectedStatus);
+      assert.equal(result?.auditEvents.filter((event) =>
+        event.type === "PLANNER_MODEL_CALL_RESERVED").length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  };
+
+  await t.test("error", () => runCase("ERROR", () => async () => {
+    throw new Error("provider unavailable");
+  }));
+  await t.test("timeout", () => runCase("TIMEOUT", () => async (_input, init) =>
+    new Promise((_resolve, reject) => {
+      const signal = init?.signal as AbortSignal;
+      signal.addEventListener("abort", () => reject(new DOMException("Timed out", "AbortError")),
+        { once: true });
+    }), 5));
+  await t.test("cancelled", () => runCase("CANCELLED", (controller) =>
+    async (_input, init) => new Promise((_resolve, reject) => {
+      const signal = init?.signal as AbortSignal;
+      signal.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")),
+        { once: true });
+      setTimeout(() => controller.abort(), 0);
+    })));
+});
+
+test("Concurrent loops and resumed chat cannot reset or exceed a Run budget", async (t) => {
+  await t.test("two loops dispatch at most the reserved limit", async () => {
+    const setup = await runningInvestigationWithHypotheses(1);
+    setup.store.hypotheses.clear();
+    let providerCalls = 0;
+    let releaseResponse = () => {};
+    let notifyStarted = () => {};
+    const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+    const fetchStarted = new Promise<void>((resolve) => { notifyStarted = resolve; });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      notifyStarted();
+      await responseGate;
+      return Response.json({ choices: [{ message: { content: JSON.stringify({
+        type: "CREATE_HYPOTHESES",
+        hypotheses: [{ statement: "Release regression", supportIf: "Version isolation",
+          refuteIf: "Cross-version failure" }],
+        rationale: "Create one testable hypothesis.",
+      }) } }] });
+    };
+    try {
+      const plannerConfig = { provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1", model: "concurrency-model", apiKey: "test-only" };
+      const first = runAgentLoop(setup.store, { runId: setup.runId,
+        planner: new LLMInvestigationPlanner(plannerConfig) });
+      await fetchStarted;
+      const second = runAgentLoop(setup.store, { runId: setup.runId,
+        planner: new LLMInvestigationPlanner(plannerConfig) });
+      releaseResponse();
+      const outcomes = await Promise.allSettled([first, second]);
+      assert.equal(outcomes.filter((item) => item.status === "fulfilled").length, 1);
+      assert.equal(outcomes.filter((item) => item.status === "rejected").length, 1);
+      assert.match(String((outcomes.find((item) => item.status === "rejected") as
+        PromiseRejectedResult).reason), /RUN_BUSY/);
+      assert.equal(providerCalls, 1);
+      assert.equal((await setup.store.getAggregate(setup.runId))?.run.modelCallCount, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  await t.test("chat resume reads the persisted cumulative count", async () => {
+    const setup = await runningInvestigationWithHypotheses(1);
+    let providerCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      providerCalls += 1;
+      return Response.json({ choices: [{ message: { content: JSON.stringify({
+        type: "ASK_HUMAN",
+        reasonCode: "HUMAN_CONTEXT_REQUIRED",
+        question: "Which cohort was affected?",
+        rationale: "Request unavailable product context.",
+      }) } }] });
+    };
+    try {
+      const config = { provider: "OpenAI-compatible", baseUrl: "https://example.invalid/v1",
+        model: "resume-model", apiKey: "test-only" };
+      const waiting = await runAgentLoop(setup.store, { runId: setup.runId,
+        planner: new LLMInvestigationPlanner(config) });
+      assert.equal(waiting?.run.status, "WAITING_HUMAN_INPUT");
+      const resumed = await submitInvestigationMessage(setup.store, {
+        runId: setup.runId,
+        clientRequestId: "resume-after-budget",
+        intent: "INVESTIGATE",
+        content: "The issue is isolated to new users.",
+        planner: new LLMInvestigationPlanner(config),
+      });
+      assert.equal(providerCalls, 1);
+      assert.equal(resumed?.run.modelCallCount, 1);
+      assert.equal(resumed?.run.status, "INCONCLUSIVE");
+      assert.equal(resumed?.run.stopReason, "MODEL_CALL_BUDGET_EXHAUSTED");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+test("Client model-call limits cannot exceed the server hard limit", async () => {
+  const store = new MemoryStore();
+  let providerCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    throw new Error("Provider must not be called");
+  };
+  try {
+    const response = await handleInvestigatePost(new Request("http://localhost/api/investigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: "Reject an excessive client budget",
+        maxModelCalls: MODEL_CALL_HARD_LIMIT + 1,
+        config: { provider: "test", baseUrl: "https://example.invalid/v1",
+          model: "test-model", apiKey: "test-only" },
+      }),
+    }), { store, analytics: store.analytics });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { code: string }).code, "INVALID_MODEL_CALL_LIMIT");
+    assert.equal(providerCalls, 0);
+    assert.equal(store.runs.size, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Valid Planner responses persist raw and normalized safe structure separately", async () => {
+  const setup = await runningInvestigationWithHypotheses(1);
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "get_release",
+    args: { release_id: setup.release.id },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+  });
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const rawDecision = {
+    type: "ASSESS_EVIDENCE",
+    assessments: aggregate.evidence.map((evidence) => ({
+      evidenceId: evidence.id,
+      relations: aggregate.hypotheses.map((candidate) => ({
+        targetHypothesisId: candidate.id,
+        relation: "NEUTRAL",
+        explanation: "The release metadata is neutral for this hypothesis.",
+      })),
+    })),
+    rationale: "Assess every pending evidence item.",
+    evidenceRelations: [{ ignoredAliasValue: "must-not-be-persisted" }],
+    Authorization: "must-not-be-persisted",
+  };
+  const content = JSON.stringify(rawDecision);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    model: "safe-observation-model",
+    choices: [{ message: { content } }],
+  });
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({ provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1", model: "safe-observation-model",
+        apiKey: "never-persist-safe-observation-secret" }),
+    });
+    const event = result?.auditEvents.find((item) =>
+      item.type === "PLANNER_MODEL_CALL_OBSERVED");
+    const structure = event?.details.responseStructure as {
+      raw: { responseHash: string; responseLength: number; topLevelKeys: string[];
+        decisionType: string; shape: Record<string, unknown> };
+      normalized: { topLevelKeys: string[]; decisionType: string;
+        shape: Record<string, unknown> };
+    };
+    assert.equal(event?.details.status, "SUCCESS");
+    assert.equal(structure.raw.responseHash.length, 64);
+    assert.equal(structure.raw.responseLength, content.length);
+    assert.equal(structure.raw.decisionType, "ASSESS_EVIDENCE");
+    assert.ok(structure.raw.topLevelKeys.includes("evidenceRelations"));
+    assert.ok(structure.raw.topLevelKeys.includes("[REDACTED]"));
+    assert.equal(structure.normalized.topLevelKeys.includes("evidenceRelations"), false);
+    assert.equal(structure.normalized.topLevelKeys.includes("[REDACTED]"), false);
+    assert.equal(structure.raw.shape.assessmentsArrayLength, aggregate.evidence.length);
+    assert.equal(structure.normalized.shape.assessmentsArrayLength, aggregate.evidence.length);
+    const serialized = JSON.stringify(event);
+    assert.doesNotMatch(serialized,
+      /must-not-be-persisted|never-persist-safe-observation-secret|Authorization|prompt|rawResponse/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("P4.1 assessment commit is atomic under injected persistence failure", async () => {
   const setup = await runningInvestigationWithHypotheses();
   await executeAndRecordTool(setup.store, {
@@ -3984,6 +4399,7 @@ test("P4.2 LLMPlanner and DeterministicPlanner implement the same decision contr
     humanMessage: null,
     remainingIterations: 16,
     remainingToolCalls: 10,
+    modelCallBudget: standaloneModelCallBudget(),
   });
   const deterministicCreate = await new DeterministicInvestigationPlanner()
     .plan(context(aggregateWithoutHypotheses));

@@ -14,6 +14,18 @@ import type {
   ProposedAction,
   ToolCall,
 } from "./types";
+import type { ModelCallReservationResult } from "./model-call-budget";
+
+export type ModelCallReservationInput = {
+  reservationId: string;
+  runId: string;
+  iterationId: string;
+  iterationSequence: number;
+  provider: string;
+  model: string;
+  attemptIndex: number;
+  reservedAt: string;
+};
 
 export type GroundedFinalizationCommit = {
   runId: string;
@@ -123,6 +135,7 @@ export function assertGroundedFinalizationCommit(input: GroundedFinalizationComm
 }
 
 export interface Phase3InvestigationStore extends InvestigationStore {
+  reserveModelCall(input: ModelCallReservationInput): Promise<ModelCallReservationResult>;
   claimIteration(iteration: AgentIteration, expectedLockVersion: number): Promise<boolean>;
   completeIteration(
     iterationId: string,

@@ -44,6 +44,8 @@ export type InvestigationRun = {
   currentIteration: number;
   activeIterationId: string | null;
   lockVersion: number;
+  modelCallCount: number;
+  maxModelCalls: number;
   stopReason: InvestigationStopReason | null;
   currentDiagnosisRevision: number;
   totalTokens: number;
@@ -205,7 +207,9 @@ export type Approval = {
 };
 
 export type AuditEventType =
+  | "PLANNER_MODEL_CALL_RESERVED"
   | "PLANNER_MODEL_CALL_OBSERVED"
+  | "PLANNER_MODEL_CALL_BUDGET_EXHAUSTED"
   | "PLANNER_DECISION_REPAIR_ATTEMPTED"
   | "PLANNER_DECISION_REPAIRED"
   | "PLANNER_DECISION_REPAIR_FAILED"
@@ -244,6 +248,7 @@ export type ToolCallWithResult = ToolCall & { result: ToolResult | null };
 export type InvestigationStopReason =
   | "MAX_ITERATIONS"
   | "MAX_TOOL_CALLS"
+  | "MODEL_CALL_BUDGET_EXHAUSTED"
   | "NO_NEW_EVIDENCE"
   | "DUPLICATE_TOOL_CALL"
   | "NO_APPLICABLE_TOOL"

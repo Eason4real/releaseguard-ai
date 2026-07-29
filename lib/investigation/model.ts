@@ -22,6 +22,7 @@ export type ModelConfig = {
   baseUrl: string;
   model: string;
   apiKey: string;
+  requestTimeoutMs?: number;
   responseObserver?: (response: ModelResponseObservation) => void;
 };
 
@@ -29,7 +30,7 @@ export type ModelResponseObservation = {
   model: string;
   attemptIndex?: number;
   latencyMs: number;
-  status: "SUCCESS" | "ERROR";
+  status: "SUCCESS" | "ERROR" | "TIMEOUT" | "CANCELLED";
   usage: {
     promptTokens: number | null;
     completionTokens: number | null;
@@ -75,7 +76,7 @@ function resolveEndpoint(baseUrl: string) {
 export async function callModel(
   config: ModelConfig,
   messages: ModelMessage[],
-  options: { enableTools?: boolean; enableThinking?: boolean } = {},
+  options: { enableTools?: boolean; enableThinking?: boolean; signal?: AbortSignal } = {},
 ) {
   const startedAt = performance.now();
   let observationSent = false;
@@ -89,7 +90,16 @@ export async function callModel(
     }
   };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 75_000);
+  let abortStatus: "TIMEOUT" | "CANCELLED" | null = null;
+  const abort = (status: "TIMEOUT" | "CANCELLED") => {
+    if (controller.signal.aborted) return;
+    abortStatus = status;
+    controller.abort();
+  };
+  const cancelFromCaller = () => abort("CANCELLED");
+  if (options.signal?.aborted) cancelFromCaller();
+  else options.signal?.addEventListener("abort", cancelFromCaller, { once: true });
+  const timeout = setTimeout(() => abort("TIMEOUT"), config.requestTimeoutMs ?? 75_000);
   const body: Record<string, unknown> = {
     model: config.model,
     messages,
@@ -136,10 +146,16 @@ export async function callModel(
     });
     return payload;
   } catch (error) {
-    observe({ model: config.model, latencyMs: performance.now() - startedAt, status: "ERROR", usage: null });
+    observe({
+      model: config.model,
+      latencyMs: performance.now() - startedAt,
+      status: abortStatus ?? "ERROR",
+      usage: null,
+    });
     throw error;
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", cancelFromCaller);
   }
 }
 
