@@ -122,6 +122,11 @@ import {
   InMemoryIncidentRetriever,
 } from "../lib/retrieval/local-retrievers";
 import { calculateHypothesisConfidence } from "../lib/investigation/confidence";
+import {
+  GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES,
+  GroundedDiagnosisValidationError,
+  validateGroundedDiagnosis,
+} from "../lib/investigation/grounded-diagnosis";
 import { summarizePlannerUsage } from "../lib/investigation/planner-usage";
 import {
   PlannerDecisionSemanticError,
@@ -1636,6 +1641,191 @@ function groundedFinalizeDecision(
     rationale: "使用当前 Run Evidence 形成 grounded diagnosis。",
   };
 }
+
+test("Grounded Diagnosis preserves every rejection rule as a stable validation subcode", async () => {
+  const setup = await groundedReadyInvestigation();
+  const baseDecision = groundedFinalizeDecision(setup.aggregate);
+  type FinalizeDecision = Extract<InvestigationDecision, { type: "FINALIZE" }>;
+  type Scenario = {
+    aggregate: InvestigationAggregate;
+    decision: FinalizeDecision;
+  };
+  const check = (
+    expected: (typeof GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES)[number],
+    mutate: (scenario: Scenario) => void,
+  ) => {
+    const scenario = {
+      aggregate: structuredClone(setup.aggregate),
+      decision: structuredClone(baseDecision),
+    };
+    mutate(scenario);
+    assert.throws(
+      () => validateGroundedDiagnosis(scenario.aggregate, {
+        selectedHypothesisId: scenario.decision.selectedHypothesisId,
+        diagnosis: scenario.decision.diagnosis,
+        disposition: scenario.decision.disposition,
+      }),
+      (error) => error instanceof GroundedDiagnosisValidationError
+        && error.validationSubcode === expected
+        && error.validationPath.length > 0,
+      expected,
+    );
+  };
+  const selected = (scenario: Scenario) => scenario.aggregate.hypotheses.find((item) =>
+    item.id === scenario.decision.selectedHypothesisId)!;
+  const claim = (scenario: Scenario, type: string) => scenario.decision.diagnosis.claims.find((item) =>
+    item.type === type)!;
+  const evidence = (scenario: Scenario, category: string) => scenario.aggregate.evidence.find((item) =>
+    item.category === category)!;
+
+  assert.doesNotThrow(() => validateGroundedDiagnosis(setup.aggregate, {
+    selectedHypothesisId: baseDecision.selectedHypothesisId,
+    diagnosis: baseDecision.diagnosis,
+    disposition: baseDecision.disposition,
+  }));
+  assert.equal(new Set(GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES).size,
+    GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES.length);
+
+  check("INVALID_SELECTED_HYPOTHESIS", ({ decision }) => {
+    decision.selectedHypothesisId = "HYPOTHESIS-NOT-IN-RUN";
+  });
+  check("REJECTED_HYPOTHESIS", (scenario) => { selected(scenario).status = "REJECTED"; });
+  check("HYPOTHESIS_NOT_FINALIZABLE", (scenario) => {
+    selected(scenario).status = "ACTIVE";
+    selected(scenario).confidence = "LOW";
+  });
+  check("TEXT_REQUIRED", ({ decision }) => { decision.diagnosis.summary = " "; });
+  check("TEXT_LENGTH_EXCEEDED", ({ decision }) => {
+    decision.diagnosis.summary = "x".repeat(2_001);
+  });
+  check("INVALID_DIAGNOSIS_CLAIMS", ({ decision }) => { decision.diagnosis.claims = []; });
+  check("ROOT_CAUSE_REQUIRED", ({ decision }) => {
+    decision.diagnosis.claims = decision.diagnosis.claims.filter((item) =>
+      item.type !== "ROOT_CAUSE");
+  });
+  check("ROOT_CAUSE_HYPOTHESIS_MISMATCH", (scenario) => {
+    claim(scenario, "ROOT_CAUSE").statement = "A different root cause.";
+  });
+  check("INVALID_LIMITATION_SHAPE", (scenario) => {
+    claim(scenario, "LIMITATION").statement = "当前无法确认；但是发布一定是根因。";
+  });
+  check("LIMITATION_CONTAINS_CRITICAL_ASSERTION", (scenario) => {
+    claim(scenario, "LIMITATION").statement = "根因就是支付系统故障";
+  });
+  check("INVALID_LIMITATION_BOUNDARY", (scenario) => {
+    claim(scenario, "LIMITATION").statement = "This is an unrelated statement";
+  });
+  check("CLAIM_EVIDENCE_LIMIT", (scenario) => {
+    claim(scenario, "ROOT_CAUSE").evidenceIds = Array(51).fill(
+      evidence(scenario, "RELEASE_CHANGE").id,
+    );
+  });
+  check("DUPLICATE_CLAIM_EVIDENCE", (scenario) => {
+    const id = evidence(scenario, "RELEASE_CHANGE").id;
+    claim(scenario, "ROOT_CAUSE").evidenceIds = [id, id];
+  });
+  check("UNGROUNDED_CRITICAL_CLAIM", (scenario) => {
+    claim(scenario, "CAUSAL_STEP").evidenceIds = [];
+  });
+  check("CROSS_RUN_EVIDENCE", (scenario) => {
+    claim(scenario, "ROOT_CAUSE").evidenceIds = ["EV-NOT-IN-RUN"];
+  });
+  check("UNASSESSED_CLAIM_EVIDENCE", (scenario) => {
+    const id = evidence(scenario, "RELEASE_CHANGE").id;
+    scenario.aggregate.hypothesisEvidenceLinks = scenario.aggregate.hypothesisEvidenceLinks
+      .filter((item) => !(item.hypothesisId === scenario.decision.selectedHypothesisId
+        && item.evidenceId === id));
+  });
+  check("UNSUPPORTED_CLAIM_EVIDENCE", (scenario) => {
+    scenario.aggregate.hypothesisEvidenceLinks
+      .filter((item) => item.hypothesisId === scenario.decision.selectedHypothesisId)
+      .forEach((item) => { item.relation = "NEUTRAL"; });
+  });
+  check("INVALID_METRIC_GROUNDING", (scenario) => {
+    claim(scenario, "AFFECTED_METRIC").evidenceIds = [evidence(scenario, "RELEASE_CHANGE").id];
+  });
+  check("INVALID_SEGMENT_GROUNDING", (scenario) => {
+    claim(scenario, "AFFECTED_SEGMENT").evidenceIds = [evidence(scenario, "PRODUCT_METRIC").id];
+  });
+  check("RAG_ONLY_ROOT_CAUSE", (scenario) => {
+    const source = evidence(scenario, "RELEASE_CHANGE");
+    const historical = {
+      ...source,
+      id: "EV-RAG-ONLY-SUBCODE",
+      category: "SIMILAR_INCIDENT",
+      provenance: "public_reference" as const,
+    };
+    scenario.aggregate.evidence.push(historical);
+    scenario.aggregate.hypothesisEvidenceLinks.push({
+      ...scenario.aggregate.hypothesisEvidenceLinks.find((item) =>
+        item.hypothesisId === scenario.decision.selectedHypothesisId)!,
+      evidenceId: historical.id,
+      relation: "SUPPORTS",
+    });
+    claim(scenario, "ROOT_CAUSE").evidenceIds = [historical.id];
+  });
+  check("ROOT_CAUSE_GROUNDING_INCOMPLETE", (scenario) => {
+    selected(scenario).status = "SUPPORTED";
+    selected(scenario).confidence = "HIGH";
+    claim(scenario, "ROOT_CAUSE").evidenceIds = [evidence(scenario, "RELEASE_CHANGE").id];
+  });
+  check("ROOT_CAUSE_MECHANISM_REQUIRED", (scenario) => {
+    selected(scenario).status = "CONFIRMED";
+    selected(scenario).confidence = "MEDIUM";
+    claim(scenario, "ROOT_CAUSE").evidenceIds = [evidence(scenario, "PRODUCT_METRIC").id];
+  });
+});
+
+test("FINALIZE persists its grounded subcode without changing bounded repair input", async () => {
+  const setup = await groundedReadyInvestigation();
+  const invalid = groundedFinalizeDecision(setup.aggregate);
+  invalid.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.statement =
+    "A different root cause.";
+  const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return Response.json({ choices: [{ message: { content: JSON.stringify(invalid) } }] });
+  };
+  try {
+    const result = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: new LLMInvestigationPlanner({
+        provider: "OpenAI-compatible",
+        baseUrl: "https://example.invalid/v1",
+        model: "grounded-subcode-test",
+        apiKey: "test-only",
+      }),
+      analytics: setup.store.analytics,
+    });
+    assert.equal(requests.length, 2);
+    assert.equal(result?.run.status, "INCONCLUSIVE");
+    assert.equal(result?.run.stopReason, "PLANNER_SEMANTIC_ERROR");
+    const validationEvents = result?.auditEvents.filter((event) =>
+      ["PLANNER_DECISION_REPAIR_ATTEMPTED", "PLANNER_DECISION_REPAIR_FAILED"]
+        .includes(event.type)) ?? [];
+    assert.equal(validationEvents.length, 2);
+    assert.ok(validationEvents.every((event) =>
+      event.details.validationKind === "SEMANTIC"
+      && event.details.validationCode === "FINALIZE_GROUNDED_CONTRACT_MISMATCH"
+      && event.details.validationPath === "diagnosis"
+      && event.details.validationSubcode === "ROOT_CAUSE_HYPOTHESIS_MISMATCH"));
+    const repairMessage = requests[1].messages.at(-1)?.content ?? "";
+    assert.match(repairMessage, /FINALIZE_GROUNDED_CONTRACT_MISMATCH/);
+    assert.doesNotMatch(JSON.stringify(requests[1]), /ROOT_CAUSE_HYPOTHESIS_MISMATCH|validationSubcode/);
+    const validationPayload = repairMessage.match(/validationError=(\{[^\n]+\})/)?.[1];
+    assert.ok(validationPayload);
+    assert.deepEqual(JSON.parse(validationPayload), {
+      kind: "SEMANTIC",
+      code: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+      path: "diagnosis",
+      decisionType: "FINALIZE",
+    });
+    assert.equal(result?.diagnoses.length, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 async function observedGroundedInvestigation() {
   const setup = await groundedReadyInvestigation();

@@ -94,11 +94,23 @@ export type HarnessTelemetryValue = null | boolean | number | string
   | HarnessTelemetryValue[] | { [key: string]: HarnessTelemetryValue };
 
 export type HarnessExecutionTelemetry = {
-  schemaVersion: "benchmark-observability-v2";
+  schemaVersion: "benchmark-observability-v3";
   telemetryIdentity: string;
   availability: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE";
   plannerActions: InvestigationDecisionType[];
   schemaRepairCount: number;
+  plannerValidationEvents: Array<{
+    iteration: number | null;
+    attemptIndex: number;
+    outcome: "REPAIR_ATTEMPTED" | "REPAIRED" | "REPAIR_FAILED";
+    validationKind: "SCHEMA" | "SEMANTIC";
+    decisionType: InvestigationDecisionType | null;
+    validationCode: string | null;
+    validationPath: string | null;
+    validationSubcode: string | null;
+    responseHash: string | null;
+    responseStructure: HarnessTelemetryValue | null;
+  }>;
   guardEvents: Array<{
     eventType: "DUPLICATE_TOOL_CALL";
     iteration: number | null;
@@ -218,7 +230,7 @@ export type HarnessRunManifest = {
   datasetVersion: string;
   datasetHash: string;
   evaluationContractVersion: string;
-  telemetrySchemaVersion: "benchmark-observability-v2";
+  telemetrySchemaVersion: "benchmark-observability-v3";
   sourceCommit: string;
   executionProvider: HarnessExecutionProviderType;
   runtimeMode: HarnessRuntimeMode;

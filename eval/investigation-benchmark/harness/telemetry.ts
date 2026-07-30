@@ -8,7 +8,7 @@ import type {
   HarnessTelemetryValue,
 } from "./types";
 
-export const HARNESS_TELEMETRY_SCHEMA_VERSION = "benchmark-observability-v2" as const;
+export const HARNESS_TELEMETRY_SCHEMA_VERSION = "benchmark-observability-v3" as const;
 
 const EVALUATION_ONLY_KEYS = new Set([
   "groundtruth", "canonicalrootcause", "canonicalrootcauseid", "acceptablealiases",
@@ -59,6 +59,30 @@ const observationMetadata = (output: unknown) => {
 
 const ordinal = (prefix: string, index: number) => `${prefix}-${String(index + 1).padStart(3, "0")}`;
 
+const validationOutcomeByEventType = {
+  PLANNER_DECISION_REPAIR_ATTEMPTED: "REPAIR_ATTEMPTED",
+  PLANNER_DECISION_REPAIRED: "REPAIRED",
+  PLANNER_DECISION_REPAIR_FAILED: "REPAIR_FAILED",
+} as const;
+
+const sanitizeResponseStructure = (
+  value: unknown,
+  sensitiveValues: readonly string[],
+): HarnessTelemetryValue | null => {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => typeof item !== "string" || allowedMetadataKey(item))
+      .map((item) => sanitizeResponseStructure(item, sensitiveValues));
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => allowedMetadataKey(key))
+      .map(([key, item]) => [key, sanitizeResponseStructure(item, sensitiveValues)]));
+  }
+  return sanitizeTelemetryValue(value, sensitiveValues);
+};
+
 export function telemetryFromAggregate(
   request: HarnessAgentRequest,
   aggregate: InvestigationAggregate,
@@ -108,12 +132,45 @@ export function telemetryFromAggregate(
         ? sanitizeText(item.details.validationCode, sensitiveValues)
         : null,
     }));
+  const plannerValidationEvents = aggregate.auditEvents
+    .filter((item) => item.type in validationOutcomeByEventType)
+    .map((item) => ({
+      iteration: typeof item.details.iterationSequence === "number"
+        ? item.details.iterationSequence
+        : null,
+      attemptIndex: typeof item.details.attemptIndex === "number"
+        ? item.details.attemptIndex
+        : 0,
+      outcome: validationOutcomeByEventType[
+        item.type as keyof typeof validationOutcomeByEventType
+      ],
+      validationKind: item.details.validationKind === "SEMANTIC" ? "SEMANTIC" as const : "SCHEMA" as const,
+      decisionType: typeof item.details.decisionType === "string"
+        ? item.details.decisionType as HarnessExecutionTelemetry["plannerActions"][number]
+        : null,
+      validationCode: typeof item.details.validationCode === "string"
+        ? sanitizeText(item.details.validationCode, sensitiveValues)
+        : null,
+      validationPath: typeof item.details.validationPath === "string"
+        ? sanitizeText(item.details.validationPath, sensitiveValues)
+        : null,
+      validationSubcode: typeof item.details.validationSubcode === "string"
+        ? sanitizeText(item.details.validationSubcode, sensitiveValues)
+        : null,
+      responseHash: typeof item.details.responseHash === "string"
+        ? item.details.responseHash
+        : null,
+      responseStructure: sanitizeResponseStructure(item.details.responseStructure, sensitiveValues),
+    }))
+    .sort((left, right) => (left.iteration ?? 0) - (right.iteration ?? 0)
+      || left.attemptIndex - right.attemptIndex);
   const telemetry: Omit<HarnessExecutionTelemetry, "telemetryIdentity"> = {
     schemaVersion: HARNESS_TELEMETRY_SCHEMA_VERSION,
     availability: "PARTIAL",
     plannerActions: iterations.flatMap((item) => item.decisionType ? [item.decisionType] : []),
     schemaRepairCount: aggregate.auditEvents.filter((item) =>
       item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length,
+    plannerValidationEvents,
     guardEvents: observability ? observability.guardEvents.map((item) => ({
       eventType: item.eventType,
       iteration: item.iteration,

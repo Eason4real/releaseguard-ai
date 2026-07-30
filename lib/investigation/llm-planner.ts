@@ -494,6 +494,9 @@ async function validationObservation(input: {
     topLevelKeys: parsed ? Object.keys(parsed).sort().slice(0, 50).map(safeTopLevelKey) : [],
     validationCode: input.error.code,
     validationPath: input.error.path,
+    validationSubcode: input.error instanceof PlannerDecisionSemanticError
+      ? input.error.validationSubcode
+      : null,
     responseLength: input.content.length,
     responseHash: await sha256(input.content),
     latencyMs: input.latencyMs,

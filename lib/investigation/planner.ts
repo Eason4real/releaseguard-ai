@@ -82,6 +82,7 @@ export type PlannerDecisionValidationObservation = {
   topLevelKeys: string[];
   validationCode: PlannerDecisionValidationCode;
   validationPath: string;
+  validationSubcode: string | null;
   responseLength: number;
   responseHash: string;
   latencyMs: number;

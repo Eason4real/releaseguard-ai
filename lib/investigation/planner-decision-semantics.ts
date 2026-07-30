@@ -8,7 +8,10 @@ import {
   getPendingEvidence,
   MAX_ACTIVE_HYPOTHESES,
 } from "./hypothesis-invariants";
-import { validateGroundedDiagnosis } from "./grounded-diagnosis";
+import {
+  GroundedDiagnosisValidationError,
+  validateGroundedDiagnosis,
+} from "./grounded-diagnosis";
 
 export type PlannerDecisionSemantics = {
   reasonCode: string | null;
@@ -40,6 +43,7 @@ export class PlannerDecisionSemanticError extends Error {
     readonly path: string,
     message: string,
     readonly attempt = 0,
+    readonly validationSubcode: string | null = null,
   ) {
     super(message);
   }
@@ -51,6 +55,7 @@ const semanticError = (
   code: PlannerDecisionValidationCode,
   path: string,
   message: string,
+  validationSubcode: string | null = null,
 ): never => {
   throw new PlannerDecisionSemanticError(
     code,
@@ -58,6 +63,7 @@ const semanticError = (
     path,
     message,
     context.attempt ?? 0,
+    validationSubcode,
   );
 };
 
@@ -244,7 +250,8 @@ const validateFinalize = (
     }, { validateLimitationText: false });
   } catch (error) {
     semanticError(decision, context, "FINALIZE_GROUNDED_CONTRACT_MISMATCH", "diagnosis",
-      error instanceof Error ? error.message : "FINALIZE 未通过服务端 Grounded Contract。");
+      error instanceof Error ? error.message : "FINALIZE 未通过服务端 Grounded Contract。",
+      error instanceof GroundedDiagnosisValidationError ? error.validationSubcode : null);
   }
 };
 

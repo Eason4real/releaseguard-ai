@@ -2,7 +2,7 @@
 
 ## Scope
 
-`benchmark-observability-v2` persists public, structured runtime facts in each benchmark case
+`benchmark-observability-v3` persists public, structured runtime facts in each benchmark case
 report. It is a Benchmark Harness projection over the existing `InvestigationAggregate`; it does
 not change the Planner, AgentLoop, tools, model configuration, budgets, retries, or concurrency.
 It never performs an additional model or tool call.
@@ -14,6 +14,13 @@ result metadata, persisted Evidence, Evidence/Hypothesis relations, the final co
 Hypothesis snapshot, accepted Diagnosis and FINALIZE records, the runtime stop reason, terminal
 state, and runtime-owned model/tool call counts. Runtime-generated opaque IDs are replaced with
 stable report-local ordinals. Fixture evidence references remain opaque `EV-nnn` identifiers.
+
+`plannerValidationEvents` projects the runtime's ordered schema and semantic validation audit
+events. Each event contains its iteration, attempt, repair outcome, decision type, stable
+validation code/path/subcode, response hash, and sanitized response structure. It never contains
+the response text or Planner prompt. Grounded Diagnosis rejection subcodes identify the existing
+production contract rule without changing the top-level
+`FINALIZE_GROUNDED_CONTRACT_MISMATCH` result or any validation condition.
 
 When the existing AgentLoop terminates on `DUPLICATE_TOOL_CALL`, the benchmark runtime records the
 already-returned candidate tool call, SHA-256 fingerprints of the candidate and matched historical
@@ -40,7 +47,9 @@ in `unavailableFields`.
 
 The runtime still does not retain a rejected Diagnosis proposal body in all validation paths.
 Those fields remain explicitly unavailable. The harness does not infer them from scores, Ground
-Truth, call counts, or the final outcome.
+Truth, call counts, or the final outcome. A validation event whose validator has no more specific
+structured rule records `validationSubcode: null`; it does not synthesize one from an error
+message.
 
 ## Identity
 

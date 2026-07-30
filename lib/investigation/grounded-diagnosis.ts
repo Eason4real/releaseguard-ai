@@ -25,6 +25,54 @@ export type ValidatedGroundedDiagnosis = GroundedDiagnosisProposal & {
   evidenceByClaim: Map<number, Evidence[]>;
 };
 
+export const GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES = [
+  "INVALID_SELECTED_HYPOTHESIS",
+  "REJECTED_HYPOTHESIS",
+  "HYPOTHESIS_NOT_FINALIZABLE",
+  "TEXT_REQUIRED",
+  "TEXT_LENGTH_EXCEEDED",
+  "INVALID_DIAGNOSIS_CLAIMS",
+  "ROOT_CAUSE_REQUIRED",
+  "ROOT_CAUSE_HYPOTHESIS_MISMATCH",
+  "INVALID_LIMITATION_SHAPE",
+  "LIMITATION_CONTAINS_CRITICAL_ASSERTION",
+  "INVALID_LIMITATION_BOUNDARY",
+  "CLAIM_EVIDENCE_LIMIT",
+  "DUPLICATE_CLAIM_EVIDENCE",
+  "UNGROUNDED_CRITICAL_CLAIM",
+  "CROSS_RUN_EVIDENCE",
+  "UNASSESSED_CLAIM_EVIDENCE",
+  "UNSUPPORTED_CLAIM_EVIDENCE",
+  "INVALID_METRIC_GROUNDING",
+  "INVALID_SEGMENT_GROUNDING",
+  "RAG_ONLY_ROOT_CAUSE",
+  "ROOT_CAUSE_GROUNDING_INCOMPLETE",
+  "ROOT_CAUSE_MECHANISM_REQUIRED",
+] as const;
+
+export type GroundedDiagnosisValidationSubcode =
+  (typeof GROUNDED_DIAGNOSIS_VALIDATION_SUBCODES)[number];
+
+export class GroundedDiagnosisValidationError extends Error {
+  readonly name = "GroundedDiagnosisValidationError";
+
+  constructor(
+    readonly validationSubcode: GroundedDiagnosisValidationSubcode,
+    readonly validationPath: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function validationError(
+  validationSubcode: GroundedDiagnosisValidationSubcode,
+  validationPath: string,
+  message: string,
+): never {
+  throw new GroundedDiagnosisValidationError(validationSubcode, validationPath, message);
+}
+
 const criticalClaimTypes = new Set([
   "ROOT_CAUSE",
   "CAUSAL_STEP",
@@ -63,33 +111,36 @@ const criticalAssertionPatterns = [
   /(?:\S+(?:用户|人群|分群)|segment).*(?:是|为).*(?:主要)?受影响|(?:主要)?受影响(?:用户|人群|分群|segment).*(?:是|为)/i,
 ];
 
-const boundedText = (value: string, label: string) => {
+const boundedText = (value: string, label: string, path: string) => {
   const text = value.trim();
-  if (!text) throw new Error(`${label} 不能为空。`);
-  if (text.length > 2_000) throw new Error(`${label} 不能超过 2000 个字符。`);
+  if (!text) validationError("TEXT_REQUIRED", path, `${label} 不能为空。`);
+  if (text.length > 2_000) {
+    validationError("TEXT_LENGTH_EXCEEDED", path, `${label} 不能超过 2000 个字符。`);
+  }
   return text;
 };
 
 const validateLimitation = (
   claim: Extract<GroundedDiagnosisDraft["claims"][number], { type: "LIMITATION" }>,
+  path: string,
 ) => {
   const boundaryStatement = claim.statement.trim().replace(/[。.!?！？]+$/, "");
   if (
     /[。！？!?;；]/.test(boundaryStatement)
     || /(?:但|但是|不过|然而|\bbut\b|\bhowever\b)/i.test(boundaryStatement)
   ) {
-    throw new Error(
+    validationError("INVALID_LIMITATION_SHAPE", `${path}.statement`,
       "INVALID_LIMITATION_SHAPE: LIMITATION 必须是单一边界声明，不得追加或转折引入事实结论。",
     );
   }
   if (criticalAssertionPatterns.some((pattern) => pattern.test(claim.statement))) {
-    throw new Error(
+    validationError("LIMITATION_CONTAINS_CRITICAL_ASSERTION", `${path}.statement`,
       "LIMITATION_CONTAINS_CRITICAL_ASSERTION: LIMITATION 不得承载根因、因果机制、指标变化或受影响分群事实。",
     );
   }
   const patterns = limitationBoundaryPatterns[claim.limitationType];
   if (!patterns || !patterns.some((pattern) => pattern.test(claim.statement.trim()))) {
-    throw new Error(
+    validationError("INVALID_LIMITATION_BOUNDARY", `${path}.statement`,
       "INVALID_LIMITATION_BOUNDARY: LIMITATION statement 必须与 limitationType 对应，并明确表达数据、范围、不确定性或可观测性边界。",
     );
   }
@@ -103,34 +154,38 @@ export function validateGroundedDiagnosis(
   const selectedHypothesis = aggregate.hypotheses.find((item) =>
     item.id === proposal.selectedHypothesisId);
   if (!selectedHypothesis || selectedHypothesis.runId !== aggregate.run.id) {
-    throw new Error("INVALID_SELECTED_HYPOTHESIS: selectedHypothesisId 不属于当前 Run。");
+    validationError("INVALID_SELECTED_HYPOTHESIS", "selectedHypothesisId",
+      "INVALID_SELECTED_HYPOTHESIS: selectedHypothesisId 不属于当前 Run。");
   }
   if (selectedHypothesis.status === "REJECTED") {
-    throw new Error("REJECTED_HYPOTHESIS: REJECTED Hypothesis 不得 Finalize。");
+    validationError("REJECTED_HYPOTHESIS", "selectedHypothesisId",
+      "REJECTED_HYPOTHESIS: REJECTED Hypothesis 不得 Finalize。");
   }
   if (
     !["SUPPORTED", "CONFIRMED"].includes(selectedHypothesis.status)
     || !["MEDIUM", "HIGH"].includes(selectedHypothesis.confidence)
   ) {
-    throw new Error(
+    validationError("HYPOTHESIS_NOT_FINALIZABLE", "selectedHypothesisId",
       "HYPOTHESIS_NOT_FINALIZABLE: 只有服务端评定为 SUPPORTED/CONFIRMED 且至少 MEDIUM 的 Hypothesis 可以 Finalize。",
     );
   }
 
-  boundedText(proposal.diagnosis.summary, "Diagnosis summary");
+  boundedText(proposal.diagnosis.summary, "Diagnosis summary", "diagnosis.summary");
   if (proposal.diagnosis.claims.length === 0 || proposal.diagnosis.claims.length > 30) {
-    throw new Error("INVALID_DIAGNOSIS_CLAIMS: Diagnosis 必须包含 1–30 个 Claim。");
+    validationError("INVALID_DIAGNOSIS_CLAIMS", "diagnosis.claims",
+      "INVALID_DIAGNOSIS_CLAIMS: Diagnosis 必须包含 1–30 个 Claim。");
   }
   const rootCauseClaims = proposal.diagnosis.claims.filter((claim) =>
     claim.type === "ROOT_CAUSE");
   if (rootCauseClaims.length !== 1) {
-    throw new Error("ROOT_CAUSE_REQUIRED: Diagnosis 必须且只能包含一个 ROOT_CAUSE Claim。");
+    validationError("ROOT_CAUSE_REQUIRED", "diagnosis.claims",
+      "ROOT_CAUSE_REQUIRED: Diagnosis 必须且只能包含一个 ROOT_CAUSE Claim。");
   }
   if (
     normalizeStatement(rootCauseClaims[0].statement)
     !== normalizeStatement(selectedHypothesis.statement)
   ) {
-    throw new Error(
+    validationError("ROOT_CAUSE_HYPOTHESIS_MISMATCH", "diagnosis.claims",
       "ROOT_CAUSE_HYPOTHESIS_MISMATCH: ROOT_CAUSE 必须明确采用 selected Hypothesis 的 statement。",
     );
   }
@@ -144,24 +199,29 @@ export function validateGroundedDiagnosis(
   const evidenceByClaim = new Map<number, Evidence[]>();
 
   for (const [index, claim] of proposal.diagnosis.claims.entries()) {
-    boundedText(claim.statement, `Diagnosis claim ${index + 1}`);
+    const claimPath = `diagnosis.claims[${index}]`;
+    boundedText(claim.statement, `Diagnosis claim ${index + 1}`, `${claimPath}.statement`);
     if (claim.type === "LIMITATION" && options.validateLimitationText !== false) {
-      validateLimitation(claim);
+      validateLimitation(claim, claimPath);
     }
     const uniqueEvidenceIds = new Set(claim.evidenceIds);
     if (claim.evidenceIds.length > 50) {
-      throw new Error("CLAIM_EVIDENCE_LIMIT: 一个 Claim 最多引用 50 条 Evidence。");
+      validationError("CLAIM_EVIDENCE_LIMIT", `${claimPath}.evidenceIds`,
+        "CLAIM_EVIDENCE_LIMIT: 一个 Claim 最多引用 50 条 Evidence。");
     }
     if (uniqueEvidenceIds.size !== claim.evidenceIds.length) {
-      throw new Error("DUPLICATE_CLAIM_EVIDENCE: 一个 Claim 不得重复引用同一 Evidence。");
+      validationError("DUPLICATE_CLAIM_EVIDENCE", `${claimPath}.evidenceIds`,
+        "DUPLICATE_CLAIM_EVIDENCE: 一个 Claim 不得重复引用同一 Evidence。");
     }
     if (criticalClaimTypes.has(claim.type) && uniqueEvidenceIds.size === 0) {
-      throw new Error(`UNGROUNDED_CRITICAL_CLAIM: ${claim.type} 必须引用 Evidence。`);
+      validationError("UNGROUNDED_CRITICAL_CLAIM", `${claimPath}.evidenceIds`,
+        `UNGROUNDED_CRITICAL_CLAIM: ${claim.type} 必须引用 Evidence。`);
     }
     const citedEvidence = [...uniqueEvidenceIds].map((evidenceId) => {
       const item = evidenceById.get(evidenceId);
       if (!item || item.runId !== aggregate.run.id) {
-        throw new Error("CROSS_RUN_EVIDENCE: Claim 引用了不存在或其他 Run 的 Evidence。");
+        validationError("CROSS_RUN_EVIDENCE", `${claimPath}.evidenceIds`,
+          "CROSS_RUN_EVIDENCE: Claim 引用了不存在或其他 Run 的 Evidence。");
       }
       return item;
     });
@@ -170,25 +230,27 @@ export function validateGroundedDiagnosis(
     if (criticalClaimTypes.has(claim.type)) {
       const relations = citedEvidence.map((item) => relationByEvidenceId.get(item.id));
       if (relations.some((relation) => !relation)) {
-        throw new Error(
+        validationError("UNASSESSED_CLAIM_EVIDENCE", `${claimPath}.evidenceIds`,
           "UNASSESSED_CLAIM_EVIDENCE: 关键 Claim 引用了未对 selected Hypothesis 显式评价的 Evidence。",
         );
       }
       if (!relations.some((relation) => relation === "SUPPORTS")) {
-        throw new Error(
+        validationError("UNSUPPORTED_CLAIM_EVIDENCE", `${claimPath}.evidenceIds`,
           "UNSUPPORTED_CLAIM_EVIDENCE: 关键 Claim 至少需要一条对 selected Hypothesis 为 SUPPORTS 的 Evidence，不能仅依赖 CONTRADICTS 或 NEUTRAL。",
         );
       }
     }
 
     if (claim.type === "AFFECTED_METRIC" && !citedEvidence.some(isImpactEvidence)) {
-      throw new Error("INVALID_METRIC_GROUNDING: AFFECTED_METRIC 必须引用指标 Evidence。");
+      validationError("INVALID_METRIC_GROUNDING", `${claimPath}.evidenceIds`,
+        "INVALID_METRIC_GROUNDING: AFFECTED_METRIC 必须引用指标 Evidence。");
     }
     if (
       claim.type === "AFFECTED_SEGMENT"
       && !citedEvidence.some((item) => item.category === "SEGMENT_METRIC")
     ) {
-      throw new Error("INVALID_SEGMENT_GROUNDING: AFFECTED_SEGMENT 必须引用分群 Evidence。");
+      validationError("INVALID_SEGMENT_GROUNDING", `${claimPath}.evidenceIds`,
+        "INVALID_SEGMENT_GROUNDING: AFFECTED_SEGMENT 必须引用分群 Evidence。");
     }
   }
 
@@ -199,14 +261,15 @@ export function validateGroundedDiagnosis(
     relationByEvidenceId.get(item.id) === "SUPPORTS");
   const currentRootEvidence = supportingRootEvidence.filter(isCurrentIncidentEvidence);
   if (currentRootEvidence.length === 0) {
-    throw new Error(
+    validationError("RAG_ONLY_ROOT_CAUSE", `diagnosis.claims[${rootCauseIndex}].evidenceIds`,
       "RAG_ONLY_ROOT_CAUSE: ROOT_CAUSE 必须由当前事件的 SUPPORTS Evidence 支撑，历史记忆不能单独定因。",
     );
   }
   if (selectedHypothesis.confidence === "HIGH") {
     const families = new Set(currentRootEvidence.map(evidenceFamily));
     if (families.size < 2 || !currentRootEvidence.some(isImpactEvidence)) {
-      throw new Error(
+      validationError("ROOT_CAUSE_GROUNDING_INCOMPLETE",
+        `diagnosis.claims[${rootCauseIndex}].evidenceIds`,
         "ROOT_CAUSE_GROUNDING_INCOMPLETE: HIGH 根因必须引用至少两个当前事件 Evidence family，并包含影响证据。",
       );
     }
@@ -215,7 +278,8 @@ export function validateGroundedDiagnosis(
     selectedHypothesis.status === "CONFIRMED"
     && !currentRootEvidence.some(isMechanismEvidence)
   ) {
-    throw new Error(
+    validationError("ROOT_CAUSE_MECHANISM_REQUIRED",
+      `diagnosis.claims[${rootCauseIndex}].evidenceIds`,
       "ROOT_CAUSE_MECHANISM_REQUIRED: CONFIRMED 根因必须引用 mechanism-level Evidence。",
     );
   }

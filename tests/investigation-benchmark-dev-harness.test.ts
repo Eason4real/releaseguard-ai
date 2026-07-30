@@ -72,7 +72,7 @@ test("formal Dev harness executes all 22 cases in stable order with isolated pro
   assert.equal(report.manifest.runtimeMode, "DETERMINISTIC_NO_LIVE_MODEL");
   assert.equal(report.manifest.modelConfiguration, "deterministic / no live model");
   assert.ok(report.cases.every((item) => item.telemetry?.schemaVersion
-    === "benchmark-observability-v2"));
+    === "benchmark-observability-v3"));
   assert.ok(report.cases.every((item) => /^[a-f0-9]{64}$/.test(
     item.telemetry?.telemetryIdentity ?? "",
   )));
@@ -324,6 +324,100 @@ test("telemetry preserves execution order, sanitizes values, and marks unavailab
   assert.equal(JSON.stringify(projected).includes("secret-value"), false);
   assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("telemetryIdentity"), false);
   assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("guardEvents"), false);
+  assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("plannerValidationEvents"), false);
+});
+
+test("planner validation events are stable, sanitized telemetry-only projections", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures[0];
+  const request = __testOnly.observationRequest(fixture);
+  const aggregate = await executeHarnessAgentRuntime(request);
+  const template = aggregate.auditEvents[0];
+  assert.ok(template);
+  aggregate.auditEvents.push({
+    ...template,
+    id: "AE-VALIDATION-1",
+    type: "PLANNER_DECISION_REPAIR_ATTEMPTED",
+    actor: "LLM_PLANNER",
+    details: {
+      iterationSequence: 4,
+      attemptIndex: 0,
+      decisionType: "FINALIZE",
+      validationKind: "SEMANTIC",
+      validationCode: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+      validationPath: "diagnosis",
+      validationSubcode: "ROOT_CAUSE_HYPOTHESIS_MISMATCH",
+      responseHash: "a".repeat(64),
+      response: "must-not-persist",
+      prompt: "must-not-persist",
+      responseStructure: {
+        raw: {
+          topLevelKeys: ["type", "diagnosis", "groundTruth", "Authorization"],
+          shape: { type: "string", apiKey: "string", canonicalRootCauseId: "string" },
+        },
+        normalized: { topLevelKeys: ["type", "diagnosis"] },
+      },
+    },
+  }, {
+    ...template,
+    id: "AE-VALIDATION-2",
+    type: "PLANNER_DECISION_REPAIR_FAILED",
+    actor: "LLM_PLANNER",
+    details: {
+      iterationSequence: 4,
+      attemptIndex: 1,
+      decisionType: "FINALIZE",
+      validationKind: "SCHEMA",
+      validationCode: "INVALID_FIELD_VALUE",
+      validationPath: "diagnosis.claims",
+      responseHash: "b".repeat(64),
+      responseStructure: null,
+    },
+  });
+
+  const telemetryA = telemetryFromAggregate(request, aggregate, ["must-not-persist"]);
+  const telemetryB = telemetryFromAggregate(request, aggregate, ["must-not-persist"]);
+  assert.deepEqual(telemetryA.plannerValidationEvents.map((item) => ({
+    iteration: item.iteration,
+    attemptIndex: item.attemptIndex,
+    outcome: item.outcome,
+    validationKind: item.validationKind,
+    decisionType: item.decisionType,
+    validationCode: item.validationCode,
+    validationPath: item.validationPath,
+    validationSubcode: item.validationSubcode,
+    responseHash: item.responseHash,
+  })), [{
+    iteration: 4,
+    attemptIndex: 0,
+    outcome: "REPAIR_ATTEMPTED",
+    validationKind: "SEMANTIC",
+    decisionType: "FINALIZE",
+    validationCode: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+    validationPath: "diagnosis",
+    validationSubcode: "ROOT_CAUSE_HYPOTHESIS_MISMATCH",
+    responseHash: "a".repeat(64),
+  }, {
+    iteration: 4,
+    attemptIndex: 1,
+    outcome: "REPAIR_FAILED",
+    validationKind: "SCHEMA",
+    decisionType: "FINALIZE",
+    validationCode: "INVALID_FIELD_VALUE",
+    validationPath: "diagnosis.claims",
+    validationSubcode: null,
+    responseHash: "b".repeat(64),
+  }]);
+  assert.equal(telemetryA.schemaRepairCount, 1);
+  assert.equal(telemetryA.telemetryIdentity, telemetryB.telemetryIdentity);
+  const semanticEvent = aggregate.auditEvents.find((item) => item.id === "AE-VALIDATION-1")!;
+  semanticEvent.details.validationSubcode = "RAG_ONLY_ROOT_CAUSE";
+  const changedSubcode = telemetryFromAggregate(request, aggregate, ["must-not-persist"]);
+  assert.notEqual(telemetryA.telemetryIdentity, changedSubcode.telemetryIdentity);
+  const serialized = JSON.stringify(telemetryA.plannerValidationEvents);
+  for (const forbidden of [
+    "must-not-persist", "prompt", "response\"", "groundTruth", "Authorization",
+    "apiKey", "canonicalRootCauseId", "RC-999", "semanticRubric",
+  ]) assert.equal(serialized.includes(forbidden), false, forbidden);
 });
 
 test("duplicate guard telemetry links the rejected candidate without changing execution", async () => {
