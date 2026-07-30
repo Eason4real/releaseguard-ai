@@ -40,6 +40,17 @@ try {
       providerFactory,
       ...(command.caseId ? { caseId: command.caseId } : {}),
       runId: `LIVE-DEV-${crypto.randomUUID()}`,
+      onProgress(event) {
+        if (event.phase === "START") {
+          console.error(`[${event.index}/${event.total}] ${event.caseId} START`);
+          return;
+        }
+        console.error(
+          `[${event.index}/${event.total}] ${event.caseId} END state=${event.terminalState}`
+          + ` model=${event.modelCallCount} tool=${event.toolCallCount}`
+          + ` duration=${Math.round(event.durationMs)}ms`,
+        );
+      },
     });
   console.log(JSON.stringify(report, null, 2));
   if (command.mode === "PREFLIGHT") {

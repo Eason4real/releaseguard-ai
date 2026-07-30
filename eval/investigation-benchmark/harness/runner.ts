@@ -10,6 +10,7 @@ import type {
 } from "../dataset/types";
 import { validateInvestigationBenchmarkDataset } from "../dataset/validator";
 import { calculateHarnessSemanticHash } from "./semantic-hash";
+import { HARNESS_TELEMETRY_SCHEMA_VERSION } from "./telemetry";
 import type {
   DevHarnessReport,
   DevHarnessRunOptions,
@@ -129,6 +130,7 @@ const executeCase = async (
         toolCallCount: normalizedPrediction.toolCallCount,
       },
       normalizedPrediction,
+      telemetry: outcome.telemetry ?? null,
       scoring: scoreInvestigationCase(fixture.benchmarkCase, normalizedPrediction),
     };
   } catch (caught) {
@@ -145,6 +147,7 @@ const executeCase = async (
         error: caught instanceof Error ? caught.message : String(caught),
       },
       normalizedPrediction: null,
+      telemetry: outcome?.telemetry ?? null,
       scoring: scoreInvestigationCase(fixture.benchmarkCase, normalized, { runtimeFailed: true }),
     };
   }
@@ -172,10 +175,23 @@ export async function runInvestigationBenchmarkHarness(
   const now = options.now ?? (() => new Date().toISOString());
   const startedAt = now();
   const cases: HarnessCaseExecutionResult[] = [];
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     const fixture = fixtures.get(entry.fixtureRef);
     if (!fixture) throw new Error(`MISSING_DEV_FIXTURE: ${entry.fixtureRef}`);
-    cases.push(await executeCase(entry, fixture, options));
+    options.onProgress?.({ index: index + 1, total: entries.length, caseId: entry.caseId, phase: "START" });
+    const started = performance.now();
+    const result = await executeCase(entry, fixture, options);
+    cases.push(result);
+    options.onProgress?.({
+      index: index + 1,
+      total: entries.length,
+      caseId: entry.caseId,
+      phase: "END",
+      terminalState: result.execution.terminalInvestigationState,
+      modelCallCount: result.execution.modelCallCount,
+      toolCallCount: result.execution.toolCallCount,
+      durationMs: performance.now() - started,
+    });
   }
   const completedAt = now();
   const reportWithoutHash = {
@@ -186,6 +202,7 @@ export async function runInvestigationBenchmarkHarness(
       datasetVersion: dataset.manifest.version,
       datasetHash: validation.calculatedDatasetHash,
       evaluationContractVersion: dataset.manifest.evaluationContractVersion,
+      telemetrySchemaVersion: HARNESS_TELEMETRY_SCHEMA_VERSION,
       sourceCommit: options.sourceCommit,
       executionProvider: options.providerFactory.executionMetadata.executionProvider,
       runtimeMode: options.providerFactory.executionMetadata.runtimeMode,

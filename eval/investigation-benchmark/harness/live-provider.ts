@@ -2,7 +2,8 @@ import type { InvestigationAggregate } from "../../../lib/investigation/types";
 import { LLMInvestigationPlanner } from "../../../lib/investigation/llm-planner";
 import { resolveModelEndpoint } from "../../../lib/investigation/model";
 import { summarizePlannerUsage } from "../../../lib/investigation/planner-usage";
-import { executeHarnessAgentRuntime } from "./runtime";
+import { executeHarnessAgentRuntime, HarnessRuntimeExecutionError } from "./runtime";
+import { telemetryFromAggregate } from "./telemetry";
 import {
   LIVE_MODEL_PROVIDERS,
   type HarnessAgentRequest,
@@ -143,25 +144,8 @@ const predictionFromAggregate = (
   };
 };
 
-const telemetryFromAggregate = (aggregate: InvestigationAggregate) => ({
-  plannerActions: aggregate.iterations
-    .filter((item) => item.decisionType !== null)
-    .sort((left, right) => left.sequence - right.sequence)
-    .map((item) => item.decisionType!),
-  schemaRepairCount: aggregate.auditEvents.filter((item) =>
-    item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length,
-  toolTrajectory: aggregate.toolCalls
-    .filter((item) => item.proposedActionId === null)
-    .sort((left, right) => left.order - right.order)
-    .map((item) => ({
-      toolName: item.name,
-      arguments: structuredClone(item.arguments),
-      status: item.status,
-      resultStatus: item.result?.status ?? null,
-    })),
-});
-
 const providerErrorCode = (error: unknown) => {
+  if (error instanceof HarnessRuntimeExecutionError) return providerErrorCode(error.runtimeCause);
   const message = error instanceof Error ? error.message : "";
   if (/\b(?:401|403)\b/.test(message)) return "PROVIDER_AUTHENTICATION_FAILED";
   if (/\b429\b/.test(message)) return "PROVIDER_RATE_LIMITED";
@@ -195,6 +179,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
     if (this.#executed) throw new Error("LIVE_LLM_PROVIDER_INSTANCE_REUSED");
     this.#executed = true;
     const startedAt = performance.now();
+    let observability;
     try {
       const aggregate = await executeHarnessAgentRuntime(request, {
         planner: new LLMInvestigationPlanner(this.#config),
@@ -203,6 +188,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
         maxModelCalls: 20,
         maxIterations: 16,
         maxToolCalls: 10,
+        onObservability: (value) => { observability = value; },
       });
       const terminalInvestigationState = aggregate.diagnosis
         ? "FINALIZED" as const
@@ -210,7 +196,12 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           ? "INCONCLUSIVE" as const
           : "FAILED" as const;
       if (terminalInvestigationState === "FAILED") {
-        return { status: "FAIL", terminalInvestigationState, error: "LIVE_RUNTIME_FAILED" };
+        return {
+          status: "FAIL",
+          terminalInvestigationState,
+          telemetry: telemetryFromAggregate(request, aggregate, [this.#config.apiKey], observability),
+          error: "LIVE_RUNTIME_FAILED",
+        };
       }
       return {
         status: "PASS",
@@ -220,12 +211,20 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           aggregate,
           performance.now() - startedAt,
         ),
-        telemetry: telemetryFromAggregate(aggregate),
+        telemetry: telemetryFromAggregate(request, aggregate, [this.#config.apiKey], observability),
       };
     } catch (error) {
       return {
         status: "FAIL",
         terminalInvestigationState: "FAILED",
+        ...(error instanceof HarnessRuntimeExecutionError && error.aggregate
+          ? { telemetry: telemetryFromAggregate(
+            request,
+            error.aggregate,
+            [this.#config.apiKey],
+            error.observability,
+          ) }
+          : {}),
         error: providerErrorCode(error),
       };
     }
@@ -246,5 +245,4 @@ export const createLiveLLMHarnessProviderFactory = (
 export const __testOnlyLiveProvider = {
   providerErrorCode,
   predictionFromAggregate,
-  telemetryFromAggregate,
 };

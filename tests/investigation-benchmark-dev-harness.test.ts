@@ -6,6 +6,8 @@ import {
   createDeterministicHarnessProviderFactory,
   executeHarnessAgentRuntime,
   runInvestigationBenchmarkDevHarness,
+  sanitizeTelemetryValue,
+  telemetryFromAggregate,
   semanticHarnessReport,
   type HarnessAgentRequest,
   type HarnessExecutionProvider,
@@ -67,6 +69,11 @@ test("formal Dev harness executes all 22 cases in stable order with isolated pro
   assert.equal(report.manifest.executionProvider, "HARNESS_PROVIDER");
   assert.equal(report.manifest.runtimeMode, "DETERMINISTIC_NO_LIVE_MODEL");
   assert.equal(report.manifest.modelConfiguration, "deterministic / no live model");
+  assert.ok(report.cases.every((item) => item.telemetry?.schemaVersion
+    === "benchmark-observability-v1"));
+  assert.ok(report.cases.every((item) => /^[a-f0-9]{64}$/.test(
+    item.telemetry?.telemetryIdentity ?? "",
+  )));
 });
 
 test("runtime adapter uses isolated shared AgentLoop state and existing read-only tools", async () => {
@@ -158,6 +165,7 @@ test("runtime failure is reported separately and excluded from automatic accurac
   assert.equal(report.aggregate.failedCases, 1);
   assert.equal(report.cases[0].execution.status, "FAIL");
   assert.equal(report.cases[0].execution.terminalInvestigationState, "FAILED");
+  assert.equal(report.cases[0].telemetry, null);
   assert.equal(report.cases[0].scoring.rootCause.correct, null);
   assert.equal(report.cases[0].scoring.rootCause.evaluationStatus, "RUNTIME_FAILED");
   assert.equal(report.aggregate.runtimeFailedCases, 1);
@@ -245,9 +253,72 @@ test("Run A and Run B have identical normalized results, scores, aggregates, and
   assert.deepEqual(runA.aggregate, runB.aggregate);
   assert.deepEqual(runA.breakdown, runB.breakdown);
   assert.equal(runA.semanticHash, runB.semanticHash);
+  assert.deepEqual(runA.cases.map((item) => item.telemetry?.telemetryIdentity),
+    runB.cases.map((item) => item.telemetry?.telemetryIdentity));
+  assert.deepEqual(runA.cases.map((item) => item.telemetry?.plannerActions),
+    runB.cases.map((item) => item.telemetry?.plannerActions));
   assert.deepEqual(semanticHarnessReport(runA), semanticHarnessReport(runB));
   assert.notEqual(runA.manifest.runId, runB.manifest.runId);
   assert.notEqual(runA.manifest.startedAt, runB.manifest.startedAt);
+});
+
+test("telemetry preserves execution order, sanitizes values, and marks unavailable history", async () => {
+  const progress: Array<Record<string, unknown>> = [];
+  const report = await runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    caseId: "CASE-201",
+    onProgress: (event) => progress.push(event),
+  });
+  const telemetry = report.cases[0].telemetry!;
+  assert.deepEqual(progress.map((item) => item.phase), ["START", "END"]);
+  assert.deepEqual(telemetry.iterations.map((item) => item.sequence),
+    [...telemetry.iterations.map((item) => item.sequence)].sort((a, b) => a - b));
+  assert.deepEqual(telemetry.toolTrajectory.map((item) => item.order),
+    [...telemetry.toolTrajectory.map((item) => item.order)].sort((a, b) => a - b));
+  assert.ok((telemetry.hypothesisTransitions?.length ?? 0) >= 2);
+  assert.equal(telemetry.hypothesisTransitions?.[0].before, null);
+  assert.ok(telemetry.hypothesisTransitions?.some((item) => item.before !== null));
+  assert.equal(telemetry.unavailableFields.includes(
+    "hypothesisTransitions.confidenceBeforeAfter",
+  ), false);
+  assert.equal(telemetry.terminalState, "INCONCLUSIVE");
+  assert.equal(telemetry.modelCallCount, report.cases[0].execution.modelCallCount);
+  assert.equal(telemetry.toolCallCount, report.cases[0].execution.toolCallCount);
+
+  const sanitized = sanitizeTelemetryValue({
+    metric_key: "conversion_rate",
+    apiKey: "secret-value",
+    nested: { Authorization: "Bearer secret-value", safe: "secret-value" },
+    groundTruth: { canonicalRootCauseId: "RC-999" },
+    requiredConceptGroups: ["must-not-persist"],
+  }, ["secret-value"]);
+  assert.deepEqual(sanitized, {
+    metric_key: "conversion_rate",
+    nested: { safe: "[REDACTED]" },
+  });
+  const serialized = JSON.stringify(telemetry);
+  for (const forbidden of [
+    "groundTruth", "canonicalRootCauseId", "requiredConceptGroups", "semanticRubric",
+  ]) assert.equal(serialized.includes(forbidden), false, forbidden);
+
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures[0];
+  const request = __testOnly.observationRequest(fixture);
+  request.observations[0].output = {
+    data: { safe: true },
+    groundTruth: "must-not-persist",
+    Authorization: "Bearer secret-value",
+  };
+  const aggregate = await executeHarnessAgentRuntime(request);
+  const aggregateBeforeProjection = structuredClone(aggregate);
+  const projected = telemetryFromAggregate(request, aggregate, ["secret-value"]);
+  assert.equal(projected.hypothesisTransitions, null);
+  assert.ok(projected.unavailableFields.includes("hypothesisTransitions.confidenceBeforeAfter"));
+  assert.deepEqual(aggregate, aggregateBeforeProjection);
+  assert.deepEqual(projected.toolTrajectory[0].observationMetadata.topLevelKeys, ["data"]);
+  assert.equal(JSON.stringify(projected).includes("must-not-persist"), false);
+  assert.equal(JSON.stringify(projected).includes("secret-value"), false);
+  assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("telemetryIdentity"), false);
 });
 
 test("default fixture provider exposes deterministic citation edge cases to unchanged scorer semantics", async () => {

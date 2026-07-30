@@ -4,7 +4,13 @@ import type { BenchmarkCaseCategory } from "../types";
 import type { DatasetDifficulty } from "../dataset/types";
 import type { ModelConfig } from "../../../lib/investigation/model";
 import type {
+  Confidence,
+  EvidenceRelation,
+  EvidenceStrength,
+  HypothesisStatus,
   InvestigationDecisionType,
+  InvestigationRunStatus,
+  InvestigationStopReason,
   ToolCallStatus,
 } from "../../../lib/investigation/types";
 
@@ -84,15 +90,97 @@ export type HarnessRawPrediction = {
   durationMs?: number;
 };
 
+export type HarnessTelemetryValue = null | boolean | number | string
+  | HarnessTelemetryValue[] | { [key: string]: HarnessTelemetryValue };
+
 export type HarnessExecutionTelemetry = {
+  schemaVersion: "benchmark-observability-v1";
+  telemetryIdentity: string;
+  availability: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE";
   plannerActions: InvestigationDecisionType[];
   schemaRepairCount: number;
+  iterations: Array<{
+    sequence: number;
+    iterationId: string;
+    status: "RUNNING" | "COMPLETED" | "PAUSED" | "FAILED";
+    decisionType: InvestigationDecisionType | null;
+    publicRationale: string | null;
+  }>;
   toolTrajectory: Array<{
+    order: number;
+    iteration: number;
+    toolCallId: string;
     toolName: string;
-    arguments: Record<string, unknown>;
+    arguments: Record<string, HarnessTelemetryValue>;
     status: ToolCallStatus;
     resultStatus: "SUCCESS" | "EMPTY" | "ERROR" | null;
+    observationMetadata: {
+      valueType: string;
+      topLevelKeys: string[];
+      itemCount: number | null;
+    };
+    evidenceIds: string[];
+    error: "TOOL_ERROR_REPORTED" | null;
   }>;
+  evidencePersistenceEvents: Array<{
+    evidenceId: string;
+    toolCallId: string | null;
+    category: string;
+    source: string;
+    strength: EvidenceStrength;
+    provenance: "synthetic" | "runtime_generated" | "derived" | "public_reference";
+    statement: string;
+  }>;
+  evidenceAssessments: Array<{
+    iteration: number | null;
+    evidenceId: string;
+    hypothesisId: string;
+    relation: EvidenceRelation;
+    explanation: string;
+  }>;
+  hypothesisTransitions: Array<{
+    iteration: number | null;
+    hypothesisId: string;
+    before: {
+      status: HypothesisStatus;
+      confidence: Confidence;
+      supportScore: number;
+      contradictionScore: number;
+    } | null;
+    after: {
+      status: HypothesisStatus;
+      confidence: Confidence;
+      supportScore: number;
+      contradictionScore: number;
+    };
+  }> | null;
+  competingHypothesisState: Array<{
+    hypothesisId: string;
+    revision: number;
+    statement: string;
+    status: HypothesisStatus;
+    confidence: Confidence;
+    supportScore: number;
+    contradictionScore: number;
+  }>;
+  diagnosisAttempts: Array<{
+    attempt: number;
+    diagnosisId: string | null;
+    selectedHypothesisId: string | null;
+    validationResult: "ACCEPTED" | "REJECTED" | "UNAVAILABLE";
+    rejectionReason: string | null;
+  }>;
+  finalizeAttempts: Array<{
+    iteration: number;
+    validationResult: "ACCEPTED" | "REJECTED" | "UNAVAILABLE";
+    rejectionReason: string | null;
+  }>;
+  stopReason: InvestigationStopReason | null;
+  budgetTerminationReason: InvestigationStopReason | null;
+  terminalState: InvestigationRunStatus;
+  modelCallCount: number;
+  toolCallCount: number;
+  unavailableFields: string[];
 };
 
 export type HarnessExecutionOutcome = {
@@ -120,6 +208,7 @@ export type HarnessRunManifest = {
   datasetVersion: string;
   datasetHash: string;
   evaluationContractVersion: string;
+  telemetrySchemaVersion: "benchmark-observability-v1";
   sourceCommit: string;
   executionProvider: HarnessExecutionProviderType;
   runtimeMode: HarnessRuntimeMode;
@@ -144,6 +233,7 @@ export type HarnessCaseExecutionResult = {
     error?: string;
   };
   normalizedPrediction: NormalizedInvestigationResult | null;
+  telemetry: HarnessExecutionTelemetry | null;
   scoring: InvestigationCaseEvalResult;
 };
 
@@ -189,6 +279,16 @@ export type DevHarnessRunOptions = {
   caseId?: string;
   runId?: string;
   now?: () => string;
+  onProgress?: (event: {
+    index: number;
+    total: number;
+    caseId: string;
+    phase: "START" | "END";
+    terminalState?: HarnessExecutionOutcome["terminalInvestigationState"];
+    modelCallCount?: number;
+    toolCallCount?: number;
+    durationMs?: number;
+  }) => void;
 };
 
 export type LivePreflightFixture = {

@@ -81,6 +81,7 @@ export async function rescoreFrozenBaselineReport(
         ...(runtimeFailed ? { error: "FROZEN_BASELINE_RUNTIME_FAILURE" } : {}),
       },
       normalizedPrediction: normalizedPrediction ? structuredClone(normalizedPrediction) : null,
+      telemetry: null,
       scoring: scoreInvestigationCase(benchmarkCase, scoringInput, { runtimeFailed }),
     };
   });

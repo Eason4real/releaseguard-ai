@@ -26,6 +26,29 @@ import { normalizeGithubTarget } from "../../lib/investigation/github-action-sta
 
 const copy = <V>(value: V): V => structuredClone(value);
 
+export type LiveEvalObservability = {
+  hypothesisTransitions: Array<{
+    runId: string;
+    iterationId: string | null;
+    hypothesisId: string;
+    before: Pick<T.Hypothesis, "status" | "confidence" | "supportScore" | "contradictionScore"> | null;
+    after: Pick<T.Hypothesis, "status" | "confidence" | "supportScore" | "contradictionScore">;
+  }>;
+  finalizeAttempts: Array<{
+    runId: string;
+    iterationId: string;
+    validationResult: "ACCEPTED" | "REJECTED";
+    rejectionReason: string | null;
+  }>;
+};
+
+const hypothesisState = (item: T.Hypothesis) => ({
+  status: item.status,
+  confidence: item.confidence,
+  supportScore: item.supportScore,
+  contradictionScore: item.contradictionScore,
+});
+
 export class LiveEvalStore implements Phase4InvestigationStore {
   readonly runs = new Map<string, T.InvestigationRun>();
   readonly calls = new Map<string, T.ToolCall>();
@@ -49,6 +72,10 @@ export class LiveEvalStore implements Phase4InvestigationStore {
   readonly verificationEvidence = new Map<string, T.VerificationEvidence>();
   readonly verificationEvaluations = new Map<string, T.VerificationEvaluation>();
   readonly commands = new Set<string>();
+  readonly observability: LiveEvalObservability = {
+    hypothesisTransitions: [],
+    finalizeAttempts: [],
+  };
   verificationMetricBuckets: MetricBucket[] = [];
   verificationFeedback: VerificationFeedbackRecord[] = [];
 
@@ -233,7 +260,19 @@ export class LiveEvalStore implements Phase4InvestigationStore {
     const run = this.runs.get(iteration.runId);
     if (run?.activeIterationId === id) this.runs.set(run.id, { ...run, activeIterationId: null, updatedAt: completedAt });
   }
-  async saveHypotheses(items: T.Hypothesis[]) { items.forEach((item) => this.hypotheses.set(item.id, copy(item))); }
+  async saveHypotheses(items: T.Hypothesis[]) {
+    items.forEach((item) => {
+      const before = this.hypotheses.get(item.id);
+      this.observability.hypothesisTransitions.push({
+        runId: item.runId,
+        iterationId: this.runs.get(item.runId)?.activeIterationId ?? null,
+        hypothesisId: item.id,
+        before: before ? hypothesisState(before) : null,
+        after: hypothesisState(item),
+      });
+      this.hypotheses.set(item.id, copy(item));
+    });
+  }
   async commitEvidenceAssessment(input: { links: T.HypothesisEvidenceLink[]; hypotheses: T.Hypothesis[];
     traceEvent: T.InvestigationTraceEvent; iterationId: string; rationale: string; completedAt: string }) {
     const iteration = this.iterations.get(input.iterationId);
@@ -242,7 +281,17 @@ export class LiveEvalStore implements Phase4InvestigationStore {
       throw new Error("Evidence Assessment 未持有 Run lock。");
     }
     input.links.forEach((item) => this.hypothesisLinks.set(item.id, copy(item)));
-    input.hypotheses.forEach((item) => this.hypotheses.set(item.id, copy(item)));
+    input.hypotheses.forEach((item) => {
+      const before = this.hypotheses.get(item.id);
+      this.observability.hypothesisTransitions.push({
+        runId: item.runId,
+        iterationId: input.iterationId,
+        hypothesisId: item.id,
+        before: before ? hypothesisState(before) : null,
+        after: hypothesisState(item),
+      });
+      this.hypotheses.set(item.id, copy(item));
+    });
     this.traces.set(input.traceEvent.id, copy(input.traceEvent));
     await this.completeIteration(input.iterationId, "COMPLETED", "ASSESS_EVIDENCE", input.rationale, input.completedAt);
   }
@@ -261,29 +310,50 @@ export class LiveEvalStore implements Phase4InvestigationStore {
   }
 
   async finalizeGroundedInvestigation(input: GroundedFinalizationCommit) {
-    assertGroundedFinalizationCommit(input);
-    const run = this.runs.get(input.runId);
-    const iteration = this.iterations.get(input.iterationId);
-    const selected = this.hypotheses.get(input.selectedHypothesis.id);
-    if (!run || run.status !== "RUNNING" || run.activeIterationId !== input.iterationId
-      || run.lockVersion !== input.expectedLockVersion || run.currentDiagnosisRevision !== input.expectedDiagnosisRevision
-      || !iteration || iteration.status !== "RUNNING" || !selected
-      || selected.status !== input.selectedHypothesis.status || selected.confidence !== input.selectedHypothesis.confidence
-      || selected.updatedAt !== input.selectedHypothesis.updatedAt) throw new Error("FINALIZATION_PRECONDITION_FAILED");
-    this.diagnoses.set(input.diagnosis.id, copy(input.diagnosis));
-    input.claims.forEach((item) => this.diagnosisClaims.set(item.id, copy(item)));
-    input.claimEvidenceLinks.forEach((item) => this.diagnosisClaimLinks.set(item.id, copy(item)));
-    if (input.proposedAction) this.actions.set(input.proposedAction.id, copy(input.proposedAction));
-    if (input.approval) this.approvals.set(input.approval.id, copy(input.approval));
-    if (input.approvalSnapshot) this.snapshots.set(input.approvalSnapshot.id, copy(input.approvalSnapshot));
-    if (input.actionToolCall) this.calls.set(input.actionToolCall.id, copy(input.actionToolCall));
-    input.auditEvents.forEach((item) => this.audits.set(item.id, copy(item)));
-    this.traces.set(input.traceEvent.id, copy(input.traceEvent));
-    this.iterations.set(iteration.id, { ...iteration, status: "COMPLETED", decisionType: "FINALIZE",
-      publicRationale: input.publicRationale, completedAt: input.completedAt });
-    this.runs.set(run.id, { ...run, status: input.targetRunStatus, activeIterationId: null,
-      lockVersion: input.expectedLockVersion + 1, currentDiagnosisRevision: input.diagnosis.revision,
-      totalTokens: input.totalTokens, completedAt: null, updatedAt: input.completedAt });
+    const attempt: LiveEvalObservability["finalizeAttempts"][number] = {
+      runId: input.runId,
+      iterationId: input.iterationId,
+      validationResult: "REJECTED",
+      rejectionReason: null,
+    };
+    this.observability.finalizeAttempts.push(attempt);
+    try {
+      assertGroundedFinalizationCommit(input);
+      const run = this.runs.get(input.runId);
+      const iteration = this.iterations.get(input.iterationId);
+      const selected = this.hypotheses.get(input.selectedHypothesis.id);
+      if (!run || run.status !== "RUNNING" || run.activeIterationId !== input.iterationId
+        || run.lockVersion !== input.expectedLockVersion || run.currentDiagnosisRevision !== input.expectedDiagnosisRevision
+        || !iteration || iteration.status !== "RUNNING" || !selected
+        || selected.status !== input.selectedHypothesis.status || selected.confidence !== input.selectedHypothesis.confidence
+        || selected.updatedAt !== input.selectedHypothesis.updatedAt) throw new Error("FINALIZATION_PRECONDITION_FAILED");
+      this.diagnoses.set(input.diagnosis.id, copy(input.diagnosis));
+      input.claims.forEach((item) => this.diagnosisClaims.set(item.id, copy(item)));
+      input.claimEvidenceLinks.forEach((item) => this.diagnosisClaimLinks.set(item.id, copy(item)));
+      if (input.proposedAction) this.actions.set(input.proposedAction.id, copy(input.proposedAction));
+      if (input.approval) this.approvals.set(input.approval.id, copy(input.approval));
+      if (input.approvalSnapshot) this.snapshots.set(input.approvalSnapshot.id, copy(input.approvalSnapshot));
+      if (input.actionToolCall) this.calls.set(input.actionToolCall.id, copy(input.actionToolCall));
+      input.auditEvents.forEach((item) => this.audits.set(item.id, copy(item)));
+      this.traces.set(input.traceEvent.id, copy(input.traceEvent));
+      this.iterations.set(iteration.id, { ...iteration, status: "COMPLETED", decisionType: "FINALIZE",
+        publicRationale: input.publicRationale, completedAt: input.completedAt });
+      this.runs.set(run.id, { ...run, status: input.targetRunStatus, activeIterationId: null,
+        lockVersion: input.expectedLockVersion + 1, currentDiagnosisRevision: input.diagnosis.revision,
+        totalTokens: input.totalTokens, completedAt: null, updatedAt: input.completedAt });
+      attempt.validationResult = "ACCEPTED";
+    } catch (error) {
+      attempt.rejectionReason = error instanceof Error ? error.message : "FINALIZATION_REJECTED";
+      throw error;
+    }
+  }
+
+  getObservability(runId: string): LiveEvalObservability {
+    return copy({
+      hypothesisTransitions: this.observability.hypothesisTransitions.filter((item) =>
+        item.runId === runId),
+      finalizeAttempts: this.observability.finalizeAttempts.filter((item) => item.runId === runId),
+    });
   }
 
   async recordRuntimeCommand(input: { runId: string; clientRequestId: string; commandType: string }) {

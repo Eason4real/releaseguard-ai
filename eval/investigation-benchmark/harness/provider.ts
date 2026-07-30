@@ -5,6 +5,7 @@ import type {
   HarnessExecutionProviderFactory,
 } from "./types";
 import { executeHarnessAgentRuntime } from "./runtime";
+import { telemetryFromAggregate } from "./telemetry";
 
 const requireCount = (value: number, label: string) => {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`INVALID_${label.toUpperCase()}`);
@@ -35,7 +36,10 @@ export class DeterministicHarnessProvider implements HarnessExecutionProvider {
 
     // This fixture-compatible provider intentionally makes no capability claim. It executes the
     // observable script and applies one case-agnostic stopping policy without answer lookup.
-    const aggregate = await executeHarnessAgentRuntime(request);
+    let observability;
+    const aggregate = await executeHarnessAgentRuntime(request, {
+      onObservability: (value) => { observability = value; },
+    });
     if (aggregate.run.status !== "INCONCLUSIVE") {
       return {
         status: "FAIL",
@@ -70,6 +74,7 @@ export class DeterministicHarnessProvider implements HarnessExecutionProvider {
       status: "PASS",
       terminalInvestigationState: "INCONCLUSIVE",
       prediction,
+      telemetry: telemetryFromAggregate(request, aggregate, [], observability),
     };
   }
 }

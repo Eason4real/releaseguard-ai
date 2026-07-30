@@ -121,10 +121,20 @@ test("isolated preflight executes the Live adapter without scorer or benchmark a
     ["CREATE_HYPOTHESES", "CALL_TOOL", "ASSESS_EVIDENCE", "FINALIZE"]);
   assert.equal(report.schemaRepairCount, 0);
   assert.deepEqual(report.toolTrajectory, [{
+    order: 1,
+    iteration: 2,
+    toolCallId: "TOOL_CALL-001",
     toolName: "get_release",
     arguments: { release_id: "REL-901" },
     status: "COMPLETED",
     resultStatus: "SUCCESS",
+    observationMetadata: {
+      valueType: "object",
+      topLevelKeys: ["data", "schema_version"],
+      itemCount: null,
+    },
+    evidenceIds: ["EV-14030"],
+    error: null,
   }]);
   assert.equal("aggregate" in report, false);
   assert.equal("breakdown" in report, false);
@@ -289,6 +299,7 @@ test("Live provider redacts secrets and classifies provider failures with zero t
     const outcome = await provider.execute(request);
     assert.equal(outcome.status, "FAIL");
     assert.equal(outcome.error, scenario.expected);
+    assert.equal(outcome.telemetry?.terminalState, "FAILED");
     assert.equal(count.value, scenario.calls);
     assert.equal(JSON.stringify({ provider, outcome }).includes(SECRET), false);
   }

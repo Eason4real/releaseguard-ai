@@ -7,8 +7,19 @@ import {
 } from "../../../lib/investigation/runtime";
 import { getActiveHypotheses, getPendingEvidence } from
   "../../../lib/investigation/hypothesis-invariants";
-import { LiveEvalStore } from "../../support/live-eval-store";
+import { LiveEvalStore, type LiveEvalObservability } from "../../support/live-eval-store";
 import type { HarnessAgentRequest } from "./types";
+
+export class HarnessRuntimeExecutionError extends Error {
+  readonly name = "HarnessRuntimeExecutionError";
+  constructor(
+    readonly runtimeCause: unknown,
+    readonly aggregate: Awaited<ReturnType<LiveEvalStore["getAggregate"]>>,
+    readonly observability: LiveEvalObservability,
+  ) {
+    super(runtimeCause instanceof Error ? runtimeCause.message : String(runtimeCause));
+  }
+}
 
 class HarnessRuntimePlanner implements InvestigationPlanner {
   readonly type = "DETERMINISTIC" as const;
@@ -155,6 +166,7 @@ export async function executeHarnessAgentRuntime(
     maxModelCalls?: number;
     maxIterations?: number;
     maxToolCalls?: number;
+    onObservability?: (observability: LiveEvalObservability) => void;
   } = {},
 ) {
   const analytics = await seedAnalytics(request);
@@ -168,14 +180,22 @@ export async function executeHarnessAgentRuntime(
     releaseId: request.agentInput.release?.id ?? null,
     maxModelCalls: options.maxModelCalls,
   });
-  const aggregate = await runAgentLoop(store, {
-    runId,
-    planner: options.planner ?? new HarnessRuntimePlanner(),
-    analytics,
-    maxIterations: options.maxIterations ?? 8,
-    maxToolCalls: options.maxToolCalls ?? 2,
-    toolExecutor: fixtureToolExecutor(request),
-  });
+  let aggregate;
+  try {
+    aggregate = await runAgentLoop(store, {
+      runId,
+      planner: options.planner ?? new HarnessRuntimePlanner(),
+      analytics,
+      maxIterations: options.maxIterations ?? 8,
+      maxToolCalls: options.maxToolCalls ?? 2,
+      toolExecutor: fixtureToolExecutor(request),
+    });
+  } catch (error) {
+    const observability = store.getObservability(runId);
+    options.onObservability?.(observability);
+    throw new HarnessRuntimeExecutionError(error, await store.getAggregate(runId), observability);
+  }
   if (!aggregate) throw new Error("HARNESS_RUNTIME_RESULT_MISSING");
+  options.onObservability?.(store.getObservability(runId));
   return aggregate;
 }

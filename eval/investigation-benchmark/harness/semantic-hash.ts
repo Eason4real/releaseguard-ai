@@ -15,7 +15,10 @@ export const semanticHarnessReport = (report: Omit<DevHarnessReport, "semanticHa
     modelConfiguration: report.manifest.modelConfiguration,
   },
   cases: report.cases.map((item) => ({
-    ...item,
+    caseId: item.caseId,
+    category: item.category,
+    difficulty: item.difficulty,
+    execution: item.execution,
     normalizedPrediction: item.normalizedPrediction ? {
       ...item.normalizedPrediction,
       durationMs: undefined,
