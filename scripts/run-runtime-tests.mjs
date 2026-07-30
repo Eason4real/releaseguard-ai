@@ -8,6 +8,9 @@ const testNames = [
   "public-demo-replay",
   "investigation-benchmark-scorer",
   "investigation-benchmark-pipeline",
+  "investigation-benchmark-dataset",
+  "investigation-benchmark-dev-dataset",
+  "investigation-benchmark-dev-harness",
 ];
 const outputFiles = testNames.map((name) => new URL(`${name}.test.mjs`, outputDirectory));
 
