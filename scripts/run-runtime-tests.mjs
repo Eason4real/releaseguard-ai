@@ -7,6 +7,7 @@ const testNames = [
   "investigation-runtime",
   "public-demo-replay",
   "investigation-benchmark-scorer",
+  "investigation-benchmark-pipeline",
 ];
 const outputFiles = testNames.map((name) => new URL(`${name}.test.mjs`, outputDirectory));
 

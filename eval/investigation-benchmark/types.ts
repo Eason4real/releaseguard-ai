@@ -76,6 +76,41 @@ export type NormalizedInvestigationResult = {
   durationMs?: number;
 };
 
+export type BenchmarkRawDiagnosisClaim = {
+  claimId: string;
+  type: DiagnosisClaimType;
+  statement: string;
+  groundingStatus?: DiagnosisGroundingStatus;
+  citedEvidenceIds?: string[];
+};
+
+export type BenchmarkRawInvestigationResult = {
+  caseId: string;
+  predictedRootCause?: string | null;
+  predictedRootCauseId?: string | null;
+  citedEvidenceIds?: string[];
+  diagnosisClaims?: BenchmarkRawDiagnosisClaim[];
+  diagnosisClaimEvidenceLinks?: Array<{
+    claimId: string;
+    evidenceId: string;
+  }>;
+  modelCallCount?: number;
+  toolCallCount?: number;
+  tokenUsage?: InvestigationTokenUsage;
+  durationMs?: number;
+};
+
+export type BenchmarkResultProvider = {
+  run(benchmarkCase: InvestigationBenchmarkCase):
+    | BenchmarkRawInvestigationResult
+    | Promise<BenchmarkRawInvestigationResult>;
+};
+
+export type InvestigationBenchmarkRunResult = {
+  cases: InvestigationCaseEvalResult[];
+  aggregate: InvestigationAggregateMetrics;
+};
+
 export type RootCauseScore = {
   correct: boolean;
   expected: { id: string; rootCause: string };
