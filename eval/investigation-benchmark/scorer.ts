@@ -6,13 +6,8 @@ import type {
   InvestigationGroundTruth,
   InvestigationTokenUsage,
   NormalizedInvestigationResult,
-  RootCauseScore,
 } from "./types";
-
-const normalizeRootCause = (value: string) => value
-  .normalize("NFKC")
-  .toLocaleLowerCase("en-US")
-  .replace(/[\p{P}\p{S}\s]+/gu, "");
+import { scoreRootCauseSemantics } from "./root-cause-semantic-scorer";
 
 const duplicates = (values: string[]) => {
   const seen = new Set<string>();
@@ -76,36 +71,6 @@ const assertTokenUsage = (usage: InvestigationTokenUsage) => {
   }
 };
 
-const scoreRootCause = (
-  groundTruth: InvestigationGroundTruth,
-  result: NormalizedInvestigationResult,
-): RootCauseScore => {
-  let correct = false;
-  let matchedBy: RootCauseScore["matchedBy"] = "NONE";
-  if (result.predictedRootCauseId !== null) {
-    correct = result.predictedRootCauseId === groundTruth.canonicalRootCauseId;
-    if (correct) matchedBy = "ID";
-  } else {
-    const predicted = normalizeRootCause(result.predictedRootCause);
-    const acceptable = [groundTruth.canonicalRootCause, ...groundTruth.acceptableAliases]
-      .map(normalizeRootCause);
-    correct = predicted.length > 0 && acceptable.includes(predicted);
-    if (correct) matchedBy = "ALIAS";
-  }
-  return {
-    correct,
-    expected: {
-      id: groundTruth.canonicalRootCauseId,
-      rootCause: groundTruth.canonicalRootCause,
-    },
-    predicted: {
-      id: result.predictedRootCauseId,
-      rootCause: result.predictedRootCause,
-    },
-    matchedBy,
-  };
-};
-
 const scoreEvidence = (
   groundTruth: InvestigationGroundTruth,
   citedEvidenceIds: string[],
@@ -148,6 +113,7 @@ const scoreGrounding = (result: NormalizedInvestigationResult) => {
 export function scoreInvestigationCase(
   benchmarkCase: InvestigationBenchmarkCase,
   result: NormalizedInvestigationResult,
+  options: { runtimeFailed?: boolean } = {},
 ): InvestigationCaseEvalResult {
   if (benchmarkCase.caseId !== result.caseId) {
     throw new Error(`Case ID mismatch: expected ${benchmarkCase.caseId}, received ${result.caseId}.`);
@@ -161,7 +127,7 @@ export function scoreInvestigationCase(
   const grounding = scoreGrounding(result);
   return {
     caseId: benchmarkCase.caseId,
-    rootCause: scoreRootCause(benchmarkCase.groundTruth, result),
+    rootCause: scoreRootCauseSemantics(benchmarkCase.groundTruth, result, options),
     evidence: scoreEvidence(benchmarkCase.groundTruth, result.citedEvidenceIds),
     grounding,
     cost: {
@@ -170,6 +136,7 @@ export function scoreInvestigationCase(
       ...(result.tokenUsage ? { tokenUsage: result.tokenUsage } : {}),
       ...(result.durationMs !== undefined ? { durationMs: result.durationMs } : {}),
     },
+    runtimeFailed: options.runtimeFailed ?? false,
     overallStatus: grounding.status === "EVALUABLE"
       ? "EVALUATED"
       : "PARTIALLY_EVALUATED",
@@ -217,6 +184,18 @@ const completeTokenUsage = (
 export function aggregateInvestigationMetrics(
   results: InvestigationCaseEvalResult[],
 ): InvestigationAggregateMetrics {
+  const automaticallyEvaluated = results.filter((result) =>
+    !result.runtimeFailed && result.rootCause.evaluationStatus === "AUTOMATICALLY_EVALUATED");
+  const correctCases = automaticallyEvaluated.filter((result) =>
+    result.rootCause.correct === true).length;
+  const incorrectCases = automaticallyEvaluated.filter((result) =>
+    result.rootCause.correct === false).length;
+  const reviewRequiredCases = results.filter((result) =>
+    !result.runtimeFailed && result.rootCause.evaluationStatus === "REVIEW_REQUIRED").length;
+  const runtimeFailedCases = results.filter((result) => result.runtimeFailed).length;
+  const autoEvaluableAccuracy = automaticallyEvaluated.length === 0
+    ? null
+    : correctCases / automaticallyEvaluated.length;
   const groundingRates = results.flatMap((result) =>
     result.grounding.unsupportedClaimRate === null
       ? []
@@ -232,7 +211,16 @@ export function aggregateInvestigationMetrics(
 
   return {
     totalCases: results.length,
-    rootCauseTop1Accuracy: mean(results.map((result) => result.rootCause.correct ? 1 : 0)),
+    rootCauseTop1Accuracy: autoEvaluableAccuracy,
+    automaticallyEvaluatedCases: automaticallyEvaluated.length,
+    correctCases,
+    incorrectCases,
+    reviewRequiredCases,
+    runtimeFailedCases,
+    autoEvaluationCoverage: results.length === 0
+      ? null
+      : automaticallyEvaluated.length / results.length,
+    autoEvaluableAccuracy,
     meanEvidencePrecision: mean(results.map((result) => result.evidence.precision)),
     meanUnsupportedClaimRate: mean(groundingRates),
     medianModelCalls: median(results.map((result) => result.cost.modelCalls)),

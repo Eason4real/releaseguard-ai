@@ -17,6 +17,7 @@
     "eval:live": "node scripts/run-live-eval.mjs",
     "eval:investigation-dev-harness": "node scripts/run-investigation-benchmark-dev-harness.mjs",
     "eval:investigation-live": "node scripts/run-investigation-benchmark-live.mjs",
+    "eval:investigation-rescore": "node scripts/run-investigation-benchmark-offline-rescore.mjs",
     "corpus:import:public": "node scripts/run-public-corpus-import.mjs",
     "corpus:refresh:real": "node scripts/run-real-public-corpus-refresh.mjs",
     "corpus:validate:real": "node scripts/run-real-public-corpus-validation.mjs",

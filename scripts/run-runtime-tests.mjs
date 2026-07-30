@@ -7,6 +7,7 @@ const testNames = [
   "investigation-runtime",
   "public-demo-replay",
   "investigation-benchmark-scorer",
+  "investigation-benchmark-semantic-scorer",
   "investigation-benchmark-pipeline",
   "investigation-benchmark-dataset",
   "investigation-benchmark-dev-dataset",

@@ -112,7 +112,9 @@ test("Agent-visible requests use an exact whitelist and exclude benchmark answer
     "caseId", "title", "category", "difficulty", "difficultyScore", "difficultyDimensions",
     "templateFamily", "split", "manualReview", "groundTruth", "canonicalRootCauseId",
     "canonicalRootCause", "acceptableAliases", "requiredEvidenceIds", "supportingEvidenceIds",
-    "distractorEvidenceIds", "datasetId", "datasetVersion", "datasetHash", "fixtureRef", "role",
+    "distractorEvidenceIds", "rootCauseEvaluation", "requiredConceptGroups", "optionalConcepts",
+    "forbiddenConcepts", "uncertaintyPolicy", "specificityPolicy", "datasetId", "datasetVersion",
+    "datasetHash", "fixtureRef", "role",
   ]) assert.doesNotMatch(serialized, new RegExp(`"${forbiddenField}"`));
   assert.equal(serialized.includes(INVESTIGATION_BENCHMARK_DEV_EXPECTED_HASH), false);
   assert.equal(serialized.includes(INVESTIGATION_BENCHMARK_DEV_VERSION), false);
@@ -135,7 +137,7 @@ test("provider input has no execution key or case metadata from which to select 
   assert.equal(request.datasetHash, undefined);
 });
 
-test("runtime failure remains in the root-cause denominator and cannot pass as insufficient", async () => {
+test("runtime failure is reported separately and excluded from automatic accuracy", async () => {
   let creation = 0;
   const factory: HarnessExecutionProviderFactory = {
     executionMetadata: deterministicMetadata,
@@ -156,9 +158,11 @@ test("runtime failure remains in the root-cause denominator and cannot pass as i
   assert.equal(report.aggregate.failedCases, 1);
   assert.equal(report.cases[0].execution.status, "FAIL");
   assert.equal(report.cases[0].execution.terminalInvestigationState, "FAILED");
-  assert.equal(report.cases[0].scoring.rootCause.correct, false);
-  assert.equal(report.aggregate.rootCauseTop1Accuracy,
-    report.cases.filter((item) => item.scoring.rootCause.correct).length / 22);
+  assert.equal(report.cases[0].scoring.rootCause.correct, null);
+  assert.equal(report.cases[0].scoring.rootCause.evaluationStatus, "RUNTIME_FAILED");
+  assert.equal(report.aggregate.runtimeFailedCases, 1);
+  assert.equal(report.aggregate.automaticallyEvaluatedCases
+    + report.aggregate.reviewRequiredCases + report.aggregate.runtimeFailedCases, 22);
 });
 
 test("an explicit matching insufficient diagnosis is correct while an exception is not", async () => {
@@ -198,7 +202,8 @@ test("an explicit matching insufficient diagnosis is correct while an exception 
   });
   assert.equal(correct.cases[0].scoring.rootCause.correct, true);
   assert.equal(correct.cases[0].execution.terminalInvestigationState, "INCONCLUSIVE");
-  assert.equal(failed.cases[0].scoring.rootCause.correct, false);
+  assert.equal(failed.cases[0].scoring.rootCause.correct, null);
+  assert.equal(failed.cases[0].scoring.rootCause.evaluationStatus, "RUNTIME_FAILED");
   assert.equal(failed.cases[0].execution.terminalInvestigationState, "FAILED");
 });
 

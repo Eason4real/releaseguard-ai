@@ -28,6 +28,15 @@ const provenance = () => ({
   description: "TEST ONLY validator fixture; not a benchmark case.",
 });
 
+const causalRubric = () => ({
+  expectedAnswerMode: "CAUSAL" as const,
+  requiredConceptGroups: [],
+  optionalConcepts: [],
+  forbiddenConcepts: [],
+  uncertaintyPolicy: "NOT_APPLICABLE" as const,
+  specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT" as const,
+});
+
 const entry = (input: Omit<DatasetCaseEntry,
   "schemaVersion" | "provenance" | "manualReview" | "enabled">): DatasetCaseEntry => ({
   schemaVersion: "1",
@@ -72,6 +81,7 @@ const fixtureA: GovernedBenchmarkCaseFixture = {
       evidenceIds: ["EV-101", "EV-102"],
     }],
     groundTruth: {
+      rootCauseEvaluation: causalRubric(),
       canonicalRootCauseId: "RC-101",
       canonicalRootCause: "The latest release changed checkout confirmation behavior.",
       acceptableAliases: ["Checkout confirmation regressed in the latest release"],
@@ -108,6 +118,7 @@ const fixtureB: GovernedBenchmarkCaseFixture = {
         evidenceIds: ["EV-202", "EV-203"] },
     ],
     groundTruth: {
+      rootCauseEvaluation: causalRubric(),
       canonicalRootCauseId: "RC-102",
       canonicalRootCause: "The declared rollout configuration exposed the wrong cohort.",
       acceptableAliases: ["Incorrect cohort exposure from rollout configuration"],
@@ -149,6 +160,11 @@ const fixtureC: GovernedBenchmarkCaseFixture = {
         evidenceIds: ["EV-303", "EV-304"] },
     ],
     groundTruth: {
+      rootCauseEvaluation: {
+        ...causalRubric(),
+        expectedAnswerMode: "ABSTAIN",
+        uncertaintyPolicy: "REQUIRE_ABSTENTION",
+      },
       canonicalRootCauseId: "RC-103",
       canonicalRootCause: "Available evidence cannot reliably identify one root cause.",
       acceptableAliases: ["The current evidence is insufficient to choose a cause"],
@@ -295,6 +311,34 @@ test("Ground Truth rejects missing references, label conflicts, and duplicate al
   assert.ok(issueCodes(duplicateFixtureId).includes("DUPLICATE_FIXTURE_IDENTIFIER"));
 });
 
+test("Ground Truth rejects uncontrolled, empty, conflicting, and mode-inconsistent semantic rubrics", async () => {
+  const uncontrolled = await validateLockedMutation((definition) => {
+    const rubric = definition.fixtures[0].benchmarkCase.groundTruth.rootCauseEvaluation;
+    rubric.requiredConceptGroups = [{ id: "cause", anyOf: ["DATABASE_LOCK"] }];
+    rubric.forbiddenConcepts = ["DATABASE_LOCK"];
+  });
+  assert.ok(issueCodes(uncontrolled).includes("CONFLICTING_SEMANTIC_CONCEPT"));
+
+  const emptyGroup = await validateLockedMutation((definition) => {
+    definition.fixtures[0].benchmarkCase.groundTruth.rootCauseEvaluation.requiredConceptGroups = [
+      { id: "", anyOf: [] },
+    ];
+  });
+  assert.ok(issueCodes(emptyGroup).includes("INVALID_SEMANTIC_CONCEPT_GROUP"));
+
+  const modeMismatch = await validateLockedMutation((definition) => {
+    const rubric = definition.fixtures[0].benchmarkCase.groundTruth.rootCauseEvaluation;
+    rubric.expectedAnswerMode = "ABSTAIN";
+  });
+  assert.ok(issueCodes(modeMismatch).includes("ANSWER_MODE_POLICY_MISMATCH"));
+
+  const unknownConcept = await validateLockedMutation((definition) => {
+    const rubric = definition.fixtures[0].benchmarkCase.groundTruth.rootCauseEvaluation;
+    (rubric.optionalConcepts as string[]).push("UNREVIEWED_KEYWORD");
+  });
+  assert.ok(issueCodes(unknownConcept).includes("UNCONTROLLED_SEMANTIC_CONCEPT"));
+});
+
 test("Tool Solvability rejects unavailable positive categories and accepts insufficiency", async () => {
   const unsolvable = await validateLockedMutation((definition) => {
     definition.manifest.caseEntries[0].category = "database";
@@ -333,6 +377,7 @@ test("normalized structural fingerprint detects superficial cross-split mutation
     source.benchmarkCase.dataSources[0].fixtureRef = "fixture://SRC-211";
     source.benchmarkCase.dataSources[0].evidenceIds = ["EV-211", "EV-212"];
     source.benchmarkCase.groundTruth = {
+      rootCauseEvaluation: causalRubric(),
       canonicalRootCauseId: "RC-202",
       canonicalRootCause: "A renamed release behavior changed completion.",
       acceptableAliases: ["Completion changed because of renamed release behavior"],

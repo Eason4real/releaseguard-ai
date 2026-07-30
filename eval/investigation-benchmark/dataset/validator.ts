@@ -1,7 +1,10 @@
 import { modelToolDefinitions } from "../../../lib/investigation/tools";
 import { canonicalJson, sha256 } from "../../../lib/retrieval/public-incidents/normalize";
 import { deriveBenchmarkExecutionRequest } from "../execution-input";
-import { BENCHMARK_CASE_CATEGORIES } from "../types";
+import {
+  BENCHMARK_CASE_CATEGORIES,
+  ROOT_CAUSE_SEMANTIC_CONCEPTS,
+} from "../types";
 import {
   calculateInvestigationBenchmarkDatasetHash,
 } from "./hash";
@@ -329,6 +332,46 @@ const validateFixture = (
     || aliases.some((alias) => normalizeAnswer(alias) === normalizeAnswer(canonical))) {
     addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "INVALID_ROOT_CAUSE_ALIASES",
       reason: "Aliases must be non-empty, unique, and different from the canonical answer.", caseId });
+  }
+
+  const rubric = record(groundTruth?.rootCauseEvaluation);
+  const requiredConceptGroups = Array.isArray(rubric.requiredConceptGroups)
+    ? rubric.requiredConceptGroups.map(record) : [];
+  const optionalConcepts = Array.isArray(rubric.optionalConcepts) ? rubric.optionalConcepts : [];
+  const forbiddenConcepts = Array.isArray(rubric.forbiddenConcepts) ? rubric.forbiddenConcepts : [];
+  const controlledConcepts = new Set<unknown>(ROOT_CAUSE_SEMANTIC_CONCEPTS);
+  const groupIds = requiredConceptGroups.map((group) => text(group.id));
+  const requiredConcepts = requiredConceptGroups.flatMap((group) =>
+    Array.isArray(group.anyOf) ? group.anyOf : []);
+  if (!(["CAUSAL", "ABSTAIN"] as unknown[]).includes(rubric.expectedAnswerMode)
+    || !(["NOT_APPLICABLE", "REQUIRE_ABSTENTION", "REQUIRE_UNRESOLVED_ALTERNATIVES"] as unknown[])
+      .includes(rubric.uncertaintyPolicy)
+    || rubric.specificityPolicy !== "ALLOW_MORE_SPECIFIC_IF_CONSISTENT") {
+    addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "INVALID_ROOT_CAUSE_POLICY",
+      reason: "Root-cause answer mode, uncertainty policy, and specificity policy must be supported.", caseId });
+  }
+  if (groupIds.some((id) => !id) || duplicates(groupIds).length > 0
+    || requiredConceptGroups.some((group) => !Array.isArray(group.anyOf)
+      || group.anyOf.length === 0 || duplicates(group.anyOf.map(String)).length > 0)) {
+    addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "INVALID_SEMANTIC_CONCEPT_GROUP",
+      reason: "Semantic concept groups require unique non-empty IDs and unique non-empty anyOf lists.", caseId });
+  }
+  if ([...requiredConcepts, ...optionalConcepts, ...forbiddenConcepts]
+    .some((concept) => !controlledConcepts.has(concept))) {
+    addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "UNCONTROLLED_SEMANTIC_CONCEPT",
+      reason: "Every semantic rubric concept must come from the controlled concept registry.", caseId });
+  }
+  if (duplicates(optionalConcepts.map(String)).length > 0
+    || duplicates(forbiddenConcepts.map(String)).length > 0
+    || [...new Set([...requiredConcepts, ...optionalConcepts])]
+      .some((concept) => forbiddenConcepts.includes(concept))) {
+    addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "CONFLICTING_SEMANTIC_CONCEPT",
+      reason: "Required or optional concepts cannot also be forbidden, and concept lists must be unique.", caseId });
+  }
+  if (rubric.expectedAnswerMode === "CAUSAL" && rubric.uncertaintyPolicy !== "NOT_APPLICABLE"
+    || rubric.expectedAnswerMode === "ABSTAIN" && rubric.uncertaintyPolicy === "NOT_APPLICABLE") {
+    addIssue(gates, "groundTruthIntegrity", { status: "FAIL", code: "ANSWER_MODE_POLICY_MISMATCH",
+      reason: "CAUSAL rubrics use NOT_APPLICABLE; ABSTAIN rubrics require an uncertainty policy.", caseId });
   }
 
   const required = Array.isArray(groundTruth?.requiredEvidenceIds)

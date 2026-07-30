@@ -1,5 +1,8 @@
 import type { MetricFilters, Release, RiskEvent } from "../../../../lib/analytics/types";
-import type { BenchmarkCaseCategory } from "../../types";
+import type {
+  BenchmarkCaseCategory,
+  RootCauseEvaluationRubric,
+} from "../../types";
 import type {
   DatasetCaseEntry,
   DatasetEvidenceObservation,
@@ -45,6 +48,7 @@ export type DevCaseSpec = {
   distractorObservationIndexes: number[];
   canonicalRootCause: string;
   acceptableAliases: string[];
+  rootCauseEvaluation?: Partial<RootCauseEvaluationRubric>;
   semanticDifficulty: {
     plausibleHypotheses: 0 | 1 | 2;
     causalDirectness: 0 | 1 | 2;
@@ -175,6 +179,19 @@ export function authorDevCase(spec: DevCaseSpec): AuthoredDevCase {
     requiredEvidenceIds,
     supportingEvidenceIds,
     distractorEvidenceIds,
+    rootCauseEvaluation: {
+      expectedAnswerMode: spec.category === "insufficient_evidence"
+        ? "ABSTAIN" as const
+        : "CAUSAL" as const,
+      requiredConceptGroups: [],
+      optionalConcepts: [],
+      forbiddenConcepts: [],
+      uncertaintyPolicy: spec.category === "insufficient_evidence"
+        ? "REQUIRE_ABSTENTION" as const
+        : "NOT_APPLICABLE" as const,
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT" as const,
+      ...structuredClone(spec.rootCauseEvaluation ?? {}),
+    },
   };
   const requiredTools = [...new Set(spec.supportingObservationIndexes.map((index) =>
     spec.observations[index].toolName))].sort();

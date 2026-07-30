@@ -238,6 +238,19 @@ const specs: DevCaseSpec[] = [
     distractorObservationIndexes: [2],
     canonicalRootCause: "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users.",
     acceptableAliases: ["New users received incorrect behavior from the recommendation flag rollout"],
+    rootCauseEvaluation: {
+      expectedAnswerMode: "CAUSAL",
+      requiredConceptGroups: [
+        { id: "recommendation-domain", anyOf: ["RECOMMENDATION_SYSTEM"] },
+        { id: "affected-new-users", anyOf: ["NEW_USERS"] },
+        { id: "experiment-rollout-mechanism", anyOf: ["FEATURE_FLAG_ROLLOUT", "EXPERIMENT_ASSIGNMENT"] },
+        { id: "incorrect-assignment", anyOf: ["INCORRECT_ASSIGNMENT"] },
+      ],
+      optionalConcepts: ["FEATURE_FLAG_ROLLOUT", "EXPERIMENT_ASSIGNMENT"],
+      forbiddenConcepts: ["EVIDENCE_INSUFFICIENT", "DATABASE_LOCK"],
+      uncertaintyPolicy: "NOT_APPLICABLE",
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT",
+    },
     semanticDifficulty: { plausibleHypotheses: 0, causalDirectness: 1,
       temporalCorrelationTrap: 0, evidenceCompleteness: 0 },
     reviewNotes: [
@@ -707,6 +720,18 @@ const specs: DevCaseSpec[] = [
     distractorObservationIndexes: [3],
     canonicalRootCause: "Available evidence cannot distinguish the checkout release from payment-provider instability.",
     acceptableAliases: ["The current observations cannot resolve release regression versus provider instability"],
+    rootCauseEvaluation: {
+      expectedAnswerMode: "ABSTAIN",
+      requiredConceptGroups: [
+        { id: "release-alternative", anyOf: ["CHECKOUT_RELEASE"] },
+        { id: "provider-alternative", anyOf: ["PAYMENT_PROVIDER_INSTABILITY"] },
+        { id: "alternatives-unresolved", anyOf: ["ALTERNATIVES_UNRESOLVED"] },
+      ],
+      optionalConcepts: ["EVIDENCE_INSUFFICIENT"],
+      forbiddenConcepts: ["DEFINITE_CAUSAL_ATTRIBUTION", "RELEASE_EXCLUDED"],
+      uncertaintyPolicy: "REQUIRE_UNRESOLVED_ALTERNATIVES",
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT",
+    },
     semanticDifficulty: { plausibleHypotheses: 2, causalDirectness: 2,
       temporalCorrelationTrap: 0, evidenceCompleteness: 1 },
     reviewNotes: [
@@ -737,6 +762,16 @@ const specs: DevCaseSpec[] = [
     distractorObservationIndexes: [2],
     canonicalRootCause: "The low-sample aggregate alert lacks enough evidence to identify a root cause.",
     acceptableAliases: ["A root cause cannot be determined from the low-sample aggregate retention signal"],
+    rootCauseEvaluation: {
+      expectedAnswerMode: "ABSTAIN",
+      requiredConceptGroups: [
+        { id: "insufficient-evidence", anyOf: ["EVIDENCE_INSUFFICIENT"] },
+      ],
+      optionalConcepts: [],
+      forbiddenConcepts: ["DEFINITE_CAUSAL_ATTRIBUTION"],
+      uncertaintyPolicy: "REQUIRE_ABSTENTION",
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT",
+    },
     semanticDifficulty: { plausibleHypotheses: 1, causalDirectness: 2,
       temporalCorrelationTrap: 0, evidenceCompleteness: 2 },
     reviewNotes: [

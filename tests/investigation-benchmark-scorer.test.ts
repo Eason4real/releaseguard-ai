@@ -26,6 +26,17 @@ const benchmarkCase = (caseId: string): InvestigationBenchmarkCase => ({
     evidenceIds: ["EV-REQUIRED", "EV-SUPPORT", "EV-DISTRACTOR"],
   }],
   groundTruth: {
+    rootCauseEvaluation: {
+      expectedAnswerMode: "CAUSAL",
+      requiredConceptGroups: [
+        { id: "retry", anyOf: ["IMMEDIATE_RETRY"] },
+        { id: "lock", anyOf: ["IDEMPOTENCY_LOCK"] },
+      ],
+      optionalConcepts: [],
+      forbiddenConcepts: ["DATABASE_LOCK"],
+      uncertaintyPolicy: "NOT_APPLICABLE",
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT",
+    },
     canonicalRootCauseId: "RC-RETRY-LOCK",
     canonicalRootCause: "Immediate retry conflicted with the idempotency lock.",
     acceptableAliases: ["Idempotency lock conflict from immediate retry"],
@@ -165,6 +176,13 @@ test("marks incomplete claim linkage unavailable and aggregates only evaluable m
   assert.deepEqual(aggregateInvestigationMetrics(results), {
     totalCases: 3,
     rootCauseTop1Accuracy: 2 / 3,
+    automaticallyEvaluatedCases: 3,
+    correctCases: 2,
+    incorrectCases: 1,
+    reviewRequiredCases: 0,
+    runtimeFailedCases: 0,
+    autoEvaluationCoverage: 1,
+    autoEvaluableAccuracy: 2 / 3,
     meanEvidencePrecision: (1 + 1 / 3) / 3,
     meanUnsupportedClaimRate: 1 / 6,
     medianModelCalls: 5,

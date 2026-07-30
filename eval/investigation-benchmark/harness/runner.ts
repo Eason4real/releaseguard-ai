@@ -66,7 +66,7 @@ const failurePrediction = (benchmarkCase: InvestigationBenchmarkCase) =>
     toolCallCount: 0,
   });
 
-const aggregate = (cases: HarnessCaseExecutionResult[]): HarnessAggregateMetrics => {
+export const aggregateHarnessCases = (cases: HarnessCaseExecutionResult[]): HarnessAggregateMetrics => {
   const scores = cases.map((item) => item.scoring);
   const base = aggregateInvestigationMetrics(scores);
   return {
@@ -74,6 +74,13 @@ const aggregate = (cases: HarnessCaseExecutionResult[]): HarnessAggregateMetrics
     completedCases: cases.filter((item) => item.execution.status === "PASS").length,
     failedCases: cases.filter((item) => item.execution.status === "FAIL").length,
     rootCauseTop1Accuracy: base.rootCauseTop1Accuracy,
+    automaticallyEvaluatedCases: base.automaticallyEvaluatedCases,
+    correctCases: base.correctCases,
+    incorrectCases: base.incorrectCases,
+    reviewRequiredCases: base.reviewRequiredCases,
+    runtimeFailedCases: base.runtimeFailedCases,
+    autoEvaluationCoverage: base.autoEvaluationCoverage,
+    autoEvaluableAccuracy: base.autoEvaluableAccuracy,
     meanEvidencePrecision: base.meanEvidencePrecision,
     meanUnsupportedClaimRate: base.meanUnsupportedClaimRate,
     groundingEvaluableCases: scores.filter((item) => item.grounding.status === "EVALUABLE").length,
@@ -85,11 +92,11 @@ const aggregate = (cases: HarnessCaseExecutionResult[]): HarnessAggregateMetrics
   };
 };
 
-const breakdown = (
+export const breakdownHarnessCases = (
   cases: HarnessCaseExecutionResult[],
   key: "category" | "difficulty",
 ) => Object.fromEntries([...new Set(cases.map((item) => item[key]))].sort()
-  .map((value) => [value, aggregate(cases.filter((item) => item[key] === value))]));
+  .map((value) => [value, aggregateHarnessCases(cases.filter((item) => item[key] === value))]));
 
 const executeCase = async (
   entry: DatasetCaseEntry,
@@ -138,7 +145,7 @@ const executeCase = async (
         error: caught instanceof Error ? caught.message : String(caught),
       },
       normalizedPrediction: null,
-      scoring: scoreInvestigationCase(fixture.benchmarkCase, normalized),
+      scoring: scoreInvestigationCase(fixture.benchmarkCase, normalized, { runtimeFailed: true }),
     };
   }
 };
@@ -191,10 +198,10 @@ export async function runInvestigationBenchmarkHarness(
       failedCases: cases.filter((item) => item.execution.status === "FAIL").length,
     },
     cases,
-    aggregate: aggregate(cases),
+    aggregate: aggregateHarnessCases(cases),
     breakdown: {
-      category: breakdown(cases, "category"),
-      difficulty: breakdown(cases, "difficulty"),
+      category: breakdownHarnessCases(cases, "category"),
+      difficulty: breakdownHarnessCases(cases, "difficulty"),
     },
   };
   return {
@@ -207,4 +214,4 @@ export const runInvestigationBenchmarkDevHarness = (
   options: DevHarnessRunOptions,
 ) => runInvestigationBenchmarkHarness(loadInvestigationBenchmarkDevDataset(), options);
 
-export const __testOnly = { observationRequest, aggregate };
+export const __testOnly = { observationRequest, aggregate: aggregateHarnessCases };

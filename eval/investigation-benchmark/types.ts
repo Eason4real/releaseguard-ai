@@ -17,6 +17,38 @@ export const BENCHMARK_CASE_CATEGORIES = [
 
 export type BenchmarkCaseCategory = (typeof BENCHMARK_CASE_CATEGORIES)[number];
 export type BenchmarkDifficulty = "easy" | "medium" | "hard";
+export type RootCauseAnswerMode = "CAUSAL" | "ABSTAIN";
+export const ROOT_CAUSE_SEMANTIC_CONCEPTS = [
+  "RECOMMENDATION_SYSTEM",
+  "FEATURE_FLAG_ROLLOUT",
+  "EXPERIMENT_ASSIGNMENT",
+  "NEW_USERS",
+  "INCORRECT_ASSIGNMENT",
+  "EVIDENCE_INSUFFICIENT",
+  "ALTERNATIVES_UNRESOLVED",
+  "CHECKOUT_RELEASE",
+  "PAYMENT_PROVIDER_INSTABILITY",
+  "DEFINITE_CAUSAL_ATTRIBUTION",
+  "RELEASE_EXCLUDED",
+  "IMMEDIATE_RETRY",
+  "IDEMPOTENCY_LOCK",
+  "DATABASE_LOCK",
+] as const;
+export type RootCauseSemanticConcept = (typeof ROOT_CAUSE_SEMANTIC_CONCEPTS)[number];
+
+export type RootCauseConceptGroup = {
+  id: string;
+  anyOf: RootCauseSemanticConcept[];
+};
+
+export type RootCauseEvaluationRubric = {
+  expectedAnswerMode: RootCauseAnswerMode;
+  requiredConceptGroups: RootCauseConceptGroup[];
+  optionalConcepts: RootCauseSemanticConcept[];
+  forbiddenConcepts: RootCauseSemanticConcept[];
+  uncertaintyPolicy: "NOT_APPLICABLE" | "REQUIRE_ABSTENTION" | "REQUIRE_UNRESOLVED_ALTERNATIVES";
+  specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT";
+};
 
 export type BenchmarkDataSourceFixture = {
   sourceId: string;
@@ -32,6 +64,7 @@ export type InvestigationGroundTruth = {
   requiredEvidenceIds: string[];
   supportingEvidenceIds: string[];
   distractorEvidenceIds: string[];
+  rootCauseEvaluation: RootCauseEvaluationRubric;
 };
 
 export type InvestigationBenchmarkCase = {
@@ -130,10 +163,22 @@ export type InvestigationBenchmarkRunResult = {
 };
 
 export type RootCauseScore = {
-  correct: boolean;
+  correct: boolean | null;
   expected: { id: string; rootCause: string };
   predicted: { id: string | null; rootCause: string };
-  matchedBy: "ID" | "ALIAS" | "NONE";
+  matchedBy: "ID" | "ALIAS" | "SEMANTIC_RUBRIC" | "ABSTENTION" | "NONE";
+  evaluationStatus: "AUTOMATICALLY_EVALUATED" | "REVIEW_REQUIRED" | "RUNTIME_FAILED";
+  audit: {
+    predictedAnswerMode: RootCauseAnswerMode;
+    expectedAnswerMode: RootCauseAnswerMode;
+    matchedConcepts: RootCauseSemanticConcept[];
+    missingRequiredConcepts: string[];
+    forbiddenAssertions: RootCauseSemanticConcept[];
+    uncertaintyPolicyResult: "PASS" | "FAIL" | "NOT_APPLICABLE" | "REVIEW_REQUIRED";
+    specificityPolicyResult: "PASS" | "FAIL" | "REVIEW_REQUIRED";
+    finalDecision: "CORRECT" | "INCORRECT" | "REVIEW_REQUIRED" | "RUNTIME_FAILED";
+    decisionReason: string;
+  };
 };
 
 export type EvidencePrecisionScore = {
@@ -164,6 +209,7 @@ export type InvestigationCaseEvalResult = {
   evidence: EvidencePrecisionScore;
   grounding: GroundingScore;
   cost: InvestigationCostScore;
+  runtimeFailed: boolean;
   overallStatus: "EVALUATED" | "PARTIALLY_EVALUATED";
 };
 
@@ -177,6 +223,13 @@ export type AggregateTokenMetrics = {
 export type InvestigationAggregateMetrics = {
   totalCases: number;
   rootCauseTop1Accuracy: number | null;
+  automaticallyEvaluatedCases: number;
+  correctCases: number;
+  incorrectCases: number;
+  reviewRequiredCases: number;
+  runtimeFailedCases: number;
+  autoEvaluationCoverage: number | null;
+  autoEvaluableAccuracy: number | null;
   meanEvidencePrecision: number | null;
   meanUnsupportedClaimRate: number | null;
   medianModelCalls: number | null;

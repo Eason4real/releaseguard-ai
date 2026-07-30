@@ -152,6 +152,13 @@ export type HarnessAggregateMetrics = {
   completedCases: number;
   failedCases: number;
   rootCauseTop1Accuracy: number | null;
+  automaticallyEvaluatedCases: number;
+  correctCases: number;
+  incorrectCases: number;
+  reviewRequiredCases: number;
+  runtimeFailedCases: number;
+  autoEvaluationCoverage: number | null;
+  autoEvaluableAccuracy: number | null;
   meanEvidencePrecision: number | null;
   meanUnsupportedClaimRate: number | null;
   groundingEvaluableCases: number;
