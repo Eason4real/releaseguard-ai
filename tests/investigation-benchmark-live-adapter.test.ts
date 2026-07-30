@@ -3,99 +3,21 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { callModel } from "../lib/investigation/model";
-import { lockInvestigationBenchmarkDataset } from
-  "../eval/investigation-benchmark/dataset/hash";
-import { authorDevCase } from
-  "../eval/investigation-benchmark/dataset/dev/case-builder";
-import type { InvestigationBenchmarkDatasetDefinition } from
-  "../eval/investigation-benchmark/dataset/types";
+import { loadInvestigationBenchmarkDevDataset } from
+  "../eval/investigation-benchmark/dataset/dev";
 import {
   LiveHarnessConfigurationError,
   LiveLLMHarnessProvider,
-  __testOnly,
+  assertLivePreflightIsolation,
   createLiveLLMHarnessProviderFactory,
-  runInvestigationBenchmarkHarness,
-  type HarnessAgentRequest,
+  loadLivePreflightFixture,
+  resolveLiveHarnessCommand,
+  runLivePreflight,
   type LiveHarnessModelConfig,
 } from "../eval/investigation-benchmark/harness";
 
 const SECRET = "PREFLIGHT_TEST_ONLY_NOT_A_REAL_SECRET";
 const ROOT_CAUSE = "The test-only release changed receipt rendering behavior.";
-
-const authored = authorDevCase({
-  number: 901,
-  title: "NON_BENCHMARK live adapter fixture",
-  question: "Why did receipt rendering change after the test-only release?",
-  symptom: "PREFLIGHT_TEST_ONLY receipt rendering symptom.",
-  category: "release_regression",
-  templateFamily: "TPL-901",
-  provenance: { sourceType: "synthetic", description: "PREFLIGHT_TEST_ONLY wiring fixture." },
-  metricKey: "receipt_render_success_rate",
-  filters: { platform: "Web" },
-  observedValue: 0.7,
-  baselineValue: 0.95,
-  release: {
-    version: "test-only-1",
-    platform: "Web",
-    rolloutStatus: "FULL",
-    rolloutPercentage: 100,
-    featureFlags: ["receipt_test_only"],
-    changedModules: ["ReceiptRenderer"],
-  },
-  observations: [{
-    sourceKey: "release",
-    sourceKind: "release",
-    toolName: "get_release",
-    role: "CAUSAL",
-    payload: {
-      schema_version: "1",
-      data: {
-        id: "REL-901",
-        version: "test-only-1",
-        platform: "Web",
-        changed_modules: ["ReceiptRenderer"],
-      },
-    },
-  }],
-  requiredObservationIndexes: [0],
-  supportingObservationIndexes: [0],
-  distractorObservationIndexes: [],
-  canonicalRootCause: ROOT_CAUSE,
-  acceptableAliases: ["Receipt rendering changed in the test-only release"],
-  semanticDifficulty: {
-    plausibleHypotheses: 0,
-    causalDirectness: 0,
-    temporalCorrelationTrap: 0,
-    evidenceCompleteness: 0,
-  },
-  reviewNotes: [
-    "NON_BENCHMARK: root cause exists only to prove scorer compatibility.",
-    "PREFLIGHT_TEST_ONLY: one read-only release observation is tool-solvable.",
-    "TEST_ONLY: no formal Dev or Holdout identity is used.",
-  ],
-});
-
-const testDataset = async () => {
-  const fixtureRef = "test-only-fixture://FX-901";
-  const fixture = structuredClone(authored.fixture);
-  fixture.fixtureRef = fixtureRef;
-  fixture.fixtureData = { datasetStage: "PREFLIGHT_TEST_ONLY" };
-  const definition: InvestigationBenchmarkDatasetDefinition = {
-    manifest: {
-      schemaVersion: "1",
-      datasetId: "NON_BENCHMARK",
-      purpose: "TEST_ONLY",
-      version: "0.0.0",
-      evaluationContractVersion: "phase1a-v1",
-      createdAt: "2031-01-01T00:00:00.000Z",
-      updatedAt: "2031-01-01T00:00:00.000Z",
-      expectedDatasetHash: null,
-      caseEntries: [{ ...structuredClone(authored.entry), fixtureRef }],
-    },
-    fixtures: [fixture],
-  };
-  return lockInvestigationBenchmarkDataset(definition);
-};
 
 const plannerContext = (init: RequestInit | undefined) => {
   const body = JSON.parse(String(init?.body)) as {
@@ -174,35 +96,40 @@ const config = (transport: typeof fetch): LiveHarnessModelConfig => ({
   transport,
 });
 
-test("Live adapter executes LLM Planner, structured tool call, observation feedback, and scorer", async () => {
+test("isolated preflight executes the Live adapter without scorer or benchmark aggregate", async () => {
   const requests: Array<{ url: string; context: string }> = [];
-  const dataset = await testDataset();
-  const report = await runInvestigationBenchmarkHarness(dataset, {
+  const report = await runLivePreflight({
     sourceCommit: "PREFLIGHT_TEST_ONLY",
     providerFactory: createLiveLLMHarnessProviderFactory(config(successfulTransport(requests))),
-    caseId: "CASE-901",
-    runId: "NON_BENCHMARK-LIVE-ADAPTER",
   });
 
-  assert.equal(report.label, "Live LLM Benchmark");
-  assert.equal(report.manifest.executionProvider, "LIVE_LLM_PROVIDER");
-  assert.equal(report.manifest.runtimeMode, "LIVE_LLM");
-  assert.equal(report.manifest.totalCases, 1);
-  assert.equal(report.manifest.completedCases, 1);
-  assert.equal(report.cases[0].execution.terminalInvestigationState, "FINALIZED");
-  assert.equal(report.cases[0].execution.modelCallCount, 4);
-  assert.equal(report.cases[0].execution.toolCallCount, 1);
-  assert.deepEqual(report.cases[0].normalizedPrediction?.tokenUsage, {
+  assert.equal(report.label, "Live Agent Preflight");
+  assert.equal(report.executionPurpose, "PREFLIGHT_ONLY");
+  assert.equal(report.benchmarkEligible, false);
+  assert.equal(report.caseId, "CASE-901");
+  assert.equal(report.executionProvider, "LIVE_LLM_PROVIDER");
+  assert.equal(report.terminalState, "FINALIZED");
+  assert.equal(report.modelCallCount, 4);
+  assert.equal(report.toolCallCount, 1);
+  assert.deepEqual(report.tokenUsage, {
     inputTokens: 40,
     outputTokens: 20,
     totalTokens: 60,
     completeness: "COMPLETE",
   });
-  assert.equal(report.cases[0].normalizedPrediction?.predictedRootCause, ROOT_CAUSE);
-  assert.deepEqual(report.cases[0].normalizedPrediction?.citedEvidenceIds, ["EV-14030"]);
-  assert.equal(report.cases[0].scoring.rootCause.correct, true);
-  assert.equal(report.cases[0].scoring.evidence.precision, 1);
-  assert.equal(report.cases[0].scoring.grounding.unsupportedClaimRate, 0);
+  assert.deepEqual(report.plannerActions,
+    ["CREATE_HYPOTHESES", "CALL_TOOL", "ASSESS_EVIDENCE", "FINALIZE"]);
+  assert.equal(report.schemaRepairCount, 0);
+  assert.deepEqual(report.toolTrajectory, [{
+    toolName: "get_release",
+    arguments: { release_id: "REL-901" },
+    status: "COMPLETED",
+    resultStatus: "SUCCESS",
+  }]);
+  assert.equal("aggregate" in report, false);
+  assert.equal("breakdown" in report, false);
+  assert.equal("scoring" in report, false);
+  assert.equal("datasetHash" in report, false);
   assert.equal(requests.length, 4);
   assert.ok(requests.every((item) => item.url === "https://example.test/v1/chat/completions"));
   assert.match(requests[2].context, /get_release/);
@@ -219,24 +146,9 @@ test("Live adapter executes LLM Planner, structured tool call, observation feedb
   assert.equal(serializedReport.includes(SECRET), false);
   assert.equal(serializedReport.includes("user:password"), false);
   assert.equal(serializedReport.includes("must-not-persist"), false);
-  assert.deepEqual(report.manifest.modelConfiguration, {
-    provider: "openai-compatible",
-    endpointType: "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
-    baseUrl: "https://example.test/v1/chat/completions",
-    model: "stub-model",
-    temperature: 0.1,
-    topP: "PROVIDER_DEFAULT",
-    maxOutputTokens: 5000,
-    reasoningConfig: "PROVIDER_DEFAULT",
-    maxModelCalls: 20,
-    toolBudget: 10,
-    maxIterations: 16,
-    timeoutMs: 75_000,
-    schemaRepairMax: 1,
-    transportRetry: 0,
-    concurrency: 1,
-    credentialPresent: true,
-  });
+  assert.equal(report.provider, "openai-compatible");
+  assert.equal(report.endpoint, "https://example.test/v1/chat/completions");
+  assert.equal(report.model, "stub-model");
 });
 
 test("OpenAI-compatible client redacts a credential echoed by provider or transport errors", async () => {
@@ -280,9 +192,49 @@ test("Live configuration is explicit and provider-agnostic without deterministic
   }));
 });
 
+test("preflight fixture is physically isolated from the governed Dev dataset", () => {
+  const fixture = loadLivePreflightFixture();
+  const dataset = loadInvestigationBenchmarkDevDataset();
+  const caseIds = dataset.manifest.caseEntries.map((entry) => entry.caseId);
+  assert.equal(fixture.executionPurpose, "PREFLIGHT_ONLY");
+  assert.equal(fixture.benchmarkEligible, false);
+  assert.equal(fixture.caseId, "CASE-901");
+  assert.equal(caseIds.includes(fixture.caseId), false);
+  assert.equal(dataset.fixtures.some((item) => item.benchmarkCase.caseId === fixture.caseId), false);
+  assert.doesNotThrow(() => assertLivePreflightIsolation(fixture, caseIds));
+  assert.throws(
+    () => assertLivePreflightIsolation(fixture, [...caseIds, fixture.caseId]),
+    /PREFLIGHT_CASE_COLLIDES_WITH_GOVERNED_DEV/,
+  );
+  const serialized = JSON.stringify(fixture);
+  for (const forbidden of [
+    "groundTruth", "canonicalRootCause", "acceptableAliases", "requiredEvidenceIds",
+    "supportingEvidenceIds", "distractorEvidenceIds", "category", "difficulty", "split",
+  ]) assert.equal(serialized.includes(forbidden), false, forbidden);
+});
+
+test("Live command resolver makes preflight explicit and rejects every case argument", () => {
+  assert.deepEqual(resolveLiveHarnessCommand(["--provider=live", "--preflight"]), {
+    mode: "PREFLIGHT",
+  });
+  assert.throws(
+    () => resolveLiveHarnessCommand(["--provider=live", "--preflight", "--case=CASE-201"]),
+    /PREFLIGHT_CASE_ARGUMENT_FORBIDDEN/,
+  );
+  assert.throws(
+    () => resolveLiveHarnessCommand(["--provider=live", "--preflight", "--case=CASE-901"]),
+    /PREFLIGHT_CASE_ARGUMENT_FORBIDDEN/,
+  );
+  assert.deepEqual(resolveLiveHarnessCommand(["--provider=live", "--case=CASE-201"]), {
+    mode: "DEV",
+    caseId: "CASE-201",
+  });
+  assert.throws(() => resolveLiveHarnessCommand(["--preflight"]),
+    /LIVE_BENCHMARK_EXPLICIT_OPT_IN_REQUIRED/);
+});
+
 test("Live provider redacts secrets and classifies provider failures with zero transport retries", async () => {
-  const fixture = (await testDataset()).fixtures[0];
-  const request: HarnessAgentRequest = __testOnly.observationRequest(fixture);
+  const request = loadLivePreflightFixture().request;
   const cases: Array<{
     expected: string;
     timeout?: number;
@@ -349,6 +301,9 @@ test("Live CLI requires explicit opt-in and is absent from default test, eval, a
   ]);
   assert.match(source, /--provider=live/);
   assert.ok(source.indexOf("--provider=live") < source.indexOf("LIVE_EVAL_API_KEY"));
+  assert.ok(source.indexOf("resolveLiveHarnessCommand") < source.indexOf("LIVE_EVAL_API_KEY"));
+  assert.match(source, /command\.mode === "PREFLIGHT"/);
+  assert.match(source, /runLivePreflight/);
   const scripts = (JSON.parse(packageSource) as { scripts: Record<string, string> }).scripts;
   assert.equal(scripts["eval:investigation-live"],
     "node scripts/run-investigation-benchmark-live.mjs");

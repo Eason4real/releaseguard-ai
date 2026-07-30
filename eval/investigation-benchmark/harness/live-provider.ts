@@ -143,6 +143,24 @@ const predictionFromAggregate = (
   };
 };
 
+const telemetryFromAggregate = (aggregate: InvestigationAggregate) => ({
+  plannerActions: aggregate.iterations
+    .filter((item) => item.decisionType !== null)
+    .sort((left, right) => left.sequence - right.sequence)
+    .map((item) => item.decisionType!),
+  schemaRepairCount: aggregate.auditEvents.filter((item) =>
+    item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length,
+  toolTrajectory: aggregate.toolCalls
+    .filter((item) => item.proposedActionId === null)
+    .sort((left, right) => left.order - right.order)
+    .map((item) => ({
+      toolName: item.name,
+      arguments: structuredClone(item.arguments),
+      status: item.status,
+      resultStatus: item.result?.status ?? null,
+    })),
+});
+
 const providerErrorCode = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   if (/\b(?:401|403)\b/.test(message)) return "PROVIDER_AUTHENTICATION_FAILED";
@@ -202,6 +220,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           aggregate,
           performance.now() - startedAt,
         ),
+        telemetry: telemetryFromAggregate(aggregate),
       };
     } catch (error) {
       return {
@@ -224,4 +243,8 @@ export const createLiveLLMHarnessProviderFactory = (
   };
 };
 
-export const __testOnlyLiveProvider = { providerErrorCode, predictionFromAggregate };
+export const __testOnlyLiveProvider = {
+  providerErrorCode,
+  predictionFromAggregate,
+  telemetryFromAggregate,
+};

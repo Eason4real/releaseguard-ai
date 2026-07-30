@@ -3,6 +3,10 @@ import type { BenchmarkAgentExecutionInput, InvestigationCaseEvalResult,
 import type { BenchmarkCaseCategory } from "../types";
 import type { DatasetDifficulty } from "../dataset/types";
 import type { ModelConfig } from "../../../lib/investigation/model";
+import type {
+  InvestigationDecisionType,
+  ToolCallStatus,
+} from "../../../lib/investigation/types";
 
 export const DEV_HARNESS_PROVIDER = "HARNESS_PROVIDER" as const;
 export const DEV_HARNESS_MODE = "DETERMINISTIC_NO_LIVE_MODEL" as const;
@@ -80,10 +84,22 @@ export type HarnessRawPrediction = {
   durationMs?: number;
 };
 
+export type HarnessExecutionTelemetry = {
+  plannerActions: InvestigationDecisionType[];
+  schemaRepairCount: number;
+  toolTrajectory: Array<{
+    toolName: string;
+    arguments: Record<string, unknown>;
+    status: ToolCallStatus;
+    resultStatus: "SUCCESS" | "EMPTY" | "ERROR" | null;
+  }>;
+};
+
 export type HarnessExecutionOutcome = {
   status: "PASS" | "FAIL";
   terminalInvestigationState: "FINALIZED" | "INCONCLUSIVE" | "FAILED";
   prediction?: HarnessRawPrediction;
+  telemetry?: HarnessExecutionTelemetry;
   error?: string;
 };
 
@@ -166,4 +182,32 @@ export type DevHarnessRunOptions = {
   caseId?: string;
   runId?: string;
   now?: () => string;
+};
+
+export type LivePreflightFixture = {
+  caseId: "CASE-901";
+  executionPurpose: "PREFLIGHT_ONLY";
+  benchmarkEligible: false;
+  request: HarnessAgentRequest;
+};
+
+export type LivePreflightReport = {
+  label: "Live Agent Preflight";
+  executionPurpose: "PREFLIGHT_ONLY";
+  benchmarkEligible: false;
+  caseId: "CASE-901";
+  sourceCommit: string;
+  executionProvider: typeof LIVE_LLM_PROVIDER;
+  provider: LiveModelProvider;
+  model: string;
+  endpoint: string;
+  terminalState: HarnessExecutionOutcome["terminalInvestigationState"];
+  status: HarnessExecutionOutcome["status"];
+  modelCallCount: number;
+  toolCallCount: number;
+  tokenUsage: HarnessRawPrediction["tokenUsage"];
+  schemaRepairCount: number;
+  plannerActions: InvestigationDecisionType[];
+  toolTrajectory: HarnessExecutionTelemetry["toolTrajectory"];
+  error?: string;
 };

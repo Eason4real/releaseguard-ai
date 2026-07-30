@@ -10,8 +10,6 @@ if (!process.argv.includes("--provider=live")) {
 
 const outputDirectory = new URL("../.sites-runtime/investigation-benchmark/", import.meta.url);
 const outputFile = new URL("live-harness.mjs", outputDirectory);
-const caseArgument = process.argv.find((item) => item.startsWith("--case="));
-const caseId = caseArgument?.slice("--case=".length);
 const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: new URL("../", import.meta.url),
   encoding: "utf8",
@@ -28,20 +26,25 @@ try {
     outfile: outputFile.pathname,
   });
   const harness = await import(`${pathToFileURL(outputFile.pathname).href}?run=${Date.now()}`);
+  const command = harness.resolveLiveHarnessCommand(process.argv.slice(2));
   const providerFactory = harness.createLiveLLMHarnessProviderFactory({
     provider: process.env.LIVE_EVAL_PROVIDER,
     baseUrl: process.env.LIVE_EVAL_BASE_URL,
     apiKey: process.env.LIVE_EVAL_API_KEY,
     model: process.env.LIVE_EVAL_MODEL,
   });
-  const report = await harness.runInvestigationBenchmarkDevHarness({
-    sourceCommit,
-    providerFactory,
-    ...(caseId ? { caseId } : {}),
-    runId: `LIVE-DEV-${crypto.randomUUID()}`,
-  });
+  const report = command.mode === "PREFLIGHT"
+    ? await harness.runLivePreflight({ sourceCommit, providerFactory })
+    : await harness.runInvestigationBenchmarkDevHarness({
+      sourceCommit,
+      providerFactory,
+      ...(command.caseId ? { caseId: command.caseId } : {}),
+      runId: `LIVE-DEV-${crypto.randomUUID()}`,
+    });
   console.log(JSON.stringify(report, null, 2));
-  if (report.manifest.failedCases > 0) process.exitCode = 1;
+  if (command.mode === "PREFLIGHT") {
+    if (report.status !== "PASS") process.exitCode = 1;
+  } else if (report.manifest.failedCases > 0) process.exitCode = 1;
 } catch (error) {
   const code = error && typeof error === "object" && "code" in error
     ? String(error.code)
