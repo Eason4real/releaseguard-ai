@@ -3,7 +3,11 @@ import { mkdir, rm } from "node:fs/promises";
 import { build } from "esbuild";
 
 const outputDirectory = new URL("../.sites-runtime/tests/", import.meta.url);
-const testNames = ["investigation-runtime", "public-demo-replay"];
+const testNames = [
+  "investigation-runtime",
+  "public-demo-replay",
+  "investigation-benchmark-scorer",
+];
 const outputFiles = testNames.map((name) => new URL(`${name}.test.mjs`, outputDirectory));
 
 await mkdir(outputDirectory, { recursive: true });
