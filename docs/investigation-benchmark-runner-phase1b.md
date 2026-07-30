@@ -4,7 +4,7 @@
 
 Phase 1B adds a deterministic library pipeline around the Phase 1A contract:
 
-`InvestigationBenchmarkCase -> BenchmarkResultProvider -> Normalizer -> Phase 1A scorer -> aggregate metrics`
+`InvestigationBenchmarkCase -> sanitized execution input -> BenchmarkResultProvider -> Normalizer -> Phase 1A scorer -> aggregate metrics`
 
 The only provider implemented here is a synthetic fixture adapter used by tests. It has no
 network access and does not invoke the production Agent, a model, GitHub, a database, or a
@@ -12,14 +12,38 @@ deployment target.
 
 ## Runner architecture
 
-`runInvestigationBenchmark` owns orchestration only. For each case it asks the provider for one
-raw result, passes that result to `normalizeInvestigationResult`, sends the normalized result to
+`runInvestigationBenchmark` owns orchestration only. For each case it first constructs a detached
+`BenchmarkExecutionRequest`, asks the provider for one raw result, passes that result to
+`normalizeInvestigationResult`, sends the normalized result and original case to
 `scoreInvestigationCase`, and finally calls `aggregateInvestigationMetrics`. Root-cause judgment,
 evidence precision, grounding evaluation, and cost calculation remain in the Phase 1A scorer.
 
-The runner accepts a `BenchmarkResultProvider` with `run(case)`. The provider can be replaced by a
-future Agent execution adapter without changing the runner or scorer. No live provider is
-implemented in Phase 1B.
+The runner accepts a `BenchmarkResultProvider` with `run(executionInput)`. The provider can be
+replaced by a future Agent execution adapter without changing the runner or scorer. No live
+provider is implemented in Phase 1B.
+
+## Anti-leakage boundary
+
+The benchmark has three explicitly separated planes:
+
+- The Metadata Plane contains case ID, title, benchmark category, and difficulty for harness
+  orchestration and reporting. An opaque numeric `executionKey` is available to the provider only
+  for fixture lookup and is not part of the Agent payload.
+- The Agent Execution Plane contains only incident ID/question, RiskEvent, Release, and opaque
+  data-source references. A future live provider may pass only this `agentInput` to the Agent.
+- The Evaluation Plane contains Ground Truth and the scorer. It remains inside the runner after
+  provider execution.
+
+`deriveBenchmarkExecutionRequest` creates both the plumbing envelope and Agent payload field by
+field. It does not cast or spread the full benchmark case. Provider visibility and Agent visibility
+are deliberately different: providers see `{ executionKey, agentInput }`, while an Agent may see
+only `agentInput`. Category, difficulty, title, case ID, Ground Truth, canonical root cause,
+aliases, expected answers, and evidence classifications do not exist in the Agent payload.
+
+Synthetic case, source, and evidence identifiers use numeric opaque forms such as `CASE-001`,
+`SRC-001`, and `EV-001`. Execution derivation rejects semantic identifiers or fixture paths. Nested
+incident values are copied so provider-side mutation cannot change the benchmark case. This
+boundary is required before holdout datasets or live evaluation can be considered trustworthy.
 
 ## Normalizer boundary
 

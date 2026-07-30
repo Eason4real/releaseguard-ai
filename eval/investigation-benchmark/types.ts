@@ -49,6 +49,24 @@ export type InvestigationBenchmarkCase = {
   groundTruth: InvestigationGroundTruth;
 };
 
+export type BenchmarkAgentDataSource = {
+  kind: BenchmarkDataSourceFixture["kind"];
+  sourceRef: string;
+};
+
+export type BenchmarkAgentExecutionInput = {
+  incidentId: string;
+  incidentQuestion: string;
+  riskEvent: RiskEvent | null;
+  release?: Release | null;
+  dataSources: BenchmarkAgentDataSource[];
+};
+
+export type BenchmarkExecutionRequest = {
+  executionKey: string;
+  agentInput: BenchmarkAgentExecutionInput;
+};
+
 export type NormalizedDiagnosisClaim = {
   claimId: string;
   type: DiagnosisClaimType;
@@ -101,7 +119,7 @@ export type BenchmarkRawInvestigationResult = {
 };
 
 export type BenchmarkResultProvider = {
-  run(benchmarkCase: InvestigationBenchmarkCase):
+  run(request: BenchmarkExecutionRequest):
     | BenchmarkRawInvestigationResult
     | Promise<BenchmarkRawInvestigationResult>;
 };

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDeterministicFixtureProvider } from "../eval/investigation-benchmark/deterministic-provider";
+import { deriveBenchmarkExecutionRequest } from "../eval/investigation-benchmark/execution-input";
 import { normalizeInvestigationResult } from "../eval/investigation-benchmark/normalizer";
 import { runInvestigationBenchmark } from "../eval/investigation-benchmark/runner";
 import type {
+  BenchmarkExecutionRequest,
   BenchmarkRawInvestigationResult,
+  BenchmarkResultProvider,
   InvestigationBenchmarkCase,
 } from "../eval/investigation-benchmark/types";
 
@@ -14,31 +17,31 @@ const makeCase = (caseId: string): InvestigationBenchmarkCase => ({
   category: "release_regression",
   difficulty: "easy",
   input: {
-    incidentId: `INC-${caseId}`,
+    incidentId: `INC-${caseId.slice(-3)}`,
     question: "What caused the checkout incident?",
     riskEvent: null,
   },
   dataSources: [{
-    sourceId: `SOURCE-${caseId}`,
+    sourceId: `SRC-${caseId.slice(-3)}`,
     kind: "analytics",
-    fixtureRef: `synthetic://${caseId}`,
-    evidenceIds: ["EV-CAUSE", "EV-IMPACT", "EV-DISTRACTOR"],
+    fixtureRef: `fixture://SRC-${caseId.slice(-3)}`,
+    evidenceIds: ["EV-001", "EV-002", "EV-003"],
   }],
   groundTruth: {
     canonicalRootCauseId: "RC-PAYMENT-CALLBACK",
     canonicalRootCause: "The payment callback changed before the checkout confirmation was persisted.",
     acceptableAliases: ["Payment callback persistence race"],
-    requiredEvidenceIds: ["EV-CAUSE"],
-    supportingEvidenceIds: ["EV-CAUSE", "EV-IMPACT"],
-    distractorEvidenceIds: ["EV-DISTRACTOR"],
+    requiredEvidenceIds: ["EV-001"],
+    supportingEvidenceIds: ["EV-001", "EV-002"],
+    distractorEvidenceIds: ["EV-003"],
   },
 });
 
 const correctRaw: BenchmarkRawInvestigationResult = {
-  caseId: "CASE-A",
+  caseId: "CASE-001",
   predictedRootCause: "The payment callback changed before the checkout confirmation was persisted.",
   predictedRootCauseId: "RC-PAYMENT-CALLBACK",
-  citedEvidenceIds: ["EV-CAUSE", "EV-IMPACT"],
+  citedEvidenceIds: ["EV-001", "EV-002"],
   diagnosisClaims: [
     {
       claimId: "CLAIM-A-ROOT",
@@ -54,8 +57,8 @@ const correctRaw: BenchmarkRawInvestigationResult = {
     },
   ],
   diagnosisClaimEvidenceLinks: [
-    { claimId: "CLAIM-A-ROOT", evidenceId: "EV-CAUSE" },
-    { claimId: "CLAIM-A-METRIC", evidenceId: "EV-IMPACT" },
+    { claimId: "CLAIM-A-ROOT", evidenceId: "EV-001" },
+    { claimId: "CLAIM-A-METRIC", evidenceId: "EV-002" },
   ],
   modelCallCount: 3,
   toolCallCount: 4,
@@ -64,24 +67,24 @@ const correctRaw: BenchmarkRawInvestigationResult = {
 };
 
 const noisyRaw: BenchmarkRawInvestigationResult = {
-  caseId: "CASE-B",
+  caseId: "CASE-002",
   predictedRootCause: "A different dependency caused the incident.",
   predictedRootCauseId: "RC-WRONG",
-  citedEvidenceIds: ["EV-CAUSE", "EV-DISTRACTOR", "EV-DISTRACTOR", "EV-UNKNOWN"],
+  citedEvidenceIds: ["EV-001", "EV-003", "EV-003", "EV-999"],
   diagnosisClaims: [
     {
       claimId: "CLAIM-B-ROOT",
       type: "ROOT_CAUSE",
       statement: "A different dependency caused the incident.",
       groundingStatus: "UNGROUNDED",
-      citedEvidenceIds: ["EV-DISTRACTOR"],
+      citedEvidenceIds: ["EV-003"],
     },
     {
       claimId: "CLAIM-B-METRIC",
       type: "AFFECTED_METRIC",
       statement: "Every region failed.",
       groundingStatus: "UNGROUNDED",
-      citedEvidenceIds: ["EV-UNKNOWN"],
+      citedEvidenceIds: ["EV-999"],
     },
   ],
   modelCallCount: 5,
@@ -89,7 +92,7 @@ const noisyRaw: BenchmarkRawInvestigationResult = {
 };
 
 const legacyRaw: BenchmarkRawInvestigationResult = {
-  caseId: "CASE-C",
+  caseId: "CASE-003",
   predictedRootCause: "Payment callback persistence race",
   diagnosisClaims: [{
     claimId: "CLAIM-C-ROOT",
@@ -103,7 +106,7 @@ const legacyRaw: BenchmarkRawInvestigationResult = {
 
 test("Case A runs fixture through normalizer, scorer and aggregate", async () => {
   const report = await runInvestigationBenchmark(
-    [makeCase("CASE-A")],
+    [makeCase("CASE-001")],
     createDeterministicFixtureProvider([correctRaw]),
   );
   assert.equal(report.cases[0].rootCause.correct, true);
@@ -127,14 +130,14 @@ test("Case A runs fixture through normalizer, scorer and aggregate", async () =>
 
 test("Case B preserves noisy citations and unsupported claims for the scorer", async () => {
   const report = await runInvestigationBenchmark(
-    [makeCase("CASE-B")],
+    [makeCase("CASE-002")],
     createDeterministicFixtureProvider([noisyRaw]),
   );
   assert.equal(report.cases[0].rootCause.correct, false);
   assert.equal(report.cases[0].evidence.precision, 1 / 3);
   assert.deepEqual(report.cases[0].evidence.duplicateEvidenceIds,
-    ["EV-DISTRACTOR", "EV-UNKNOWN"]);
-  assert.deepEqual(report.cases[0].evidence.unknownEvidenceIds, ["EV-UNKNOWN"]);
+    ["EV-003", "EV-999"]);
+  assert.deepEqual(report.cases[0].evidence.unknownEvidenceIds, ["EV-999"]);
   assert.equal(report.cases[0].grounding.unsupportedClaimRate, 1);
   assert.equal(report.cases[0].grounding.unsupportedClaims.length, 2);
 });
@@ -147,7 +150,7 @@ test("Case C keeps alias matching and legacy grounding unavailable without fake 
   assert.equal(normalized.diagnosisClaims[0].groundingStatus, "LEGACY_UNVERIFIED");
 
   const report = await runInvestigationBenchmark(
-    [makeCase("CASE-C")],
+    [makeCase("CASE-003")],
     createDeterministicFixtureProvider([legacyRaw]),
   );
   assert.equal(report.cases[0].rootCause.correct, true);
@@ -156,4 +159,64 @@ test("Case C keeps alias matching and legacy grounding unavailable without fake 
   assert.equal(report.cases[0].grounding.unsupportedClaimRate, null);
   assert.equal(report.aggregate.meanUnsupportedClaimRate, null);
   assert.equal(report.aggregate.tokenMetrics, undefined);
+});
+
+test("provider receives a runtime execution object with no evaluation-plane fields", async () => {
+  const capture: { request?: BenchmarkExecutionRequest } = {};
+  const provider: BenchmarkResultProvider = {
+    run(request) {
+      capture.request = request;
+      return correctRaw;
+    },
+  };
+  const benchmarkCase = makeCase("CASE-001");
+  await runInvestigationBenchmark([benchmarkCase], provider);
+
+  const captured = capture.request;
+  assert.ok(captured);
+  assert.deepEqual(Object.keys(captured).sort(), ["agentInput", "executionKey"]);
+  assert.equal(captured.executionKey, "CASE-001");
+  assert.deepEqual(Object.keys(captured.agentInput).sort(),
+    ["dataSources", "incidentId", "incidentQuestion", "riskEvent"]);
+  assert.deepEqual(captured.agentInput.dataSources, [{
+    kind: "analytics",
+    sourceRef: "fixture://SRC-001",
+  }]);
+  assert.doesNotMatch(JSON.stringify(captured.agentInput),
+    /CASE-001|release_regression|Phase 1B synthetic|easy/);
+  const serialized = JSON.stringify(captured);
+  for (const forbiddenField of [
+    "groundTruth",
+    "canonicalRootCauseId",
+    "canonicalRootCause",
+    "acceptableAliases",
+    "requiredEvidenceIds",
+    "supportingEvidenceIds",
+    "distractorEvidenceIds",
+    "expectedClaims",
+    "expectedAnswer",
+  ]) assert.doesNotMatch(serialized, new RegExp(`"${forbiddenField}"`));
+});
+
+test("execution input is a detached copy and deterministic provider only selects by opaque execution key", () => {
+  const benchmarkCase = makeCase("CASE-001");
+  const originalGroundTruth = structuredClone(benchmarkCase.groundTruth);
+  const request = deriveBenchmarkExecutionRequest(benchmarkCase);
+  request.agentInput.incidentQuestion = "Changed execution-plane question";
+  request.agentInput.dataSources[0].sourceRef = "fixture://SRC-999";
+
+  assert.deepEqual(benchmarkCase.groundTruth, originalGroundTruth);
+  assert.equal(benchmarkCase.input.question, "What caused the checkout incident?");
+  assert.equal(benchmarkCase.dataSources[0].fixtureRef, "fixture://SRC-001");
+
+  const provider = createDeterministicFixtureProvider([correctRaw]);
+  assert.equal(provider.run(request), correctRaw);
+});
+
+test("execution boundary rejects semantic benchmark identifiers", () => {
+  const leakingCase = makeCase("CASE-001");
+  leakingCase.dataSources[0].sourceId = "SRC-DATABASE-LOCK";
+  leakingCase.dataSources[0].fixtureRef = "fixture://root-cause-db-lock.json";
+  assert.throws(() => deriveBenchmarkExecutionRequest(leakingCase),
+    /NON_OPAQUE_BENCHMARK_IDENTIFIER/);
 });

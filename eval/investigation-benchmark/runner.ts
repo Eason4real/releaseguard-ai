@@ -1,4 +1,5 @@
 import { aggregateInvestigationMetrics, scoreInvestigationCase } from "./scorer";
+import { deriveBenchmarkExecutionRequest } from "./execution-input";
 import { normalizeInvestigationResult } from "./normalizer";
 import type {
   BenchmarkResultProvider,
@@ -12,7 +13,8 @@ export async function runInvestigationBenchmark(
 ): Promise<InvestigationBenchmarkRunResult> {
   const cases = [];
   for (const benchmarkCase of benchmarkCases) {
-    const rawResult = await provider.run(benchmarkCase);
+    const request = deriveBenchmarkExecutionRequest(benchmarkCase);
+    const rawResult = await provider.run(request);
     const normalizedResult = normalizeInvestigationResult(rawResult);
     cases.push(scoreInvestigationCase(benchmarkCase, normalizedResult));
   }
