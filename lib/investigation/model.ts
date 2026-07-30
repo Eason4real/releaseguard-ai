@@ -23,6 +23,7 @@ export type ModelConfig = {
   model: string;
   apiKey: string;
   requestTimeoutMs?: number;
+  transport?: typeof fetch;
   responseObserver?: (response: ModelResponseObservation) => void;
 };
 
@@ -59,7 +60,7 @@ function isPrivateHost(hostname: string) {
   );
 }
 
-function resolveEndpoint(baseUrl: string) {
+export function resolveModelEndpoint(baseUrl: string) {
   const endpoint = new URL(baseUrl);
   if (endpoint.protocol !== "https:" || isPrivateHost(endpoint.hostname)) {
     throw new Error("API Base URL 必须是可公开访问的 HTTPS 地址。");
@@ -100,6 +101,9 @@ export async function callModel(
   if (options.signal?.aborted) cancelFromCaller();
   else options.signal?.addEventListener("abort", cancelFromCaller, { once: true });
   const timeout = setTimeout(() => abort("TIMEOUT"), config.requestTimeoutMs ?? 75_000);
+  const redactCredential = (value: string) => config.apiKey
+    ? value.replaceAll(config.apiKey, "[redacted]")
+    : value;
   const body: Record<string, unknown> = {
     model: config.model,
     messages,
@@ -115,7 +119,7 @@ export async function callModel(
     body.reasoning_effort = "high";
   }
   try {
-    const response = await fetch(resolveEndpoint(config.baseUrl), {
+    const response = await (config.transport ?? fetch)(resolveModelEndpoint(config.baseUrl), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
@@ -127,7 +131,9 @@ export async function callModel(
     if (!response.ok) {
       const detail = await response.text();
       observe({ model: config.model, latencyMs: performance.now() - startedAt, status: "ERROR", usage: null });
-      throw new Error(`${config.provider} ${response.status}: ${detail.slice(0, 240)}`);
+      throw new Error(
+        `${config.provider} ${response.status}: ${redactCredential(detail).slice(0, 240)}`,
+      );
     }
     const payload = (await response.json()) as {
       choices?: Array<{ message?: ModelMessage }>;
@@ -152,6 +158,11 @@ export async function callModel(
       status: abortStatus ?? "ERROR",
       usage: null,
     });
+    if (error instanceof Error && config.apiKey && error.message.includes(config.apiKey)) {
+      const sanitized = new Error(redactCredential(error.message));
+      sanitized.name = error.name;
+      throw sanitized;
+    }
     throw error;
   } finally {
     clearTimeout(timeout);

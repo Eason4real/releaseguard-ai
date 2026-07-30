@@ -2,9 +2,45 @@ import type { BenchmarkAgentExecutionInput, InvestigationCaseEvalResult,
   NormalizedInvestigationResult } from "../types";
 import type { BenchmarkCaseCategory } from "../types";
 import type { DatasetDifficulty } from "../dataset/types";
+import type { ModelConfig } from "../../../lib/investigation/model";
 
 export const DEV_HARNESS_PROVIDER = "HARNESS_PROVIDER" as const;
 export const DEV_HARNESS_MODE = "DETERMINISTIC_NO_LIVE_MODEL" as const;
+export const LIVE_LLM_PROVIDER = "LIVE_LLM_PROVIDER" as const;
+export const LIVE_LLM_MODE = "LIVE_LLM" as const;
+export const LIVE_MODEL_PROVIDERS = ["deepseek", "openai-compatible"] as const;
+
+export type LiveModelProvider = (typeof LIVE_MODEL_PROVIDERS)[number];
+export type HarnessExecutionProviderType = typeof DEV_HARNESS_PROVIDER | typeof LIVE_LLM_PROVIDER;
+export type HarnessRuntimeMode = typeof DEV_HARNESS_MODE | typeof LIVE_LLM_MODE;
+
+export type LiveHarnessModelConfig = ModelConfig & { provider: LiveModelProvider };
+
+export type LiveHarnessManifestModelConfiguration = {
+  provider: LiveModelProvider;
+  endpointType: "OPENAI_COMPATIBLE_CHAT_COMPLETIONS";
+  baseUrl: string;
+  model: string;
+  temperature: 0.1;
+  topP: "PROVIDER_DEFAULT";
+  maxOutputTokens: 5000;
+  reasoningConfig: "DEEPSEEK_ENABLED_HIGH" | "PROVIDER_DEFAULT";
+  maxModelCalls: 20;
+  toolBudget: 10;
+  maxIterations: 16;
+  timeoutMs: number;
+  schemaRepairMax: 1;
+  transportRetry: 0;
+  concurrency: 1;
+  credentialPresent: true;
+};
+
+export type HarnessExecutionMetadata = {
+  label: "Deterministic Harness Validation" | "Live LLM Benchmark";
+  executionProvider: HarnessExecutionProviderType;
+  runtimeMode: HarnessRuntimeMode;
+  modelConfiguration: "deterministic / no live model" | LiveHarnessManifestModelConfiguration;
+};
 
 export type HarnessToolObservation = {
   evidenceId: string;
@@ -52,11 +88,13 @@ export type HarnessExecutionOutcome = {
 };
 
 export type HarnessExecutionProvider = {
-  readonly providerType: typeof DEV_HARNESS_PROVIDER;
+  readonly providerType: HarnessExecutionProviderType;
+  readonly executionMetadata?: HarnessExecutionMetadata;
   execute(request: HarnessAgentRequest): HarnessExecutionOutcome | Promise<HarnessExecutionOutcome>;
 };
 
 export type HarnessExecutionProviderFactory = {
+  readonly executionMetadata: HarnessExecutionMetadata;
   create(): HarnessExecutionProvider;
 };
 
@@ -67,10 +105,10 @@ export type HarnessRunManifest = {
   datasetHash: string;
   evaluationContractVersion: string;
   sourceCommit: string;
-  executionProvider: typeof DEV_HARNESS_PROVIDER;
-  runtimeMode: typeof DEV_HARNESS_MODE;
+  executionProvider: HarnessExecutionProviderType;
+  runtimeMode: HarnessRuntimeMode;
   enabledTools: string[];
-  modelConfiguration: "deterministic / no live model";
+  modelConfiguration: "deterministic / no live model" | LiveHarnessManifestModelConfiguration;
   startedAt: string;
   completedAt: string;
   totalCases: number;
@@ -114,7 +152,7 @@ export type HarnessBreakdown = {
 };
 
 export type DevHarnessReport = {
-  label: "Deterministic Harness Validation";
+  label: "Deterministic Harness Validation" | "Live LLM Benchmark";
   manifest: HarnessRunManifest;
   cases: HarnessCaseExecutionResult[];
   aggregate: HarnessAggregateMetrics;

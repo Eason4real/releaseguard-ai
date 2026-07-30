@@ -9,7 +9,14 @@ import {
   validateGroundedDiagnosis,
   type GroundedDiagnosisProposal,
 } from "./grounded-diagnosis";
-import { executeNamedTool, extractToolEvidence, type ToolArgs } from "./tools";
+import {
+  executeNamedTool,
+  extractToolEvidence,
+  type ToolArgs,
+  type ToolContext,
+  type ToolExecution,
+  type EvidenceDraft,
+} from "./tools";
 import type {
   Approval,
   ApprovalSnapshot,
@@ -30,6 +37,12 @@ import type { FeedbackRetriever, IncidentRetriever } from "../retrieval/types";
 import { resolveMaxModelCalls } from "./model-call-budget";
 
 const createId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
+export type InvestigationToolExecutor = (
+  name: string,
+  args: ToolArgs,
+  context: ToolContext,
+) => (ToolExecution & { evidence?: EvidenceDraft[] })
+  | Promise<ToolExecution & { evidence?: EvidenceDraft[] }>;
 const sha256 = async (value: unknown) => {
   const bytes = new TextEncoder().encode(canonicalize(value));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -92,6 +105,7 @@ export async function executeAndRecordTool(
     triggerMessageId?: string | null;
     feedbackRetriever?: FeedbackRetriever;
     incidentRetriever?: IncidentRetriever;
+    toolExecutor?: InvestigationToolExecutor;
   },
 ) {
   const requestedAt = new Date().toISOString();
@@ -128,13 +142,20 @@ export async function executeAndRecordTool(
         ? input.analytics.getRelease(aggregate.run.releaseId)
         : null),
   ]);
-  const execution = await executeNamedTool(input.name, input.args, {
+  const toolContext = {
     analytics: input.analytics,
     riskEvent,
     release,
     feedbackRetriever: input.feedbackRetriever,
     incidentRetriever: input.incidentRetriever,
-  });
+  };
+  const execution: ToolExecution & { evidence?: EvidenceDraft[] } = await (
+    input.toolExecutor ?? executeNamedTool
+  )(
+    input.name,
+    input.args,
+    toolContext,
+  );
   const completedAt = new Date().toISOString();
   const result: ToolResult = {
     id: createId("TR"),
@@ -148,8 +169,9 @@ export async function executeAndRecordTool(
   };
   await store.completeToolCall(call.id, result, completedAt);
 
+  const evidenceDrafts = execution.evidence ?? extractToolEvidence(input.name, execution.output);
   const evidence: Evidence[] = execution.status === "SUCCESS"
-    ? extractToolEvidence(input.name, execution.output).map((draft) => ({
+    ? evidenceDrafts.map((draft) => ({
         id: createId("EV"),
         runId: input.runId,
         toolResultId: result.id,

@@ -14,6 +14,7 @@ import {
   finalizeInvestigation,
   markInvestigationFailed,
 } from "./runtime";
+import type { InvestigationToolExecutor } from "./runtime";
 import type {
   AuditEvent,
   AgentIteration,
@@ -220,6 +221,7 @@ export async function runAgentLoop(
     signal?: AbortSignal;
     feedbackRetriever?: FeedbackRetriever;
     incidentRetriever?: IncidentRetriever;
+    toolExecutor?: InvestigationToolExecutor;
   },
 ) {
   const maxIterations = input.maxIterations ?? 16;
@@ -530,6 +532,7 @@ export async function runAgentLoop(
           triggerMessageId: input.triggerMessageId ?? null,
           feedbackRetriever: input.feedbackRetriever,
           incidentRetriever: input.incidentRetriever,
+          toolExecutor: input.toolExecutor,
         });
         triggerPending = false;
         if (recorded.evidence.length > 0) {

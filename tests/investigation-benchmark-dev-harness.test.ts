@@ -18,6 +18,12 @@ import {
 } from "../eval/investigation-benchmark/dataset/dev";
 
 const sourceCommit = "e99b1059fee50c771262b74977682ed1ce7c6b2d";
+const deterministicMetadata = {
+  label: "Deterministic Harness Validation" as const,
+  executionProvider: "HARNESS_PROVIDER" as const,
+  runtimeMode: "DETERMINISTIC_NO_LIVE_MODEL" as const,
+  modelConfiguration: "deterministic / no live model" as const,
+};
 
 class CapturingProvider implements HarnessExecutionProvider {
   readonly providerType = "HARNESS_PROVIDER" as const;
@@ -32,6 +38,7 @@ class CapturingProvider implements HarnessExecutionProvider {
 }
 
 const capturingFactory = (requests: HarnessAgentRequest[]): HarnessExecutionProviderFactory => ({
+  executionMetadata: deterministicMetadata,
   create: () => new CapturingProvider(requests),
 });
 
@@ -39,6 +46,7 @@ test("formal Dev harness executes all 22 cases in stable order with isolated pro
   const requests: HarnessAgentRequest[] = [];
   let providerCount = 0;
   const factory: HarnessExecutionProviderFactory = {
+    executionMetadata: deterministicMetadata,
     create() {
       providerCount += 1;
       return new CapturingProvider(requests);
@@ -130,6 +138,7 @@ test("provider input has no execution key or case metadata from which to select 
 test("runtime failure remains in the root-cause denominator and cannot pass as insufficient", async () => {
   let creation = 0;
   const factory: HarnessExecutionProviderFactory = {
+    executionMetadata: deterministicMetadata,
     create() {
       creation += 1;
       if (creation === 1) {
@@ -157,6 +166,7 @@ test("an explicit matching insufficient diagnosis is correct while an exception 
   const fixture = dataset.fixtures.find((item) => item.benchmarkCase.caseId === "CASE-219")!;
   const groundTruth = fixture.benchmarkCase.groundTruth;
   const correctFactory: HarnessExecutionProviderFactory = {
+    executionMetadata: deterministicMetadata,
     create: () => ({
       providerType: "HARNESS_PROVIDER" as const,
       execute(request) {
@@ -181,7 +191,7 @@ test("an explicit matching insufficient diagnosis is correct while an exception 
   const failed = await runInvestigationBenchmarkDevHarness({
     sourceCommit,
     caseId: "CASE-219",
-    providerFactory: { create: () => ({
+    providerFactory: { executionMetadata: deterministicMetadata, create: () => ({
       providerType: "HARNESS_PROVIDER" as const,
       execute() { throw new Error("NO_RESULT"); },
     }) },

@@ -1,7 +1,10 @@
 import { MemoryAnalyticsStore } from "../../../lib/fixtures/android-730";
 import { runAgentLoop } from "../../../lib/investigation/agent-loop";
 import type { InvestigationPlanner, PlannerContext } from "../../../lib/investigation/planner";
-import { startInvestigation } from "../../../lib/investigation/runtime";
+import {
+  startInvestigation,
+  type InvestigationToolExecutor,
+} from "../../../lib/investigation/runtime";
 import { getActiveHypotheses, getPendingEvidence } from
   "../../../lib/investigation/hypothesis-invariants";
 import { LiveEvalStore } from "../../support/live-eval-store";
@@ -78,6 +81,35 @@ class HarnessRuntimePlanner implements InvestigationPlanner {
   }
 }
 
+const fixtureToolExecutor = (request: HarnessAgentRequest): InvestigationToolExecutor => {
+  const remaining = [...request.observations];
+  return async (name) => {
+    const index = remaining.findIndex((item) => item.toolName === name);
+    if (index < 0) {
+      return {
+        status: "EMPTY",
+        output: { data: null, reason: "FIXTURE_OBSERVATION_UNAVAILABLE" },
+        errorMessage: null,
+        retryable: false,
+      };
+    }
+    const [observation] = remaining.splice(index, 1);
+    return {
+      status: observation.status,
+      output: structuredClone(observation.output),
+      errorMessage: observation.status === "ERROR" ? "FIXTURE_TOOL_ERROR" : null,
+      retryable: false,
+      evidence: observation.status === "SUCCESS" ? [{
+        category: "FIXTURE_OBSERVATION",
+        statement: `The read-only ${name} tool returned a current investigation observation.`,
+        source: "Benchmark Fixture",
+        strength: "MEDIUM",
+        provenance: "synthetic",
+      }] : [],
+    };
+  };
+};
+
 const seedAnalytics = async (request: HarnessAgentRequest) => {
   const analytics = new MemoryAnalyticsStore();
   const { riskEvent, release } = request.agentInput;
@@ -114,23 +146,35 @@ const seedAnalytics = async (request: HarnessAgentRequest) => {
   return analytics;
 };
 
-export async function executeHarnessAgentRuntime(request: HarnessAgentRequest) {
+export async function executeHarnessAgentRuntime(
+  request: HarnessAgentRequest,
+  options: {
+    planner?: InvestigationPlanner;
+    provider?: string;
+    model?: string;
+    maxModelCalls?: number;
+    maxIterations?: number;
+    maxToolCalls?: number;
+  } = {},
+) {
   const analytics = await seedAnalytics(request);
   const store = new LiveEvalStore(analytics);
   const runId = await startInvestigation(store, {
     question: request.agentInput.incidentQuestion,
-    provider: "HARNESS_PROVIDER",
-    model: "android-7.3.0-fixture",
+    provider: options.provider ?? "HARNESS_PROVIDER",
+    model: options.model ?? "android-7.3.0-fixture",
     incidentId: request.agentInput.incidentId,
     riskEventId: request.agentInput.riskEvent?.id ?? null,
     releaseId: request.agentInput.release?.id ?? null,
+    maxModelCalls: options.maxModelCalls,
   });
   const aggregate = await runAgentLoop(store, {
     runId,
-    planner: new HarnessRuntimePlanner(),
+    planner: options.planner ?? new HarnessRuntimePlanner(),
     analytics,
-    maxIterations: 8,
-    maxToolCalls: 2,
+    maxIterations: options.maxIterations ?? 8,
+    maxToolCalls: options.maxToolCalls ?? 2,
+    toolExecutor: fixtureToolExecutor(request),
   });
   if (!aggregate) throw new Error("HARNESS_RUNTIME_RESULT_MISSING");
   return aggregate;

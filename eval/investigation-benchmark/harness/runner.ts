@@ -3,7 +3,11 @@ import { normalizeInvestigationResult } from "../normalizer";
 import { aggregateInvestigationMetrics, scoreInvestigationCase } from "../scorer";
 import type { BenchmarkRawInvestigationResult, InvestigationBenchmarkCase } from "../types";
 import { loadInvestigationBenchmarkDevDataset } from "../dataset/dev";
-import type { DatasetCaseEntry, GovernedBenchmarkCaseFixture } from "../dataset/types";
+import type {
+  DatasetCaseEntry,
+  GovernedBenchmarkCaseFixture,
+  InvestigationBenchmarkDatasetDefinition,
+} from "../dataset/types";
 import { validateInvestigationBenchmarkDataset } from "../dataset/validator";
 import { calculateHarnessSemanticHash } from "./semantic-hash";
 import type {
@@ -96,7 +100,9 @@ const executeCase = async (
   let outcome;
   try {
     outcome = await provider.execute(observationRequest(fixture));
-    if (provider.providerType !== "HARNESS_PROVIDER") throw new Error("INVALID_HARNESS_PROVIDER");
+    if (provider.providerType !== options.providerFactory.executionMetadata.executionProvider) {
+      throw new Error("EXECUTION_PROVIDER_METADATA_MISMATCH");
+    }
     if (outcome.status !== "PASS" || !outcome.prediction) {
       throw new Error(outcome.error ?? "HARNESS_EXECUTION_FAILED");
     }
@@ -137,10 +143,10 @@ const executeCase = async (
   }
 };
 
-export async function runInvestigationBenchmarkDevHarness(
+export async function runInvestigationBenchmarkHarness(
+  dataset: InvestigationBenchmarkDatasetDefinition,
   options: DevHarnessRunOptions,
 ): Promise<DevHarnessReport> {
-  const dataset = loadInvestigationBenchmarkDevDataset();
   const validation = await validateInvestigationBenchmarkDataset(dataset);
   if (!validation.valid || validation.status !== "PASS") {
     throw new Error(`DEV_DATASET_GOVERNANCE_FAILED: ${validation.status}`);
@@ -166,7 +172,7 @@ export async function runInvestigationBenchmarkDevHarness(
   }
   const completedAt = now();
   const reportWithoutHash = {
-    label: "Deterministic Harness Validation" as const,
+    label: options.providerFactory.executionMetadata.label,
     manifest: {
       runId: options.runId ?? crypto.randomUUID(),
       datasetId: dataset.manifest.datasetId,
@@ -174,10 +180,10 @@ export async function runInvestigationBenchmarkDevHarness(
       datasetHash: validation.calculatedDatasetHash,
       evaluationContractVersion: dataset.manifest.evaluationContractVersion,
       sourceCommit: options.sourceCommit,
-      executionProvider: "HARNESS_PROVIDER" as const,
-      runtimeMode: "DETERMINISTIC_NO_LIVE_MODEL" as const,
+      executionProvider: options.providerFactory.executionMetadata.executionProvider,
+      runtimeMode: options.providerFactory.executionMetadata.runtimeMode,
       enabledTools: [...ENABLED_TOOLS],
-      modelConfiguration: "deterministic / no live model" as const,
+      modelConfiguration: options.providerFactory.executionMetadata.modelConfiguration,
       startedAt,
       completedAt,
       totalCases: cases.length,
@@ -196,5 +202,9 @@ export async function runInvestigationBenchmarkDevHarness(
     semanticHash: await calculateHarnessSemanticHash(reportWithoutHash),
   };
 }
+
+export const runInvestigationBenchmarkDevHarness = (
+  options: DevHarnessRunOptions,
+) => runInvestigationBenchmarkHarness(loadInvestigationBenchmarkDevDataset(), options);
 
 export const __testOnly = { observationRequest, aggregate };

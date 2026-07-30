@@ -12,6 +12,12 @@ const requireCount = (value: number, label: string) => {
 
 export class DeterministicHarnessProvider implements HarnessExecutionProvider {
   readonly providerType = "HARNESS_PROVIDER" as const;
+  readonly executionMetadata = {
+    label: "Deterministic Harness Validation" as const,
+    executionProvider: "HARNESS_PROVIDER" as const,
+    runtimeMode: "DETERMINISTIC_NO_LIVE_MODEL" as const,
+    modelConfiguration: "deterministic / no live model" as const,
+  };
   private executed = false;
 
   async execute(request: HarnessAgentRequest): Promise<HarnessExecutionOutcome> {
@@ -69,5 +75,11 @@ export class DeterministicHarnessProvider implements HarnessExecutionProvider {
 }
 
 export const createDeterministicHarnessProviderFactory = (): HarnessExecutionProviderFactory => ({
+  executionMetadata: {
+    label: "Deterministic Harness Validation",
+    executionProvider: "HARNESS_PROVIDER",
+    runtimeMode: "DETERMINISTIC_NO_LIVE_MODEL",
+    modelConfiguration: "deterministic / no live model",
+  },
   create: () => new DeterministicHarnessProvider(),
 });
