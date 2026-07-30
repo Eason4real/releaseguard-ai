@@ -1,6 +1,12 @@
+import { createHash } from "node:crypto";
 import { MemoryAnalyticsStore } from "../../../lib/fixtures/android-730";
 import { runAgentLoop } from "../../../lib/investigation/agent-loop";
-import type { InvestigationPlanner, PlannerContext } from "../../../lib/investigation/planner";
+import type {
+  InvestigationDecision,
+  InvestigationPlanner,
+  PlannerContext,
+} from "../../../lib/investigation/planner";
+import { createToolSignature } from "../../../lib/investigation/state";
 import {
   startInvestigation,
   type InvestigationToolExecutor,
@@ -9,6 +15,63 @@ import { getActiveHypotheses, getPendingEvidence } from
   "../../../lib/investigation/hypothesis-invariants";
 import { LiveEvalStore, type LiveEvalObservability } from "../../support/live-eval-store";
 import type { HarnessAgentRequest } from "./types";
+
+type ObservedToolDecision = {
+  iteration: number;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  fingerprint: string;
+};
+
+const fingerprint = (signature: string) =>
+  createHash("sha256").update(signature).digest("hex");
+
+const observePlanner = (
+  planner: InvestigationPlanner,
+  observedTools: ObservedToolDecision[],
+): InvestigationPlanner => ({
+  type: planner.type,
+  async plan(context): Promise<InvestigationDecision> {
+    const decision = await planner.plan(context);
+    if (decision.type === "CALL_TOOL") {
+      observedTools.push({
+        iteration: context.aggregate.run.currentIteration,
+        toolName: decision.toolName,
+        arguments: structuredClone(decision.arguments),
+        fingerprint: fingerprint(createToolSignature(decision.toolName, decision.arguments)),
+      });
+    }
+    return decision;
+  },
+  drainModelCallObservations: () => planner.drainModelCallObservations?.() ?? [],
+  drainDecisionValidationObservations: () =>
+    planner.drainDecisionValidationObservations?.() ?? [],
+});
+
+const runtimeObservability = (
+  store: LiveEvalStore,
+  runId: string,
+  aggregate: Awaited<ReturnType<LiveEvalStore["getAggregate"]>>,
+  observedTools: ObservedToolDecision[],
+) => {
+  const observability = store.getObservability(runId);
+  if (aggregate?.run.stopReason !== "DUPLICATE_TOOL_CALL") return observability;
+  const proposed = observedTools.at(-1) ?? null;
+  const duplicate = proposed ? aggregate.toolCalls.find((call) =>
+    call.proposedActionId === null
+    && fingerprint(call.canonicalSignature) === proposed.fingerprint) ?? null : null;
+  observability.guardEvents.push({
+    eventType: "DUPLICATE_TOOL_CALL",
+    iteration: proposed?.iteration ?? null,
+    proposedToolName: proposed?.toolName ?? null,
+    proposedArguments: proposed ? structuredClone(proposed.arguments) : null,
+    proposedFingerprint: proposed?.fingerprint ?? null,
+    duplicateOfToolCallId: duplicate?.id ?? null,
+    duplicateOfFingerprint: duplicate ? fingerprint(duplicate.canonicalSignature) : null,
+    resolution: "REJECTED_AND_STOPPED_INCONCLUSIVE",
+  });
+  return observability;
+};
 
 export class HarnessRuntimeExecutionError extends Error {
   readonly name = "HarnessRuntimeExecutionError";
@@ -171,6 +234,7 @@ export async function executeHarnessAgentRuntime(
 ) {
   const analytics = await seedAnalytics(request);
   const store = new LiveEvalStore(analytics);
+  const observedTools: ObservedToolDecision[] = [];
   const runId = await startInvestigation(store, {
     question: request.agentInput.incidentQuestion,
     provider: options.provider ?? "HARNESS_PROVIDER",
@@ -184,18 +248,19 @@ export async function executeHarnessAgentRuntime(
   try {
     aggregate = await runAgentLoop(store, {
       runId,
-      planner: options.planner ?? new HarnessRuntimePlanner(),
+      planner: observePlanner(options.planner ?? new HarnessRuntimePlanner(), observedTools),
       analytics,
       maxIterations: options.maxIterations ?? 8,
       maxToolCalls: options.maxToolCalls ?? 2,
       toolExecutor: fixtureToolExecutor(request),
     });
   } catch (error) {
-    const observability = store.getObservability(runId);
+    const failedAggregate = await store.getAggregate(runId);
+    const observability = runtimeObservability(store, runId, failedAggregate, observedTools);
     options.onObservability?.(observability);
-    throw new HarnessRuntimeExecutionError(error, await store.getAggregate(runId), observability);
+    throw new HarnessRuntimeExecutionError(error, failedAggregate, observability);
   }
   if (!aggregate) throw new Error("HARNESS_RUNTIME_RESULT_MISSING");
-  options.onObservability?.(store.getObservability(runId));
+  options.onObservability?.(runtimeObservability(store, runId, aggregate, observedTools));
   return aggregate;
 }

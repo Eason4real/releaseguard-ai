@@ -2,7 +2,7 @@
 
 ## Scope
 
-`benchmark-observability-v1` persists public, structured runtime facts in each benchmark case
+`benchmark-observability-v2` persists public, structured runtime facts in each benchmark case
 report. It is a Benchmark Harness projection over the existing `InvestigationAggregate`; it does
 not change the Planner, AgentLoop, tools, model configuration, budgets, retries, or concurrency.
 It never performs an additional model or tool call.
@@ -14,6 +14,11 @@ result metadata, persisted Evidence, Evidence/Hypothesis relations, the final co
 Hypothesis snapshot, accepted Diagnosis and FINALIZE records, the runtime stop reason, terminal
 state, and runtime-owned model/tool call counts. Runtime-generated opaque IDs are replaced with
 stable report-local ordinals. Fixture evidence references remain opaque `EV-nnn` identifiers.
+
+When the existing AgentLoop terminates on `DUPLICATE_TOOL_CALL`, the benchmark runtime records the
+already-returned candidate tool call, SHA-256 fingerprints of the candidate and matched historical
+signature, and the stable report-local ID of that historical call. This observer reuses the
+runtime's canonical signature function and does not alter duplicate detection or termination.
 
 Tool result bodies are not copied into telemetry. Observation metadata contains only value type,
 sorted top-level field names, and array length. Tool arguments are recursively JSON-normalized;

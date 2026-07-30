@@ -8,7 +8,7 @@ import type {
   HarnessTelemetryValue,
 } from "./types";
 
-export const HARNESS_TELEMETRY_SCHEMA_VERSION = "benchmark-observability-v1" as const;
+export const HARNESS_TELEMETRY_SCHEMA_VERSION = "benchmark-observability-v2" as const;
 
 const EVALUATION_ONLY_KEYS = new Set([
   "groundtruth", "canonicalrootcause", "canonicalrootcauseid", "acceptablealiases",
@@ -114,6 +114,20 @@ export function telemetryFromAggregate(
     plannerActions: iterations.flatMap((item) => item.decisionType ? [item.decisionType] : []),
     schemaRepairCount: aggregate.auditEvents.filter((item) =>
       item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length,
+    guardEvents: observability ? observability.guardEvents.map((item) => ({
+      eventType: item.eventType,
+      iteration: item.iteration,
+      proposedToolName: item.proposedToolName,
+      sanitizedProposedArguments: item.proposedArguments
+        ? sanitizeTelemetryValue(item.proposedArguments, sensitiveValues) as Record<string, HarnessTelemetryValue>
+        : null,
+      proposedFingerprint: item.proposedFingerprint,
+      duplicateOfToolCallId: item.duplicateOfToolCallId
+        ? callIds.get(item.duplicateOfToolCallId) ?? null
+        : null,
+      duplicateOfFingerprint: item.duplicateOfFingerprint,
+      resolution: item.resolution,
+    })) : null,
     iterations: iterations.map((item) => ({
       sequence: item.sequence,
       iterationId: iterationIds.get(item.id)!,
@@ -211,6 +225,7 @@ export function telemetryFromAggregate(
     toolCallCount: calls.length,
     unavailableFields: [
       ...(!observability ? [
+        "guardEvents",
         "hypothesisTransitions.history",
         "hypothesisTransitions.confidenceBeforeAfter",
       ] : []),

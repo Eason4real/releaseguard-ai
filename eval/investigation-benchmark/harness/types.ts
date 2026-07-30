@@ -94,11 +94,21 @@ export type HarnessTelemetryValue = null | boolean | number | string
   | HarnessTelemetryValue[] | { [key: string]: HarnessTelemetryValue };
 
 export type HarnessExecutionTelemetry = {
-  schemaVersion: "benchmark-observability-v1";
+  schemaVersion: "benchmark-observability-v2";
   telemetryIdentity: string;
   availability: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE";
   plannerActions: InvestigationDecisionType[];
   schemaRepairCount: number;
+  guardEvents: Array<{
+    eventType: "DUPLICATE_TOOL_CALL";
+    iteration: number | null;
+    proposedToolName: string | null;
+    sanitizedProposedArguments: Record<string, HarnessTelemetryValue> | null;
+    proposedFingerprint: string | null;
+    duplicateOfToolCallId: string | null;
+    duplicateOfFingerprint: string | null;
+    resolution: "REJECTED_AND_STOPPED_INCONCLUSIVE";
+  }> | null;
   iterations: Array<{
     sequence: number;
     iterationId: string;
@@ -208,7 +218,7 @@ export type HarnessRunManifest = {
   datasetVersion: string;
   datasetHash: string;
   evaluationContractVersion: string;
-  telemetrySchemaVersion: "benchmark-observability-v1";
+  telemetrySchemaVersion: "benchmark-observability-v2";
   sourceCommit: string;
   executionProvider: HarnessExecutionProviderType;
   runtimeMode: HarnessRuntimeMode;

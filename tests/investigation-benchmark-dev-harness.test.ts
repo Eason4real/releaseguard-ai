@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { InvestigationPlanner } from "../lib/investigation/planner";
+import type { LiveEvalObservability } from "../eval/support/live-eval-store";
 import {
   DeterministicHarnessProvider,
   __testOnly,
@@ -70,7 +72,7 @@ test("formal Dev harness executes all 22 cases in stable order with isolated pro
   assert.equal(report.manifest.runtimeMode, "DETERMINISTIC_NO_LIVE_MODEL");
   assert.equal(report.manifest.modelConfiguration, "deterministic / no live model");
   assert.ok(report.cases.every((item) => item.telemetry?.schemaVersion
-    === "benchmark-observability-v1"));
+    === "benchmark-observability-v2"));
   assert.ok(report.cases.every((item) => /^[a-f0-9]{64}$/.test(
     item.telemetry?.telemetryIdentity ?? "",
   )));
@@ -312,6 +314,8 @@ test("telemetry preserves execution order, sanitizes values, and marks unavailab
   const aggregate = await executeHarnessAgentRuntime(request);
   const aggregateBeforeProjection = structuredClone(aggregate);
   const projected = telemetryFromAggregate(request, aggregate, ["secret-value"]);
+  assert.equal(projected.guardEvents, null);
+  assert.ok(projected.unavailableFields.includes("guardEvents"));
   assert.equal(projected.hypothesisTransitions, null);
   assert.ok(projected.unavailableFields.includes("hypothesisTransitions.confidenceBeforeAfter"));
   assert.deepEqual(aggregate, aggregateBeforeProjection);
@@ -319,6 +323,100 @@ test("telemetry preserves execution order, sanitizes values, and marks unavailab
   assert.equal(JSON.stringify(projected).includes("must-not-persist"), false);
   assert.equal(JSON.stringify(projected).includes("secret-value"), false);
   assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("telemetryIdentity"), false);
+  assert.equal(JSON.stringify(semanticHarnessReport(report)).includes("guardEvents"), false);
+});
+
+test("duplicate guard telemetry links the rejected candidate without changing execution", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures[0];
+  const request = __testOnly.observationRequest(fixture);
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan(context) {
+      const active = context.aggregate.hypotheses.filter((item) => item.status !== "REJECTED");
+      if (active.length === 0) {
+        return {
+          type: "CREATE_HYPOTHESES",
+          hypotheses: [{
+            statement: "A test-only hypothesis for duplicate guard observability.",
+            supportIf: "A release observation is available.",
+            refuteIf: "The release observation is unavailable.",
+          }],
+          rationale: "Create a deterministic test hypothesis.",
+        };
+      }
+      const assessed = new Set(context.aggregate.hypothesisEvidenceLinks.map((item) => item.evidenceId));
+      const pending = context.aggregate.evidence.filter((item) => !assessed.has(item.id));
+      if (pending.length > 0) {
+        return {
+          type: "ASSESS_EVIDENCE",
+          assessments: pending.map((evidence) => ({
+            evidenceId: evidence.id,
+            relations: active.map((hypothesis) => ({
+              targetHypothesisId: hypothesis.id,
+              relation: "NEUTRAL" as const,
+              explanation: "Persist the test observation before proposing the duplicate.",
+            })),
+          })),
+          rationale: "Assess the persisted evidence.",
+        };
+      }
+      return {
+        type: "CALL_TOOL",
+        toolName: "get_release",
+        arguments: {
+          release_id: context.aggregate.release!.id,
+          note: "secret-value",
+          apiKey: "must-not-persist",
+          groundTruth: { canonicalRootCauseId: "RC-999" },
+        },
+        targetHypothesisIds: active.map((item) => item.id),
+        testIntent: "SUPPORT",
+        rationale: "Propose the same deterministic tool call.",
+      };
+    },
+  };
+  const execute = async () => {
+    let observability: LiveEvalObservability | undefined;
+    const aggregate = await executeHarnessAgentRuntime(request, {
+      planner,
+      maxIterations: 8,
+      maxToolCalls: 10,
+      onObservability: (value) => { observability = value; },
+    });
+    const beforeProjection = structuredClone(aggregate);
+    const telemetry = telemetryFromAggregate(request, aggregate, ["secret-value"], observability);
+    assert.deepEqual(aggregate, beforeProjection);
+    return { aggregate, telemetry };
+  };
+
+  const runA = await execute();
+  const runB = await execute();
+  assert.equal(runA.aggregate.run.status, "INCONCLUSIVE");
+  assert.equal(runA.aggregate.run.stopReason, "DUPLICATE_TOOL_CALL");
+  assert.equal(runA.aggregate.toolCalls.length, 1);
+  assert.equal(runA.telemetry.toolCallCount, 1);
+  assert.equal(runA.telemetry.guardEvents?.length, 1);
+  assert.deepEqual(runA.telemetry.guardEvents?.[0], {
+    eventType: "DUPLICATE_TOOL_CALL",
+    iteration: 4,
+    proposedToolName: "get_release",
+    sanitizedProposedArguments: {
+      release_id: request.agentInput.release!.id,
+      note: "[REDACTED]",
+    },
+    proposedFingerprint: runA.telemetry.guardEvents?.[0].proposedFingerprint,
+    duplicateOfToolCallId: "TOOL_CALL-001",
+    duplicateOfFingerprint: runA.telemetry.guardEvents?.[0].duplicateOfFingerprint,
+    resolution: "REJECTED_AND_STOPPED_INCONCLUSIVE",
+  });
+  assert.match(runA.telemetry.guardEvents![0].proposedFingerprint!, /^[a-f0-9]{64}$/);
+  assert.equal(runA.telemetry.guardEvents![0].proposedFingerprint,
+    runA.telemetry.guardEvents![0].duplicateOfFingerprint);
+  const serialized = JSON.stringify(runA.telemetry.guardEvents);
+  for (const forbidden of ["secret-value", "must-not-persist", "groundTruth", "RC-999"]) {
+    assert.equal(serialized.includes(forbidden), false, forbidden);
+  }
+  assert.equal(runA.telemetry.telemetryIdentity, runB.telemetry.telemetryIdentity);
 });
 
 test("default fixture provider exposes deterministic citation edge cases to unchanged scorer semantics", async () => {

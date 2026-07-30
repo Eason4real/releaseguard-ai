@@ -27,6 +27,16 @@ import { normalizeGithubTarget } from "../../lib/investigation/github-action-sta
 const copy = <V>(value: V): V => structuredClone(value);
 
 export type LiveEvalObservability = {
+  guardEvents: Array<{
+    eventType: "DUPLICATE_TOOL_CALL";
+    iteration: number | null;
+    proposedToolName: string | null;
+    proposedArguments: Record<string, unknown> | null;
+    proposedFingerprint: string | null;
+    duplicateOfToolCallId: string | null;
+    duplicateOfFingerprint: string | null;
+    resolution: "REJECTED_AND_STOPPED_INCONCLUSIVE";
+  }>;
   hypothesisTransitions: Array<{
     runId: string;
     iterationId: string | null;
@@ -73,6 +83,7 @@ export class LiveEvalStore implements Phase4InvestigationStore {
   readonly verificationEvaluations = new Map<string, T.VerificationEvaluation>();
   readonly commands = new Set<string>();
   readonly observability: LiveEvalObservability = {
+    guardEvents: [],
     hypothesisTransitions: [],
     finalizeAttempts: [],
   };
@@ -350,6 +361,7 @@ export class LiveEvalStore implements Phase4InvestigationStore {
 
   getObservability(runId: string): LiveEvalObservability {
     return copy({
+      guardEvents: this.observability.guardEvents.filter(() => true),
       hypothesisTransitions: this.observability.hypothesisTransitions.filter((item) =>
         item.runId === runId),
       finalizeAttempts: this.observability.finalizeAttempts.filter((item) => item.runId === runId),
