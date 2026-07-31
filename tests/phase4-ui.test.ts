@@ -73,13 +73,36 @@ test("Public Demo UI has no persistence, credential fields, network calls or rea
   const source = await readFile("app/public-demo.tsx", "utf8");
   const styles = await readFile("app/globals.css", "utf8");
   assert.doesNotMatch(source, /fetch\(|sessionStorage|localStorage|apiKey|type=["']password|github\.com|<input/i);
-  assert.match(source, /CURATED AGENT REPLAY/);
-  assert.match(source, /FAULT-INJECTION REPLAY/);
+  assert.match(source, /Agent 调查回放/);
+  assert.match(source, /故障注入回放/);
   assert.match(source, /模拟工作项已创建|模拟创建本地工作项/);
   assert.match(source, /Action Completion/);
   assert.match(source, /Verification/);
   assert.match(source, /不调用真实模型、GitHub 或 D1/);
   assert.doesNotMatch(styles, /\.replay-command-button\.reset[^\{]*\{[^\}]*display\s*:\s*none/);
+});
+
+test("Guided Experience keeps detailed rationale behind concise business summaries", async () => {
+  const guided = await readFile("app/guided-experience/guided-experience.tsx", "utf8");
+  const scenario = await readFile("lib/best-practice-scenario.ts", "utf8");
+  const publicDemo = await readFile("app/public-demo.tsx", "utf8");
+
+  assert.match(guided, /新版发布\{scenario\.after\.elapsed\}后，酒店下单转化率出现明显异常/);
+  assert.match(guided, /hypothesis\.priority/);
+  assert.match(guided, /hypothesis\.summary/);
+  assert.match(guided, /guided-reason-details/);
+  assert.match(guided, /item\.summary/);
+  assert.doesNotMatch(guided, /可能原因 \{hypothesis\.id\}/);
+  for (const text of [
+    "优先排查",
+    "新版刚修改酒店排序，而且异常紧跟发布出现。",
+    "同时排查",
+    "库存/价格服务运行正常",
+    "高价酒店曝光占比 31% → 52%",
+    "风险标准由业务团队提前设定，AI 负责发现异常后的调查。",
+  ]) assert.match(scenario, new RegExp(text));
+  assert.doesNotMatch(scenario, /LLM/);
+  assert.doesNotMatch(publicDemo, /不是 LLM 临时生成的/);
 });
 
 test("Public and Private workspaces are split and Private Live never silently substitutes fixture", async () => {

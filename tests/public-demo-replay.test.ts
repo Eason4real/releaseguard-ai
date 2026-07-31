@@ -181,8 +181,8 @@ test("Public Demo source has no persistence, credentials, private API or externa
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|WebSocket|EventSource|sessionStorage|localStorage/i);
   assert.doesNotMatch(source, /apiKey|authorization|type=["']password|<input|<textarea|<a\b|https?:\/\//i);
   assert.doesNotMatch(replaySource, /https?:\/\/|github\.com|apiKey|authorization|sessionStorage|localStorage/i);
-  assert.match(source, /CURATED AGENT REPLAY/);
-  assert.match(source, /FAULT-INJECTION REPLAY/);
+  assert.match(source, /Agent 调查回放/);
+  assert.match(source, /故障注入回放/);
   assert.match(source, /DEMO-WORK-ITEM-001/);
   assert.match(source, /不调用真实模型、GitHub 或 D1/);
   assert.match(styles, /@media \(max-width: 430px\)/);
