@@ -82,6 +82,53 @@ test("Public Demo UI has no persistence, credential fields, network calls or rea
   assert.doesNotMatch(styles, /\.replay-command-button\.reset[^\{]*\{[^\}]*display\s*:\s*none/);
 });
 
+test("Public Demo presents a business-first risk investigation workbench", async () => {
+  const source = await readFile("app/public-demo.tsx", "utf8");
+  const styles = await readFile("app/globals.css", "utf8");
+
+  for (const text of [
+    "风险调查工作台",
+    "风险事件摘要",
+    "为什么进入调查？",
+    "当前调查进度",
+    "当前调查方向",
+    "AI 找到了什么？",
+    "下一步",
+    "业务指标监控",
+    "触发业务团队预设风险规则",
+    "暂时不需要你操作",
+    "需要负责人确认",
+    "正在验证是否恢复",
+    "本次风险已关闭",
+  ]) assert.match(source, new RegExp(text));
+
+  assert.match(source, /businessProgress = \["发现异常", "分析可能原因", "收集证据", "形成结论", "等待决策", "验证恢复"\]/);
+  assert.match(source, /InvestigationView = "workspace" \| "technical"/);
+  assert.match(source, /查看 Agent 技术执行详情/);
+  assert.match(source, /返回风险调查工作台/);
+  assert.match(source, /真实环境中这些步骤会自动执行，用户只需在关键决策点介入/);
+  assert.match(source, /真实工作区会复用既有审批流程/);
+  assert.match(source, /查看审批后的验证示例/);
+  assert.match(source, /dispatch\(\{ type: "NEXT" \}\);\s*dispatch\(\{ type: "NEXT" \}\);/);
+  assert.match(source, /调查方向正在生成中…/);
+  assert.match(source, /正在收集证据…/);
+  assert.match(source, /snapshot\.evidence\.map/);
+  assert.doesNotMatch(source, /supportedEvidence|contradictingEvidence/);
+  assert.match(source, /RISK_DETECTED: "发现风险异常"/);
+  assert.match(source, /CREATE_HYPOTHESES: "生成调查方向"/);
+  assert.match(source, /get_release: "检查版本发布记录"/);
+  assert.match(source, /\{event\.kind\}<small>\{auditSourceLabels\[event\.source\]\} · \{event\.source\}/);
+  assert.match(source, /当前为另一个完整演示案例，用于展示 Agent 的真实调查过程/);
+  const replayNav = source.indexOf("navigation.slice(0, 2)");
+  const bestPracticeNav = source.indexOf('data-testid="best-practice-entry"');
+  const technicalNav = source.indexOf("navigation.slice(2)");
+  assert.ok(replayNav < bestPracticeNav && bestPracticeNav < technicalNav);
+  assert.match(styles, /\.risk-workbench/);
+  assert.match(styles, /\.risk-evidence-list/);
+  assert.match(styles, /\.technical-replay-toolbar/);
+  assert.doesNotMatch(source, /id: "replay", label: "Agent 执行详情"/);
+});
+
 test("Guided Experience keeps detailed rationale behind concise business summaries", async () => {
   const guided = await readFile("app/guided-experience/guided-experience.tsx", "utf8");
   const scenario = await readFile("lib/best-practice-scenario.ts", "utf8");
@@ -92,6 +139,8 @@ test("Guided Experience keeps detailed rationale behind concise business summari
   assert.match(guided, /hypothesis\.summary/);
   assert.match(guided, /guided-reason-details/);
   assert.match(guided, /item\.summary/);
+  assert.match(guided, /新手案例：酒店推荐策略异常 · 非生产数据/);
+  assert.match(guided, /进入完整调查工作台示例/);
   assert.doesNotMatch(guided, /可能原因 \{hypothesis\.id\}/);
   for (const text of [
     "优先排查",

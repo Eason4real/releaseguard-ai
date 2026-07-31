@@ -27,7 +27,7 @@ export default function GuidedExperience() {
       <Link className="guided-brand" href="/" aria-label="返回 ReleaseGuard AI">
         <span>R</span><div><strong>ReleaseGuard AI</strong><small>3 分钟引导体验</small></div>
       </Link>
-      <div className="guided-demo-badge"><i />演示 · 非生产数据</div>
+      <div className="guided-demo-badge"><i />新手案例：酒店推荐策略异常 · 非生产数据</div>
       <Link className="guided-exit" href="/">退出引导</Link>
     </header>
 
@@ -155,7 +155,7 @@ export default function GuidedExperience() {
         <ol className="guided-summary-flow" aria-label="调查完成过程">
           {["发现异常", "调查原因", "收集证据", "给出建议", "人工决策", "验证结果"].map((item, index) => <li key={item}><span>{index + 1}</span><b>{item}</b></li>)}
         </ol>
-        <div className="guided-complete-actions"><Link className="guided-secondary-link" href="/best-practice">查看完整最佳实践</Link><Link className="guided-primary-link" href="/">进入完整工作台 <span aria-hidden="true">→</span></Link></div>
+        <div className="guided-complete-actions"><Link className="guided-secondary-link" href="/best-practice">查看完整最佳实践</Link><Link className="guided-primary-link" href="/">进入完整调查工作台示例 <span aria-hidden="true">→</span></Link></div>
       </section>}
     </div>
 

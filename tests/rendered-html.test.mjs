@@ -32,7 +32,7 @@ test("renders development preview metadata", async () => {
   const html = await response.text();
   assert.match(html, developmentPreviewMeta);
   assert.match(html, /业务概览/);
-  assert.match(html, /Agent 执行详情/);
+  assert.match(html, /风险调查/);
   assert.match(html, /最佳实践/);
   assert.match(html, /href=["']\/best-practice["']/);
   assert.match(html, /第一次体验？/);
@@ -168,7 +168,7 @@ test("renders the five-step guided experience from the canonical scenario", asyn
     "查看依据",
   ]) assert.match(html, new RegExp(explanation));
   assert.doesNotMatch(html, /LLM/);
-  assert.match(html, /演示 · 非生产数据/);
+  assert.match(html, /新手案例：酒店推荐策略异常 · 非生产数据/);
   assert.match(html, /与真实 Agent 运行环境、审批和线上操作隔离/);
   assert.doesNotMatch(html, /Risk Event ID|Deterministic Rule|Competitive Hypothesis|Evidence Matrix/);
 });
