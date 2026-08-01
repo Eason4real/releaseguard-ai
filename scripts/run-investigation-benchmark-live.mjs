@@ -33,6 +33,7 @@ try {
     apiKey: process.env.LIVE_EVAL_API_KEY,
     model: process.env.LIVE_EVAL_MODEL,
   });
+  let reportPaths;
   const report = command.mode === "PREFLIGHT"
     ? await harness.runLivePreflight({ sourceCommit, providerFactory })
     : await harness.runInvestigationBenchmarkDevHarness({
@@ -40,6 +41,10 @@ try {
       providerFactory,
       ...(command.caseId ? { caseId: command.caseId } : {}),
       runId: `LIVE-DEV-${crypto.randomUUID()}`,
+      async onCheckpoint(partialReport) {
+        reportPaths ??= harness.resolveBenchmarkReportPaths(partialReport);
+        await harness.writePartialBenchmarkReport(reportPaths, partialReport);
+      },
       onProgress(event) {
         if (event.phase === "START") {
           console.error(`[${event.index}/${event.total}] ${event.caseId} START`);
@@ -52,7 +57,13 @@ try {
         );
       },
     });
-  console.log(JSON.stringify(report, null, 2));
+  const artifacts = command.mode === "PREFLIGHT"
+    ? null
+    : await harness.writeFinalBenchmarkReport(
+        reportPaths ?? harness.resolveBenchmarkReportPaths(report),
+        report,
+      );
+  console.log(JSON.stringify({ report, artifacts }, null, 2));
   if (command.mode === "PREFLIGHT") {
     if (report.status !== "PASS") process.exitCode = 1;
   } else if (report.manifest.failedCases > 0) process.exitCode = 1;

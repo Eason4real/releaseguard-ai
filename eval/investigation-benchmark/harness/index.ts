@@ -20,4 +20,11 @@ export { executeHarnessAgentRuntime, HarnessRuntimeExecutionError } from "./runt
 export { resolveLiveHarnessCommand } from "./live-command";
 export { loadLivePreflightFixture } from "./preflight-fixture";
 export { assertLivePreflightIsolation, runLivePreflight } from "./preflight-runner";
+export {
+  renderBenchmarkMarkdown,
+  resolveBenchmarkReportPaths,
+  sha256Text,
+  writeFinalBenchmarkReport,
+  writePartialBenchmarkReport,
+} from "./report-persistence";
 export * from "./types";

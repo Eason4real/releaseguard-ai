@@ -13,6 +13,7 @@ const testNames = [
   "investigation-benchmark-dev-dataset",
   "investigation-benchmark-dev-harness",
   "investigation-benchmark-live-adapter",
+  "investigation-benchmark-report",
 ];
 const outputFiles = testNames.map((name) => new URL(`${name}.test.mjs`, outputDirectory));
 

@@ -23,12 +23,15 @@ type ObservedToolDecision = {
   fingerprint: string;
 };
 
+type ObservedStopDecision = NonNullable<LiveEvalObservability["plannerStopDecision"]>;
+
 const fingerprint = (signature: string) =>
   createHash("sha256").update(signature).digest("hex");
 
 const observePlanner = (
   planner: InvestigationPlanner,
   observedTools: ObservedToolDecision[],
+  observedStop: { decision: ObservedStopDecision | null },
 ): InvestigationPlanner => ({
   type: planner.type,
   async plan(context): Promise<InvestigationDecision> {
@@ -40,6 +43,13 @@ const observePlanner = (
         arguments: structuredClone(decision.arguments),
         fingerprint: fingerprint(createToolSignature(decision.toolName, decision.arguments)),
       });
+    } else if (decision.type === "STOP_INCONCLUSIVE") {
+      observedStop.decision = {
+        iteration: context.aggregate.run.currentIteration,
+        reasonCode: decision.reasonCode,
+        reason: decision.reason,
+        rationale: decision.rationale,
+      };
     }
     return decision;
   },
@@ -53,8 +63,10 @@ const runtimeObservability = (
   runId: string,
   aggregate: Awaited<ReturnType<LiveEvalStore["getAggregate"]>>,
   observedTools: ObservedToolDecision[],
+  observedStop: ObservedStopDecision | null,
 ) => {
   const observability = store.getObservability(runId);
+  observability.plannerStopDecision = observedStop;
   if (aggregate?.run.stopReason !== "DUPLICATE_TOOL_CALL") return observability;
   const proposed = observedTools.at(-1) ?? null;
   const duplicate = proposed ? aggregate.toolCalls.find((call) =>
@@ -235,6 +247,7 @@ export async function executeHarnessAgentRuntime(
   const analytics = await seedAnalytics(request);
   const store = new LiveEvalStore(analytics);
   const observedTools: ObservedToolDecision[] = [];
+  const observedStop = { decision: null as ObservedStopDecision | null };
   const runId = await startInvestigation(store, {
     question: request.agentInput.incidentQuestion,
     provider: options.provider ?? "HARNESS_PROVIDER",
@@ -248,7 +261,7 @@ export async function executeHarnessAgentRuntime(
   try {
     aggregate = await runAgentLoop(store, {
       runId,
-      planner: observePlanner(options.planner ?? new HarnessRuntimePlanner(), observedTools),
+      planner: observePlanner(options.planner ?? new HarnessRuntimePlanner(), observedTools, observedStop),
       analytics,
       maxIterations: options.maxIterations ?? 8,
       maxToolCalls: options.maxToolCalls ?? 2,
@@ -256,11 +269,15 @@ export async function executeHarnessAgentRuntime(
     });
   } catch (error) {
     const failedAggregate = await store.getAggregate(runId);
-    const observability = runtimeObservability(store, runId, failedAggregate, observedTools);
+    const observability = runtimeObservability(
+      store, runId, failedAggregate, observedTools, observedStop.decision,
+    );
     options.onObservability?.(observability);
     throw new HarnessRuntimeExecutionError(error, failedAggregate, observability);
   }
   if (!aggregate) throw new Error("HARNESS_RUNTIME_RESULT_MISSING");
-  options.onObservability?.(runtimeObservability(store, runId, aggregate, observedTools));
+  options.onObservability?.(runtimeObservability(
+    store, runId, aggregate, observedTools, observedStop.decision,
+  ));
   return aggregate;
 }

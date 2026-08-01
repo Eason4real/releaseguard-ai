@@ -4,11 +4,13 @@ import { validateInvestigationBenchmarkDataset } from "../dataset/validator";
 import { scoreInvestigationCase } from "../scorer";
 import type { NormalizedInvestigationResult } from "../types";
 import { aggregateHarnessCases, breakdownHarnessCases } from "./runner";
-import type { HarnessCaseExecutionResult } from "./types";
+import type { HarnessCaseExecutionResult, HarnessExecutionTelemetry } from "./types";
 
 type FrozenBaselineCase = {
   caseId: string;
   normalizedPrediction: NormalizedInvestigationResult | null;
+  execution?: HarnessCaseExecutionResult["execution"];
+  telemetry?: HarnessExecutionTelemetry | null;
 };
 
 type FrozenBaselineReport = {
@@ -56,7 +58,7 @@ export async function rescoreFrozenBaselineReport(
     const entry = entries.get(sourceCase.caseId);
     if (!benchmarkCase || !entry) throw new Error(`UNKNOWN_FROZEN_CASE: ${sourceCase.caseId}`);
     const normalizedPrediction = sourceCase.normalizedPrediction;
-    const runtimeFailed = normalizedPrediction === null;
+    const runtimeFailed = sourceCase.execution?.status === "FAIL" || normalizedPrediction === null;
     const scoringInput: NormalizedInvestigationResult = normalizedPrediction ?? {
       caseId: sourceCase.caseId,
       predictedRootCause: "",
@@ -74,14 +76,18 @@ export async function rescoreFrozenBaselineReport(
       category: entry.category,
       difficulty: entry.difficulty,
       execution: {
-        status: runtimeFailed ? "FAIL" : "PASS",
-        terminalInvestigationState: runtimeFailed ? "FAILED" : "FINALIZED",
+        status: sourceCase.execution?.status ?? (runtimeFailed ? "FAIL" : "PASS"),
+        terminalInvestigationState: sourceCase.execution?.terminalInvestigationState
+          ?? (runtimeFailed ? "FAILED" : "FINALIZED"),
         modelCallCount: scoringInput.modelCallCount,
         toolCallCount: scoringInput.toolCallCount,
-        ...(runtimeFailed ? { error: "FROZEN_BASELINE_RUNTIME_FAILURE" } : {}),
+        errorCategory: sourceCase.execution?.errorCategory ?? (runtimeFailed ? "RUNTIME_ERROR" : null),
+        ...(sourceCase.execution?.error
+          ? { error: sourceCase.execution.error }
+          : runtimeFailed ? { error: "FROZEN_BASELINE_RUNTIME_FAILURE" } : {}),
       },
       normalizedPrediction: normalizedPrediction ? structuredClone(normalizedPrediction) : null,
-      telemetry: null,
+      telemetry: sourceCase.telemetry ? structuredClone(sourceCase.telemetry) : null,
       scoring: scoreInvestigationCase(benchmarkCase, scoringInput, { runtimeFailed }),
     };
   });
@@ -114,6 +120,8 @@ export async function rescoreFrozenBaselineReport(
     breakdown,
   };
   return {
+    schemaVersion: "investigation-live-benchmark-rescore-v1" as const,
+    reportStatus: "COMPLETE" as const,
     ...semanticPayload,
     semanticHash: await sha256(canonicalJson(semanticPayload)),
   };

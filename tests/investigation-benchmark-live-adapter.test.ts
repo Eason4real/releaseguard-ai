@@ -305,6 +305,21 @@ test("Live provider redacts secrets and classifies provider failures with zero t
   }
 });
 
+test("Live provider classifies exhausted planner schema repair separately", async () => {
+  let calls = 0;
+  const provider = new LiveLLMHarnessProvider(config(async () => {
+    calls += 1;
+    return response({ type: "NOT_A_VALID_DECISION" });
+  }));
+  const outcome = await provider.execute(loadLivePreflightFixture().request);
+
+  assert.equal(outcome.status, "FAIL");
+  assert.equal(outcome.error, "PROVIDER_MALFORMED_RESPONSE");
+  assert.equal(outcome.errorCategory, "PLANNER_SCHEMA_ERROR");
+  assert.equal(outcome.terminalInvestigationState, "FAILED");
+  assert.equal(calls, 2);
+});
+
 test("Live CLI requires explicit opt-in and is absent from default test, eval, and build scripts", async () => {
   const [source, packageSource] = await Promise.all([
     readFile(resolve("scripts/run-investigation-benchmark-live.mjs"), "utf8"),

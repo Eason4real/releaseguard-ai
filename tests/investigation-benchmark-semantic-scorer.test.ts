@@ -105,7 +105,7 @@ test("offline rescore ignores legacy scores and evaluates only frozen normalized
     ),
     scoring: { rootCause: { correct: false } },
   }));
-  const report = await rescoreFrozenBaselineReport({
+  const source = {
     manifest: {
       datasetId: "INVESTIGATION-BENCHMARK-DEV",
       datasetVersion: "0.1.0",
@@ -118,11 +118,38 @@ test("offline rescore ignores legacy scores and evaluates only frozen normalized
     },
     cases: sourceCases,
     semanticHash: "b".repeat(64),
-  }, "c".repeat(64));
+  };
+  const report = await rescoreFrozenBaselineReport(source, "c".repeat(64));
   assert.equal(report.identity.scoringInput, "FROZEN_NORMALIZED_PREDICTION_ONLY");
   assert.equal(report.identity.evaluationContractVersion, "phase1a-v2");
   assert.equal(report.cases.length, 22);
   assert.equal(report.cases.find((item) => item.caseId === "CASE-206")
     ?.scoring.rootCause.correct, true);
   assert.match(report.semanticHash, /^[a-f0-9]{64}$/);
+
+  const liveSource = {
+    ...source,
+    cases: source.cases.map((item) => item.caseId === "CASE-208" ? {
+      ...item,
+      execution: {
+        status: "PASS" as const,
+        terminalInvestigationState: "INCONCLUSIVE" as const,
+        modelCallCount: item.normalizedPrediction.modelCallCount,
+        toolCallCount: item.normalizedPrediction.toolCallCount,
+        errorCategory: null,
+      },
+      telemetry: {
+        plannerActions: ["STOP_INCONCLUSIVE"],
+        plannerValidationEvents: [],
+      } as never,
+    } : item),
+  };
+  const liveReport = await rescoreFrozenBaselineReport(liveSource, "d".repeat(64));
+  assert.equal(liveReport.schemaVersion, "investigation-live-benchmark-rescore-v1");
+  assert.equal(liveReport.reportStatus, "COMPLETE");
+  assert.equal(liveReport.cases.find((item) => item.caseId === "CASE-208")
+    ?.execution.terminalInvestigationState, "INCONCLUSIVE");
+  assert.deepEqual(liveReport.cases.find((item) => item.caseId === "CASE-208")
+    ?.telemetry?.plannerActions, ["STOP_INCONCLUSIVE"]);
+  assert.equal(liveReport.aggregate.inconclusiveCases, 1);
 });

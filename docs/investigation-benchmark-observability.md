@@ -61,3 +61,18 @@ hash or the `phase1a-v2` evaluation contract version.
 
 The live CLI emits case START/END progress to stderr so the JSON report on stdout remains intact.
 Progress contains only case ID, terminal state, call counts, and elapsed duration.
+
+The investigation benchmark report uses `investigation-live-benchmark-report-v1`. It classifies
+planner schema exhaustion as `PLANNER_SCHEMA_ERROR`, semantic decision exhaustion as
+`INVALID_PLANNER_DECISION`, and other execution failures as `RUNTIME_ERROR`, while retaining the
+more specific provider error code. `plannerDecisionRepairRate` is the sole canonical repair-rate
+field in this report contract; `decisionRepairRate` belongs to the separate Phase 4 live-eval
+contract and is not an alias here. A `STOP_INCONCLUSIVE` decision retains its reason code, public
+reason, public rationale, case ID, terminal state, and validation/repair events.
+
+Formal live runs atomically checkpoint an explicitly `INCOMPLETE` JSON report after every case in
+the ignored `reports/investigation-benchmark/` directory. A successful run creates a unique final
+JSON report and Markdown summary without overwriting an existing artifact, then removes its partial
+checkpoint. File names include benchmark type, provider, dataset version, UTC start time, source
+commit, and run ID. Credentials, full model responses, prompts, and sensitive environment values
+remain excluded by the existing telemetry projection.

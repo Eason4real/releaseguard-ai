@@ -159,6 +159,17 @@ const providerErrorCode = (error: unknown) => {
   return "PROVIDER_FAILURE";
 };
 
+const providerErrorCategory = (error: unknown) => {
+  if (error instanceof HarnessRuntimeExecutionError) return providerErrorCategory(error.runtimeCause);
+  if (error instanceof Error && error.name === "PlannerDecisionValidationError") {
+    return "PLANNER_SCHEMA_ERROR" as const;
+  }
+  if (error instanceof Error && error.name === "PlannerDecisionSemanticError") {
+    return "INVALID_PLANNER_DECISION" as const;
+  }
+  return "RUNTIME_ERROR" as const;
+};
+
 export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
   readonly providerType = "LIVE_LLM_PROVIDER" as const;
   readonly executionMetadata;
@@ -201,6 +212,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           terminalInvestigationState,
           telemetry: telemetryFromAggregate(request, aggregate, [this.#config.apiKey], observability),
           error: "LIVE_RUNTIME_FAILED",
+          errorCategory: "RUNTIME_ERROR",
         };
       }
       return {
@@ -226,6 +238,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           ) }
           : {}),
         error: providerErrorCode(error),
+        errorCategory: providerErrorCategory(error),
       };
     }
   }
@@ -244,5 +257,6 @@ export const createLiveLLMHarnessProviderFactory = (
 
 export const __testOnlyLiveProvider = {
   providerErrorCode,
+  providerErrorCategory,
   predictionFromAggregate,
 };

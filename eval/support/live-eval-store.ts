@@ -27,6 +27,12 @@ import { normalizeGithubTarget } from "../../lib/investigation/github-action-sta
 const copy = <V>(value: V): V => structuredClone(value);
 
 export type LiveEvalObservability = {
+  plannerStopDecision: {
+    iteration: number;
+    reasonCode: string;
+    reason: string;
+    rationale: string;
+  } | null;
   guardEvents: Array<{
     eventType: "DUPLICATE_TOOL_CALL";
     iteration: number | null;
@@ -83,6 +89,7 @@ export class LiveEvalStore implements Phase4InvestigationStore {
   readonly verificationEvaluations = new Map<string, T.VerificationEvaluation>();
   readonly commands = new Set<string>();
   readonly observability: LiveEvalObservability = {
+    plannerStopDecision: null,
     guardEvents: [],
     hypothesisTransitions: [],
     finalizeAttempts: [],
@@ -361,6 +368,7 @@ export class LiveEvalStore implements Phase4InvestigationStore {
 
   getObservability(runId: string): LiveEvalObservability {
     return copy({
+      plannerStopDecision: this.observability.plannerStopDecision,
       guardEvents: this.observability.guardEvents.filter(() => true),
       hypothesisTransitions: this.observability.hypothesisTransitions.filter((item) =>
         item.runId === runId),

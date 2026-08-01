@@ -168,6 +168,14 @@ export function telemetryFromAggregate(
     schemaVersion: HARNESS_TELEMETRY_SCHEMA_VERSION,
     availability: "PARTIAL",
     plannerActions: iterations.flatMap((item) => item.decisionType ? [item.decisionType] : []),
+    plannerStopDecision: observability?.plannerStopDecision
+      ? {
+          iteration: observability.plannerStopDecision.iteration,
+          reasonCode: sanitizeText(observability.plannerStopDecision.reasonCode, sensitiveValues),
+          reason: sanitizeText(observability.plannerStopDecision.reason, sensitiveValues),
+          rationale: sanitizeText(observability.plannerStopDecision.rationale, sensitiveValues),
+        }
+      : null,
     schemaRepairCount: aggregate.auditEvents.filter((item) =>
       item.type === "PLANNER_DECISION_REPAIR_ATTEMPTED").length,
     plannerValidationEvents,

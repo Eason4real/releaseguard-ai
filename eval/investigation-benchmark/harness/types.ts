@@ -98,6 +98,12 @@ export type HarnessExecutionTelemetry = {
   telemetryIdentity: string;
   availability: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE";
   plannerActions: InvestigationDecisionType[];
+  plannerStopDecision: {
+    iteration: number;
+    reasonCode: string;
+    reason: string;
+    rationale: string;
+  } | null;
   schemaRepairCount: number;
   plannerValidationEvents: Array<{
     iteration: number | null;
@@ -211,7 +217,13 @@ export type HarnessExecutionOutcome = {
   prediction?: HarnessRawPrediction;
   telemetry?: HarnessExecutionTelemetry;
   error?: string;
+  errorCategory?: HarnessErrorCategory;
 };
+
+export type HarnessErrorCategory =
+  | "PLANNER_SCHEMA_ERROR"
+  | "INVALID_PLANNER_DECISION"
+  | "RUNTIME_ERROR";
 
 export type HarnessExecutionProvider = {
   readonly providerType: HarnessExecutionProviderType;
@@ -237,10 +249,12 @@ export type HarnessRunManifest = {
   enabledTools: string[];
   modelConfiguration: "deterministic / no live model" | LiveHarnessManifestModelConfiguration;
   startedAt: string;
-  completedAt: string;
+  completedAt: string | null;
   totalCases: number;
+  processedCases: number;
   completedCases: number;
   failedCases: number;
+  inconclusiveCases: number;
 };
 
 export type HarnessCaseExecutionResult = {
@@ -253,6 +267,7 @@ export type HarnessCaseExecutionResult = {
     modelCallCount: number;
     toolCallCount: number;
     error?: string;
+    errorCategory: HarnessErrorCategory | null;
   };
   normalizedPrediction: NormalizedInvestigationResult | null;
   telemetry: HarnessExecutionTelemetry | null;
@@ -263,7 +278,10 @@ export type HarnessAggregateMetrics = {
   totalCases: number;
   completedCases: number;
   failedCases: number;
+  inconclusiveCases: number;
   rootCauseTop1Accuracy: number | null;
+  rootCauseExactMatchAccuracy: number | null;
+  rootCauseSemanticAccuracy: number | null;
   automaticallyEvaluatedCases: number;
   correctCases: number;
   incorrectCases: number;
@@ -279,6 +297,22 @@ export type HarnessAggregateMetrics = {
   medianToolCalls: number | null;
   totalModelCalls: number;
   totalToolCalls: number;
+  plannerValidationFailures: number;
+  plannerDecisionRepairAttempts: number;
+  plannerDecisionRepairSuccesses: number;
+  plannerDecisionRepairRate: number | null;
+  plannerFirstAttemptSuccessRate: number | null;
+  plannerFinalSuccessRate: number | null;
+  errorTaxonomyCounts: Record<HarnessErrorCategory, number>;
+  groundedContractMismatches: number;
+  tokenUsage: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+    totalTokens: number | null;
+    completeness: "COMPLETE" | "PARTIAL" | "UNAVAILABLE";
+  };
+  totalDurationMs: number | null;
+  estimatedOrActualCost: null;
 };
 
 export type HarnessBreakdown = {
@@ -287,6 +321,8 @@ export type HarnessBreakdown = {
 };
 
 export type DevHarnessReport = {
+  schemaVersion: "investigation-live-benchmark-report-v1";
+  reportStatus: "COMPLETE" | "INCOMPLETE";
   label: "Deterministic Harness Validation" | "Live LLM Benchmark";
   manifest: HarnessRunManifest;
   cases: HarnessCaseExecutionResult[];
@@ -311,6 +347,7 @@ export type DevHarnessRunOptions = {
     toolCallCount?: number;
     durationMs?: number;
   }) => void;
+  onCheckpoint?: (report: DevHarnessReport) => void | Promise<void>;
 };
 
 export type LivePreflightFixture = {

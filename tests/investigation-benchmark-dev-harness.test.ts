@@ -14,6 +14,7 @@ import {
   type HarnessAgentRequest,
   type HarnessExecutionProvider,
   type HarnessExecutionProviderFactory,
+  type HarnessExecutionTelemetry,
 } from "../eval/investigation-benchmark/harness";
 import {
   INVESTIGATION_BENCHMARK_DEV_EXPECTED_HASH,
@@ -64,7 +65,11 @@ test("formal Dev harness executes all 22 cases in stable order with isolated pro
   assert.deepEqual(report.cases.map((item) => item.caseId),
     Array.from({ length: 22 }, (_, index) => `CASE-${String(index + 201).padStart(3, "0")}`));
   assert.equal(report.aggregate.totalCases, 22);
-  assert.equal(report.aggregate.completedCases + report.aggregate.failedCases, 22);
+  assert.equal(report.aggregate.completedCases + report.aggregate.failedCases
+    + report.aggregate.inconclusiveCases, 22);
+  assert.equal(report.schemaVersion, "investigation-live-benchmark-report-v1");
+  assert.equal(report.reportStatus, "COMPLETE");
+  assert.equal(report.manifest.processedCases, 22);
   assert.equal(report.manifest.datasetHash, INVESTIGATION_BENCHMARK_DEV_EXPECTED_HASH);
   assert.equal(report.manifest.datasetVersion, INVESTIGATION_BENCHMARK_DEV_VERSION);
   assert.equal(report.manifest.sourceCommit, sourceCommit);
@@ -163,16 +168,93 @@ test("runtime failure is reported separately and excluded from automatic accurac
   };
   const report = await runInvestigationBenchmarkDevHarness({ sourceCommit, providerFactory: factory });
   assert.equal(report.aggregate.totalCases, 22);
-  assert.equal(report.aggregate.completedCases, 21);
+  assert.equal(report.aggregate.completedCases, 0);
   assert.equal(report.aggregate.failedCases, 1);
+  assert.equal(report.aggregate.inconclusiveCases, 21);
   assert.equal(report.cases[0].execution.status, "FAIL");
   assert.equal(report.cases[0].execution.terminalInvestigationState, "FAILED");
   assert.equal(report.cases[0].telemetry, null);
   assert.equal(report.cases[0].scoring.rootCause.correct, null);
   assert.equal(report.cases[0].scoring.rootCause.evaluationStatus, "RUNTIME_FAILED");
   assert.equal(report.aggregate.runtimeFailedCases, 1);
+  assert.equal(report.cases[0].execution.errorCategory, "RUNTIME_ERROR");
+  assert.equal(report.aggregate.errorTaxonomyCounts.RUNTIME_ERROR, 1);
   assert.equal(report.aggregate.automaticallyEvaluatedCases
     + report.aggregate.reviewRequiredCases + report.aggregate.runtimeFailedCases, 22);
+});
+
+test("CASE-208 persists inconclusive reason and planner validation repair metrics", async () => {
+  const dataset = loadInvestigationBenchmarkDevDataset();
+  const fixture = dataset.fixtures.find((item) => item.benchmarkCase.caseId === "CASE-208")!;
+  const telemetry = {
+    schemaVersion: "benchmark-observability-v3",
+    plannerActions: ["FINALIZE", "STOP_INCONCLUSIVE"],
+    schemaRepairCount: 1,
+    plannerStopDecision: {
+      iteration: 2,
+      reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "The grounded finalization contract still fails after bounded repair.",
+      rationale: "Stop with the collected evidence and report the validation failure.",
+    },
+    plannerValidationEvents: [{
+      iteration: 1,
+      attemptIndex: 0,
+      outcome: "REPAIR_ATTEMPTED",
+      validationKind: "SEMANTIC",
+      decisionType: "FINALIZE",
+      validationCode: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+      validationPath: "diagnosis",
+      validationSubcode: "ROOT_CAUSE_HYPOTHESIS_MISMATCH",
+      responseHash: "a".repeat(64),
+      responseStructure: null,
+    }, {
+      iteration: 1,
+      attemptIndex: 1,
+      outcome: "REPAIR_FAILED",
+      validationKind: "SEMANTIC",
+      decisionType: "FINALIZE",
+      validationCode: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+      validationPath: "diagnosis",
+      validationSubcode: "ROOT_CAUSE_HYPOTHESIS_MISMATCH",
+      responseHash: "b".repeat(64),
+      responseStructure: null,
+    }],
+  } as HarnessExecutionTelemetry;
+  const report = await runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    caseId: "CASE-208",
+    providerFactory: {
+      executionMetadata: deterministicMetadata,
+      create: () => ({
+        providerType: "HARNESS_PROVIDER" as const,
+        execute: () => ({
+          status: "PASS" as const,
+          terminalInvestigationState: "INCONCLUSIVE" as const,
+          prediction: {
+            predictedRootCause: fixture.benchmarkCase.groundTruth.canonicalRootCause,
+            predictedRootCauseId: null,
+            diagnosisClaims: [],
+            modelCallCount: 2,
+            toolCallCount: 0,
+          },
+          telemetry,
+        }),
+      }),
+    },
+  });
+
+  assert.equal(report.cases[0].caseId, "CASE-208");
+  assert.equal(report.cases[0].execution.terminalInvestigationState, "INCONCLUSIVE");
+  assert.deepEqual(report.cases[0].telemetry?.plannerStopDecision,
+    telemetry.plannerStopDecision);
+  assert.equal(report.aggregate.inconclusiveCases, 1);
+  assert.equal(report.aggregate.completedCases, 0);
+  assert.equal(report.aggregate.plannerValidationFailures, 1);
+  assert.equal(report.aggregate.plannerDecisionRepairAttempts, 1);
+  assert.equal(report.aggregate.plannerDecisionRepairSuccesses, 0);
+  assert.equal(report.aggregate.plannerDecisionRepairRate, 0);
+  assert.equal(report.aggregate.errorTaxonomyCounts.INVALID_PLANNER_DECISION, 1);
+  assert.equal(report.aggregate.groundedContractMismatches, 2);
 });
 
 test("an explicit matching insufficient diagnosis is correct while an exception is not", async () => {
