@@ -33,7 +33,7 @@ export type InconclusivePredictionInput = {
     confidence: string;
     supportScore: number;
     contradictionScore: number;
-    createdAt: string;
+    createdAt?: string | null;
   }>;
 };
 
@@ -43,7 +43,13 @@ type Candidate = InconclusivePredictionInput["hypotheses"][number] & {
   statusRank: number;
   confidenceRank: number;
   netScore: number;
+  comparableCreatedAt: string | null;
 };
+
+type CreatedAtState =
+  | { kind: "MISSING" }
+  | { kind: "VALID"; value: string }
+  | { kind: "INVALID" };
 
 const truncateStatement = (value: string) => {
   const characters = Array.from(value);
@@ -81,18 +87,35 @@ const normalizeStatement = (value: string) => {
 const compareText = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
 
+const classifyCreatedAt = (value: unknown): CreatedAtState => {
+  if (value === undefined || value === null) return { kind: "MISSING" };
+  if (typeof value !== "string" || value.length === 0) return { kind: "INVALID" };
+  const timestamp = new Date(value);
+  return Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === value
+    ? { kind: "VALID", value }
+    : { kind: "INVALID" };
+};
+
+const compareCreatedAt = (left: string | null, right: string | null) => {
+  if (left !== null && right !== null) return compareText(left, right);
+  if (left !== null) return -1;
+  if (right !== null) return 1;
+  return 0;
+};
+
 const candidatesFrom = (hypotheses: InconclusivePredictionInput["hypotheses"]) => {
   const candidates = hypotheses.flatMap((hypothesis): Candidate[] => {
     const statusRank = STATUS_RANK[hypothesis.status];
     const confidenceRank = CONFIDENCE_RANK[hypothesis.confidence];
     const normalizedStatement = normalizeStatement(hypothesis.statement);
+    const createdAt = classifyCreatedAt(hypothesis.createdAt);
     if (
       statusRank === undefined
       || confidenceRank === undefined
       || normalizedStatement === null
       || !Number.isFinite(hypothesis.supportScore)
       || !Number.isFinite(hypothesis.contradictionScore)
-      || !hypothesis.createdAt
+      || createdAt.kind === "INVALID"
     ) return [];
     return [{
       ...hypothesis,
@@ -100,12 +123,13 @@ const candidatesFrom = (hypotheses: InconclusivePredictionInput["hypotheses"]) =
       statusRank,
       confidenceRank,
       netScore: hypothesis.supportScore - hypothesis.contradictionScore,
+      comparableCreatedAt: createdAt.kind === "VALID" ? createdAt.value : null,
     }];
   }).sort((left, right) =>
     left.statusRank - right.statusRank
     || left.confidenceRank - right.confidenceRank
     || right.netScore - left.netScore
-    || compareText(left.createdAt, right.createdAt)
+    || compareCreatedAt(left.comparableCreatedAt, right.comparableCreatedAt)
     || compareText(left.canonicalStatement, right.canonicalStatement));
 
   const canonicalStatements = new Set<string>();

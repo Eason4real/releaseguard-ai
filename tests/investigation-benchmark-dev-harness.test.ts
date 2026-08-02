@@ -1028,6 +1028,147 @@ const projectionInput = (
   hypotheses,
 });
 
+const projectedAlternatives = (value: string) => value
+  .split(/; \(\d\) /)
+  .map((item) => item.replace(/^.*?: \(1\) /, "").replace(/[.;]$/, ""));
+
+test("inconclusive projection retains legacy hypotheses with missing creation timestamps", () => {
+  const absent = projectionHypothesis("An absent-timestamp explanation remains possible.");
+  delete absent.createdAt;
+  const withNull = projectionHypothesis("A null-timestamp explanation remains possible.", {
+    createdAt: null,
+  });
+
+  const absentText = projectInconclusivePrediction(projectionInput([absent]))!;
+  const nullText = projectInconclusivePrediction(projectionInput([withNull]))!;
+  assert.match(absentText, /absent-timestamp explanation/i);
+  assert.match(nullText, /null-timestamp explanation/i);
+  assert.match(absentText, /plausible but not sufficiently confirmed/i);
+  assert.match(nullText, /plausible but not sufficiently confirmed/i);
+});
+
+test("inconclusive projection rejects invalid provided creation timestamps", () => {
+  const invalid = [
+    projectionHypothesis("Empty timestamp.", { createdAt: "" }),
+    projectionHypothesis("Invalid timestamp.", { createdAt: "not-a-date" }),
+    projectionHypothesis("Non-string timestamp.", { createdAt: 42 as unknown as string }),
+  ];
+  assert.equal(
+    projectInconclusivePrediction(projectionInput(invalid)),
+    "Insufficient evidence to determine a root cause from the available observations.",
+  );
+});
+
+test("inconclusive projection deterministically orders missing and mixed creation timestamps", () => {
+  const missingZulu = projectionHypothesis("Zulu missing alternative.", { createdAt: null });
+  const missingAlpha = projectionHypothesis("Alpha missing alternative.");
+  delete missingAlpha.createdAt;
+  const bothMissing = projectionInput([missingZulu, missingAlpha]);
+  const first = projectInconclusivePrediction(bothMissing)!;
+  const second = projectInconclusivePrediction(structuredClone(bothMissing))!;
+  assert.equal(first, second);
+  assert.deepEqual(projectedAlternatives(first), [
+    "Alpha missing alternative",
+    "Zulu missing alternative",
+  ]);
+
+  const present = projectionHypothesis("Zulu authoritative alternative.");
+  const missing = projectionHypothesis("Alpha legacy alternative.", { createdAt: null });
+  const mixed = projectionInput([missing, present]);
+  const mixedFirst = projectInconclusivePrediction(mixed)!;
+  assert.equal(mixedFirst, projectInconclusivePrediction(structuredClone(mixed)));
+  assert.deepEqual(projectedAlternatives(mixedFirst), [
+    "Zulu authoritative alternative",
+    "Alpha legacy alternative",
+  ]);
+  assert.equal(missing.createdAt, null);
+});
+
+test("inconclusive projection preserves ordering for valid creation timestamps", () => {
+  const laterAlpha = projectionHypothesis("Alpha later alternative.", {
+    createdAt: "2031-02-02T00:00:00.000Z",
+  });
+  const earlierZulu = projectionHypothesis("Zulu earlier alternative.", {
+    createdAt: "2031-02-01T00:00:00.000Z",
+  });
+  assert.equal(
+    projectInconclusivePrediction(projectionInput([laterAlpha, earlierZulu])),
+    "Insufficient evidence to confirm a single root cause. The following unresolved "
+      + "alternatives remain plausible, and the available observations cannot distinguish among "
+      + "them: (1) Zulu earlier alternative; (2) Alpha later alternative.",
+  );
+
+  const equalTimestamps = projectionInput([
+    projectionHypothesis("Zulu equal-time alternative."),
+    projectionHypothesis("Alpha equal-time alternative."),
+  ]);
+  assert.deepEqual(projectedAlternatives(projectInconclusivePrediction(equalTimestamps)!), [
+    "Alpha equal-time alternative",
+    "Zulu equal-time alternative",
+  ]);
+});
+
+test("inconclusive projection restores a legacy frozen three-alternative state", () => {
+  const legacyHypotheses = [
+    projectionHypothesis(
+      "The REL-219 release (CheckoutClient change) is the root cause of the payment_completion_rate drop in AU.",
+      { status: "WEAKENED", confidence: "LOW", contradictionScore: 1, createdAt: null },
+    ),
+    projectionHypothesis(
+      "An instability in the payment provider (external dependency) is the root cause of the payment_completion_rate drop in AU.",
+      { status: "SUPPORTED", confidence: "MEDIUM", supportScore: 3, createdAt: null },
+    ),
+    projectionHypothesis(
+      "The payment_completion_rate drop in AU results from combined effects of the REL-219 release and an underlying payment provider degradation.",
+      { status: "SUPPORTED", confidence: "MEDIUM", supportScore: 3, createdAt: null },
+    ),
+  ];
+  const projected = projectInconclusivePrediction(projectionInput(legacyHypotheses))!;
+  assert.deepEqual(projectedAlternatives(projected), [
+    "An instability in the payment provider (external dependency) is the root cause of the payment_completion_rate drop in AU",
+    "The payment_completion_rate drop in AU results from combined effects of the REL-219 release and an underlying payment provider degradation",
+    "The REL-219 release (CheckoutClient change) is the root cause of the payment_completion_rate drop in AU",
+  ]);
+  assert.match(projected, /unresolved alternatives remain plausible/i);
+  assert.match(projected, /cannot distinguish among them/i);
+
+  const aggregate = {
+    diagnosis: null,
+    diagnosisClaims: [],
+    diagnosisClaimEvidenceLinks: [],
+    auditEvents: [],
+    toolCalls: [],
+    hypotheses: legacyHypotheses,
+    run: { status: "INCONCLUSIVE", stopReason: "INSUFFICIENT_EVIDENCE", modelCallCount: 0 },
+  } as unknown as InvestigationAggregate;
+  const prediction = __testOnlyLiveProvider.predictionFromAggregate(aggregate, 0, []);
+  assert.equal(prediction.predictedRootCause, projected);
+  assert.equal(prediction.predictedRootCauseId, null);
+  assert.deepEqual(prediction.diagnosisClaims, []);
+  assert.deepEqual(prediction.citedEvidenceIds, []);
+});
+
+test("inconclusive projection keeps the candidate set when equal timestamps are omitted", () => {
+  const complete = [
+    projectionHypothesis("Zulu candidate."),
+    projectionHypothesis("Alpha candidate."),
+    projectionHypothesis("Middle candidate."),
+  ];
+  const legacy = complete.map((hypothesis) => {
+    const legacyHypothesis = { ...hypothesis };
+    delete legacyHypothesis.createdAt;
+    return legacyHypothesis;
+  });
+  const completeText = projectInconclusivePrediction(projectionInput(complete))!;
+  const legacyText = projectInconclusivePrediction(projectionInput(legacy))!;
+  assert.equal(legacyText, completeText);
+  assert.deepEqual(projectedAlternatives(legacyText), [
+    "Alpha candidate",
+    "Middle candidate",
+    "Zulu candidate",
+  ]);
+});
+
 test("inconclusive projection preserves three synthetic unresolved alternatives without claims", () => {
   const hypotheses = [
     projectionHypothesis("A checkout release defect remains a possible explanation.", {
@@ -1126,8 +1267,7 @@ test("inconclusive projection is deterministic, bounded, Unicode-safe, and exact
   assert.equal(/[\uD800-\uDFFF]/u.test(first), false);
   assert.equal(first.match(/a checkout release alternative(?! with)/gi)?.length, 1);
   assert.match(first, /materially different mechanism/i);
-  const rendered = first.split(/; \(\d\) /).map((item) =>
-    item.replace(/^.*?: \(1\) /, "").replace(/[.;]$/, ""));
+  const rendered = projectedAlternatives(first);
   assert.ok(rendered.every((item) => Array.from(item).length <= 320));
 });
 
