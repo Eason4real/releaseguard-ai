@@ -274,15 +274,23 @@ const segmentMetricAdapter: ToolAdapter = {
     type: "function",
     function: {
       name: "segment_metric",
-      description: "按一个允许的业务维度拆分指标，定位异常集中分群；不负责触发 RiskEvent。",
+      description: "按一个合法业务维度 group-by 指标，定位异常集中分群；dimension enum 只表示合法维度，不表示当前一定有数据。filters 应省略与 group-by dimension 对应的同维 filter，并保留其他正交 filters。EMPTY 表示当前 query shape 没有分群数据，不表示 dimension 非法；不负责触发 RiskEvent。",
       parameters: {
         type: "object",
         properties: {
           metric_key: { type: "string" },
           start_time: { type: "string" },
           end_time: { type: "string" },
-          filters: { type: "object", additionalProperties: { type: "string" } },
-          dimension: { type: "string", enum: ["platform", "app_version", "region", "user_type"] },
+          filters: {
+            type: "object",
+            description: "保留正交过滤条件；必须省略与所选 group-by dimension 相同的 filter。",
+            additionalProperties: { type: "string" },
+          },
+          dimension: {
+            type: "string",
+            description: "group-by 维度；enum 表示合法值而非当前数据可用性。",
+            enum: ["platform", "app_version", "region", "user_type"],
+          },
           limit: { type: "number" },
         },
         required: ["metric_key", "start_time", "end_time", "dimension"],

@@ -111,6 +111,7 @@ import {
   allowedPlannerRepairDecisionTypes,
   buildGroundingEvidenceInventory,
   buildInitialPlannerSystemPrompt,
+  buildKnownInvestigationSlices,
   buildPlannerRepairFeedback,
   formatPlannerDecisionContract,
   getPlannerDecisionContractSource,
@@ -118,6 +119,7 @@ import {
   PlannerDecisionValidationError,
   parseInvestigationDecision,
 } from "../lib/investigation/llm-planner";
+import { modelToolDefinitions } from "../lib/investigation/tools";
 import { D1InvestigationStore } from "../lib/investigation/repository";
 import {
   InMemoryFeedbackRetriever,
@@ -1677,6 +1679,245 @@ const offlineTestPlanner = () => new LLMInvestigationPlanner({
   baseUrl: "https://example.invalid/v1",
   model: "grounding-repair-offline-test",
   apiKey: "test-only",
+});
+
+async function plannerSearchPolicySetup(includeEmptyRegion = false) {
+  const setup = await runningInvestigationWithHypotheses();
+  await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "query_metric",
+    args: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: { platform: "Desktop", appVersion: "6.5.0" },
+      granularity_minutes: 5,
+      include_baseline: true,
+    },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+    toolExecutor: async () => ({
+      status: "SUCCESS",
+      output: {
+        data: {
+          rolloutSteps: [0.1, 0.25, 0.5],
+          failureRates: [0.05, 0.13, 0.28],
+          sampleSize: 5_400,
+        },
+      },
+      errorMessage: null,
+      retryable: false,
+      evidence: [{
+        category: "PRODUCT_METRIC",
+        statement: "The rollout-correlated metric observation is persisted.",
+        source: "Product Analytics Runtime",
+        strength: "HIGH",
+        provenance: "runtime_generated",
+      }],
+    }),
+  });
+  let persisted = (await setup.store.getAggregate(setup.runId))!;
+  const productEvidence = persisted.evidence.find((item) => item.category === "PRODUCT_METRIC")!;
+  await setup.store.saveHypothesisEvidenceLinks(setup.hypotheses.map((item) =>
+    hypothesisLink(setup.runId, productEvidence.id, item.id, "NEUTRAL")));
+  if (includeEmptyRegion) {
+    await executeAndRecordTool(setup.store, {
+      runId: setup.runId,
+      name: "segment_metric",
+      args: {
+        metric_key: setup.event.metricKey,
+        start_time: setup.event.firstBreachedAt,
+        end_time: setup.event.lastBreachedAt,
+        filters: { platform: "Desktop", appVersion: "6.5.0" },
+        dimension: "region",
+        limit: 10,
+      },
+      iteration: 2,
+      order: 2,
+      analytics: setup.store.analytics,
+      toolExecutor: async () => ({
+        status: "EMPTY",
+        output: { data: null, reason: "NO_SEGMENT_DATA" },
+        errorMessage: null,
+        retryable: false,
+        evidence: [],
+      }),
+    });
+  }
+  persisted = (await setup.store.getAggregate(setup.runId))!;
+  const aggregate: InvestigationAggregate = {
+    ...persisted,
+    riskEvent: {
+      ...persisted.riskEvent!,
+      filters: { platform: "Desktop", appVersion: "6.5.0" },
+    },
+    release: {
+      ...persisted.release!,
+      platform: "Desktop",
+      version: "6.5.0",
+      rolloutPercentage: 50,
+    },
+    hypotheses: persisted.hypotheses.map((item, index) => index === 0 ? {
+      ...item,
+      statement: "A staged cohort receives behavior that other users do not.",
+      supportIf: "A cohort comparison separates exposed from unexposed users.",
+    } : item),
+  };
+  return { ...setup, aggregate, productEvidence };
+}
+
+const plannerCompactContext = (request: StubbedPlannerRequest) => {
+  const content = request.messages.find((item) => item.role === "user")?.content ?? "";
+  const marker = "\n调查上下文：";
+  const markerIndex = content.indexOf(marker);
+  assert.ok(markerIndex >= 0);
+  return JSON.parse(content.slice(markerIndex + marker.length)) as Record<string, unknown>;
+};
+
+async function planSearchPolicyDecision(
+  aggregate: InvestigationAggregate,
+  response: InvestigationDecision,
+) {
+  return withStubbedPlannerResponses([response], async (requests) => {
+    const decision = await offlineTestPlanner().plan({
+      aggregate,
+      trigger: "INITIAL",
+      humanMessage: null,
+      remainingIterations: 12,
+      remainingToolCalls: 8,
+      modelCallBudget: standaloneModelCallBudget(),
+    });
+    assert.equal(requests.length, 1);
+    return { decision, request: requests[0] };
+  });
+}
+
+test("planner context derives structured known slices without benchmark metadata", async () => {
+  const setup = await plannerSearchPolicySetup();
+  assert.deepEqual(buildKnownInvestigationSlices(setup.aggregate), [
+    {
+      dimension: "platform",
+      values: ["Desktop"],
+      unit: null,
+      sources: ["RISK_EVENT", "RELEASE", "TOOL_ARGUMENT:query_metric"],
+    },
+    {
+      dimension: "app_version",
+      values: ["6.5.0"],
+      unit: null,
+      sources: ["RISK_EVENT", "RELEASE", "TOOL_ARGUMENT:query_metric"],
+    },
+    {
+      dimension: "rollout",
+      values: [10, 25, 50],
+      unit: "PERCENT",
+      sources: ["RELEASE", "TOOL_RESULT:query_metric", "PERSISTED_EVIDENCE:PRODUCT_METRIC"],
+    },
+  ]);
+
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "The available observations do not distinguish the active hypotheses.",
+    rationale: "Stop without enumerating dimensions solely to consume budget.",
+  };
+  const { request } = await planSearchPolicyDecision(setup.aggregate, stop);
+  const compact = plannerCompactContext(request);
+  assert.deepEqual(compact.knownInvestigationSlices,
+    buildKnownInvestigationSlices(setup.aggregate));
+  assert.doesNotMatch(JSON.stringify(compact),
+    /CASE-205|gold|authored selector|expected observation|fixture-only|benchmark split/i);
+});
+
+test("planner segment drill-down contract preserves orthogonal filters and dimension choice", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const targetHypothesisIds = [setup.aggregate.hypotheses[0].id];
+  const common = {
+    metric_key: setup.event.metricKey,
+    start_time: setup.event.firstBreachedAt,
+    end_time: setup.event.lastBreachedAt,
+    limit: 10,
+  };
+  const cases: Array<{
+    dimension: "app_version" | "region" | "user_type";
+    filters: Record<string, string>;
+  }> = [
+    { dimension: "app_version", filters: { platform: "Desktop" } },
+    { dimension: "region", filters: { platform: "Desktop", appVersion: "6.5.0" } },
+    { dimension: "user_type", filters: { platform: "Desktop", appVersion: "6.5.0" } },
+  ];
+  for (const item of cases) {
+    const authored: InvestigationDecision = {
+      type: "CALL_TOOL",
+      toolName: "segment_metric",
+      arguments: { ...common, filters: item.filters, dimension: item.dimension },
+      targetHypothesisIds,
+      testIntent: "SUPPORT",
+      rationale: `Use ${item.dimension} only because the active hypothesis requires that distinction.`,
+    };
+    const { decision } = await planSearchPolicyDecision(setup.aggregate, authored);
+    assert.deepEqual(decision, authored);
+  }
+
+  const prompt = buildInitialPlannerSystemPrompt();
+  const segmentDefinition = modelToolDefinitions.find((item) =>
+    item.function.name === "segment_metric")!;
+  const contract = JSON.stringify(segmentDefinition);
+  assert.match(prompt, /选择 app_version 时必须省略 filters\.appVersion/);
+  assert.match(prompt, /选择 region 时省略 filters\.region/);
+  assert.match(prompt, /选择 user_type 时省略 filters\.userType/);
+  assert.match(prompt, /不得由 runtime 静默改写参数/);
+  assert.match(contract, /enum 只表示合法维度，不表示当前一定有数据/);
+  assert.match(contract, /EMPTY 表示当前 query shape 没有分群数据/);
+  assert.match(contract, /platform.*app_version.*region.*user_type/);
+  assert.doesNotMatch(`${prompt}\n${contract}`,
+    /CASE-205|gold|authored selector|expected observation|fixture-only|benchmark split/i);
+});
+
+test("planner sees EMPTY query shape and can switch dimension or stop without rewriting", async () => {
+  const setup = await plannerSearchPolicySetup(true);
+  const alternate: InvestigationDecision = {
+    type: "CALL_TOOL",
+    toolName: "segment_metric",
+    arguments: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: { platform: "Desktop" },
+      dimension: "app_version",
+      limit: 10,
+    },
+    targetHypothesisIds: [setup.aggregate.hypotheses[0].id],
+    testIntent: "SUPPORT",
+    rationale: "After the regional query shape was empty, compare the release dimension.",
+  };
+  const switched = await planSearchPolicyDecision(setup.aggregate, alternate);
+  assert.deepEqual(switched.decision, alternate);
+  const compact = plannerCompactContext(switched.request);
+  const toolResults = compact.toolResults as Array<Record<string, unknown>>;
+  const empty = toolResults.find((item) => item.status === "EMPTY")!;
+  assert.equal(empty.tool, "segment_metric");
+  assert.deepEqual(empty.arguments, {
+    metric_key: setup.event.metricKey,
+    start_time: setup.event.firstBreachedAt,
+    end_time: setup.event.lastBreachedAt,
+    filters: { platform: "Desktop", appVersion: "6.5.0" },
+    dimension: "region",
+    limit: 10,
+  });
+  assert.deepEqual(empty.output, { data: null, reason: "NO_SEGMENT_DATA" });
+
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "No remaining dimension has a hypothesis-driven reason to run.",
+    rationale: "Do not sweep dimensions merely to consume tool budget.",
+  };
+  const stopped = await planSearchPolicyDecision(setup.aggregate, stop);
+  assert.deepEqual(stopped.decision, stop);
+  assert.match(buildInitialPlannerSystemPrompt(), /不得重复完全相同调用/);
+  assert.match(buildInitialPlannerSystemPrompt(), /不要为消耗预算枚举全部维度/);
 });
 
 function unsupportedSegmentFinalizeDecision(

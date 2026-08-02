@@ -34,6 +34,152 @@ const DECISION_TYPES = [
   "STOP_INCONCLUSIVE",
 ] as const satisfies readonly InvestigationDecision["type"][];
 
+const KNOWN_SLICE_DIMENSIONS = [
+  "platform",
+  "app_version",
+  "region",
+  "user_type",
+  "rollout",
+] as const;
+
+export type KnownInvestigationSlice = {
+  dimension: (typeof KNOWN_SLICE_DIMENSIONS)[number];
+  values: Array<string | number>;
+  unit: "PERCENT" | null;
+  sources: string[];
+};
+
+type KnownSliceAggregate = Pick<
+  InvestigationAggregate,
+  "riskEvent" | "release" | "toolCalls" | "evidence"
+>;
+
+const structuredRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const structuredText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+const structuredNumber = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const knownSliceDimension = (value: unknown) => {
+  const candidate = structuredText(value);
+  return candidate && KNOWN_SLICE_DIMENSIONS.includes(
+    candidate as (typeof KNOWN_SLICE_DIMENSIONS)[number],
+  )
+    ? candidate as (typeof KNOWN_SLICE_DIMENSIONS)[number]
+    : null;
+};
+
+const rolloutPercent = (value: unknown) => {
+  const candidate = structuredNumber(value);
+  if (candidate === null || candidate < 0) return null;
+  const percent = candidate <= 1 ? candidate * 100 : candidate;
+  if (percent > 100) return null;
+  return Math.round(percent * 1_000) / 1_000;
+};
+
+export const buildKnownInvestigationSlices = (
+  aggregate: KnownSliceAggregate,
+): KnownInvestigationSlice[] => {
+  const values = new Map<KnownInvestigationSlice["dimension"], Map<string, string | number>>();
+  const sources = new Map<KnownInvestigationSlice["dimension"], Set<string>>();
+  const add = (
+    dimension: KnownInvestigationSlice["dimension"],
+    value: unknown,
+    source: string,
+  ) => {
+    const normalized = dimension === "rollout"
+      ? rolloutPercent(value)
+      : structuredText(value);
+    if (normalized === null) return;
+    const key = `${typeof normalized}:${String(normalized).toLocaleLowerCase()}`;
+    const dimensionValues = values.get(dimension) ?? new Map<string, string | number>();
+    dimensionValues.set(key, normalized);
+    values.set(dimension, dimensionValues);
+    const dimensionSources = sources.get(dimension) ?? new Set<string>();
+    dimensionSources.add(source);
+    sources.set(dimension, dimensionSources);
+  };
+  const addFilters = (value: unknown, source: string) => {
+    const filters = structuredRecord(value);
+    add("platform", filters.platform, source);
+    add("app_version", filters.appVersion, source);
+    add("region", filters.region, source);
+    add("user_type", filters.userType, source);
+  };
+  const addScope = (value: unknown, source: string) => {
+    const scope = structuredRecord(value);
+    add("platform", scope.platform, source);
+    add("app_version", scope.appVersion ?? scope.version, source);
+    add("region", scope.region, source);
+    add("user_type", scope.userType, source);
+  };
+
+  addFilters(aggregate.riskEvent?.filters, "RISK_EVENT");
+  if (aggregate.release) {
+    add("platform", aggregate.release.platform, "RELEASE");
+    add("app_version", aggregate.release.version, "RELEASE");
+    add("rollout", aggregate.release.rolloutPercentage, "RELEASE");
+  }
+
+  for (const call of aggregate.toolCalls.filter((item) => item.proposedActionId === null)) {
+    const argumentSource = `TOOL_ARGUMENT:${call.name}`;
+    addFilters(call.arguments.filters, argumentSource);
+    addScope(call.arguments, argumentSource);
+    if (!call.result) continue;
+
+    const resultSource = `TOOL_RESULT:${call.name}`;
+    const output = structuredRecord(call.result.output);
+    const query = structuredRecord(output.query);
+    const data = structuredRecord(output.data);
+    addFilters(query.filters, resultSource);
+    addScope(query, resultSource);
+    addScope(data, resultSource);
+    const rolloutSteps = Array.isArray(data.rolloutSteps) ? data.rolloutSteps : [];
+    for (const step of rolloutSteps) add("rollout", step, resultSource);
+
+    const dimension = knownSliceDimension(data.dimension ?? query.dimension);
+    const breakdown = Array.isArray(data.breakdown) ? data.breakdown : [];
+    if (dimension && dimension !== "rollout") {
+      for (const item of breakdown) {
+        const entry = structuredRecord(item);
+        add(dimension, entry.segment_value ?? entry.value, resultSource);
+      }
+    }
+
+    const evidenceCategories = aggregate.evidence
+      .filter((item) => item.toolResultId === call.result?.id)
+      .map((item) => item.category);
+    if (evidenceCategories.length > 0) {
+      for (const dimensionWithResult of KNOWN_SLICE_DIMENSIONS) {
+        if (!sources.get(dimensionWithResult)?.has(resultSource)) continue;
+        for (const category of evidenceCategories) {
+          sources.get(dimensionWithResult)?.add(`PERSISTED_EVIDENCE:${category}`);
+        }
+      }
+    }
+  }
+
+  return KNOWN_SLICE_DIMENSIONS.flatMap((dimension) => {
+    const dimensionValues = values.get(dimension);
+    if (!dimensionValues?.size) return [];
+    const orderedValues = [...dimensionValues.values()].sort((left, right) =>
+      typeof left === "number" && typeof right === "number"
+        ? left - right
+        : String(left).localeCompare(String(right)));
+    return [{
+      dimension,
+      values: orderedValues,
+      unit: dimension === "rollout" ? "PERCENT" as const : null,
+      sources: [...(sources.get(dimension) ?? [])],
+    }];
+  });
+};
+
 const isDecisionType = (value: string): value is InvestigationDecision["type"] =>
   DECISION_TYPES.includes(value as InvestigationDecision["type"]);
 
@@ -192,6 +338,9 @@ export const buildInitialPlannerSystemPrompt = () => [
   `ASSESS_EVIDENCE 正式 contract：${formatPlannerDecisionContract("ASSESS_EVIDENCE")}`,
   "evidenceRelations 中已有的 pair 是不可改写的审计记录，重新补齐矩阵时必须原样重复其 relation。",
   "CALL_TOOL 必须包含 toolName、arguments、targetHypothesisIds、testIntent(SUPPORT/REFUTE/DISCRIMINATE)、rationale。你不能设置 Hypothesis status、confidence、supportScore 或 contradictionScore。",
+  "使用 knownInvestigationSlices 规划正交下钻：优先验证当前 incident、release 和已执行工具明确给出的异常切片是否具有区分度，但不得把合法 dimension enum 当作当前一定有数据的 available-dimensions 列表。",
+  "segment_metric 的 dimension 是 group-by 维度。选择 app_version 时必须省略 filters.appVersion 并保留 platform 等正交 filters；选择 platform 时省略 filters.platform；选择 region 时省略 filters.region；选择 user_type 时省略 filters.userType。不得由 runtime 静默改写参数，Planner 必须显式输出符合该 contract 的 arguments。",
+  "某个 segment_metric query shape 返回 EMPTY 后，将该 dimension + filters 组合视为当前查询形状不可用，不得重复完全相同调用。只在剩余 Hypothesis 明确需要时选择另一个有判别力的维度；不要为消耗预算枚举全部维度，无合理下一步时使用 STOP_INCONCLUSIVE。region 和 user_type 仍可在相应 Hypothesis 需要地理或 cohort 区分时选择。",
   "ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。",
   "预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。",
   "FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。",
@@ -643,6 +792,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         relation: item.relation, explanation: item.explanation,
       })),
       pendingEvidenceIds: getPendingEvidence(aggregate).map((evidence) => evidence.id),
+      knownInvestigationSlices: buildKnownInvestigationSlices(aggregate),
       humanMessage: context.humanMessage,
       budget: { iterations: context.remainingIterations, toolCalls: context.remainingToolCalls },
     };
