@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { InvestigationPlanner } from "../lib/investigation/planner";
+import type { InvestigationAggregate } from "../lib/investigation/types";
 import type { LiveEvalObservability } from "../eval/support/live-eval-store";
 import {
   DeterministicHarnessProvider,
@@ -19,6 +20,8 @@ import {
 } from "../eval/investigation-benchmark/harness";
 import { benchmarkEvidenceMap } from
   "../eval/investigation-benchmark/harness/fixture-adapter";
+import { projectInconclusivePrediction } from
+  "../eval/investigation-benchmark/harness/inconclusive-prediction";
 import { __testOnlyLiveProvider } from
   "../eval/investigation-benchmark/harness/live-provider";
 import { __testOnlyDeterministicProvider } from
@@ -28,6 +31,9 @@ import {
   INVESTIGATION_BENCHMARK_DEV_VERSION,
   loadInvestigationBenchmarkDevDataset,
 } from "../eval/investigation-benchmark/dataset/dev";
+import { scoreRootCauseSemantics } from
+  "../eval/investigation-benchmark/root-cause-semantic-scorer";
+import type { InvestigationGroundTruth } from "../eval/investigation-benchmark/types";
 
 const sourceCommit = "e99b1059fee50c771262b74977682ed1ce7c6b2d";
 const deterministicMetadata = {
@@ -992,4 +998,221 @@ test("default fixture provider does not cite a metric observation selected for a
     [...new Set(result.normalizedPrediction?.citedEvidenceIds)]);
   assert.deepEqual(result.scoring.evidence.unknownEvidenceIds, []);
   assert.equal(result.scoring.grounding.status, "EVALUABLE");
+});
+
+type ProjectionInput = Parameters<typeof projectInconclusivePrediction>[0];
+type ProjectionHypothesis = ProjectionInput["hypotheses"][number];
+
+const projectionHypothesis = (
+  statement: string,
+  overrides: Partial<ProjectionHypothesis> = {},
+): ProjectionHypothesis => ({
+  statement,
+  status: "ACTIVE",
+  confidence: "LOW",
+  supportScore: 0,
+  contradictionScore: 0,
+  createdAt: "2031-02-01T00:00:00.000Z",
+  ...overrides,
+});
+
+const projectionInput = (
+  hypotheses: ProjectionHypothesis[],
+  overrides: Partial<ProjectionInput["run"]> = {},
+): ProjectionInput => ({
+  run: {
+    status: "INCONCLUSIVE",
+    stopReason: "INSUFFICIENT_EVIDENCE",
+    ...overrides,
+  },
+  hypotheses,
+});
+
+test("inconclusive projection preserves three synthetic unresolved alternatives without claims", () => {
+  const hypotheses = [
+    projectionHypothesis("A checkout release defect remains a possible explanation.", {
+      status: "WEAKENED", contradictionScore: 1,
+    }),
+    projectionHypothesis("Payment-provider instability remains a possible explanation.", {
+      status: "SUPPORTED", confidence: "MEDIUM", supportScore: 4,
+    }),
+    projectionHypothesis("A combination of the checkout release and provider instability remains possible.", {
+      status: "SUPPORTED", confidence: "MEDIUM", supportScore: 3,
+    }),
+  ];
+  const text = projectInconclusivePrediction(projectionInput(hypotheses));
+  assert.ok(text);
+  for (const phrase of [
+    "checkout release defect",
+    "Payment-provider instability",
+    "combination of the checkout release and provider instability",
+  ]) assert.match(text, new RegExp(phrase, "i"));
+  assert.match(text, /Insufficient evidence to confirm a single root cause/);
+  assert.match(text, /cannot distinguish among them/);
+
+  const aggregate = {
+    diagnosis: null,
+    diagnosisClaims: [],
+    diagnosisClaimEvidenceLinks: [],
+    auditEvents: [],
+    toolCalls: [],
+    hypotheses,
+    run: { status: "INCONCLUSIVE", stopReason: "INSUFFICIENT_EVIDENCE",
+      modelCallCount: 7 },
+  } as unknown as InvestigationAggregate;
+  const prediction = __testOnlyLiveProvider.predictionFromAggregate(aggregate, 123, []);
+  assert.equal(prediction.predictedRootCause, text);
+  assert.equal(prediction.predictedRootCauseId, null);
+  assert.deepEqual(prediction.diagnosisClaims, []);
+  assert.deepEqual(prediction.citedEvidenceIds, []);
+});
+
+test("inconclusive projection excludes rejected hypotheses and retains weakened alternatives", () => {
+  const text = projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("Rejected but artificially high-scoring release theory.", {
+      status: "REJECTED", confidence: "HIGH", supportScore: 999,
+    }),
+    projectionHypothesis("A weakened release alternative.", {
+      status: "WEAKENED", contradictionScore: 2,
+    }),
+    projectionHypothesis("A supported provider alternative.", {
+      status: "SUPPORTED", confidence: "MEDIUM", supportScore: 3,
+    }),
+  ]))!;
+  assert.doesNotMatch(text, /Rejected but artificially high-scoring/);
+  assert.match(text, /weakened release alternative/i);
+  assert.match(text, /supported provider alternative/i);
+  assert.ok(text.indexOf("supported provider alternative") < text.indexOf("weakened release alternative"));
+  assert.doesNotMatch(text, /confirmed cause/i);
+});
+
+test("inconclusive projection uses exact fallback and a distinct single-alternative template", () => {
+  const fallback = "Insufficient evidence to determine a root cause from the available observations.";
+  assert.equal(projectInconclusivePrediction(projectionInput([])), fallback);
+  assert.equal(projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("Rejected explanation.", { status: "REJECTED" }),
+    projectionHypothesis("Unknown-state explanation.", { status: "UNKNOWN" }),
+    projectionHypothesis("Unsafe\u0000explanation."),
+  ])), fallback);
+
+  const single = projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("A client retry defect remains possible."),
+  ]))!;
+  assert.match(single, /plausible but not sufficiently confirmed/i);
+  assert.match(single, /no finalized diagnosis/i);
+  assert.doesNotMatch(single, /among (?:these )?(?:unresolved )?alternatives/i);
+  assert.doesNotMatch(single, /root cause (?:is|was)/i);
+});
+
+test("inconclusive projection is deterministic, bounded, Unicode-safe, and exact-only deduplicated", () => {
+  const long = "Payment latency remained elevated across multiple cohorts. ".repeat(12)
+    + "支付异常🚀";
+  const input = projectionInput([
+    projectionHypothesis(long, { status: "SUPPORTED", supportScore: 5 }),
+    projectionHypothesis("Ａ checkout   release alternative。", {
+      createdAt: "2031-02-02T00:00:00.000Z",
+    }),
+    projectionHypothesis("a CHECKOUT release alternative", {
+      createdAt: "2031-02-03T00:00:00.000Z",
+    }),
+    projectionHypothesis("A checkout release alternative with a materially different mechanism", {
+      createdAt: "2031-02-04T00:00:00.000Z",
+    }),
+  ]);
+  const first = projectInconclusivePrediction(input)!;
+  const second = projectInconclusivePrediction(structuredClone(input))!;
+  assert.equal(first, second);
+  assert.ok(Array.from(first).length <= 1_200);
+  assert.equal(/[\uD800-\uDFFF]/u.test(first), false);
+  assert.equal(first.match(/a checkout release alternative(?! with)/gi)?.length, 1);
+  assert.match(first, /materially different mechanism/i);
+  const rendered = first.split(/; \(\d\) /).map((item) =>
+    item.replace(/^.*?: \(1\) /, "").replace(/[.;]$/, ""));
+  assert.ok(rendered.every((item) => Array.from(item).length <= 320));
+});
+
+test("inconclusive projection cannot expose benchmark metadata or internal hypothesis fields", () => {
+  const input = {
+    ...projectionInput([{
+      ...projectionHypothesis("A public synthetic explanation remains possible."),
+      id: "INTERNAL-HYPOTHESIS-ID",
+      benchmarkEvidenceId: "BENCHMARK-EVIDENCE-ID",
+    } as ProjectionHypothesis]),
+    caseId: "FORBIDDEN-CASE-ID",
+    difficulty: "FORBIDDEN-DIFFICULTY",
+    expectedAnswer: "FORBIDDEN-EXPECTED-ANSWER",
+    goldRootCause: "FORBIDDEN-GOLD-ROOT-CAUSE",
+    role: "FORBIDDEN-ROLE",
+    requiredEvidenceIds: ["FORBIDDEN-REQUIRED"],
+    supportingEvidenceIds: ["FORBIDDEN-SUPPORTING"],
+    distractorEvidenceIds: ["FORBIDDEN-DISTRACTOR"],
+  } as ProjectionInput;
+  const text = projectInconclusivePrediction(input)!;
+  for (const forbidden of [
+    "FORBIDDEN", "INTERNAL-HYPOTHESIS-ID", "BENCHMARK-EVIDENCE-ID",
+    "SUPPORTED", "HIGH", "supportScore", "confidence",
+  ]) assert.equal(text.includes(forbidden), false, forbidden);
+});
+
+test("finalized projection remains unchanged and failed state does not project alternatives", () => {
+  const finalized = {
+    diagnosis: { id: "DIAGNOSIS-SYNTHETIC", rootCause: "A finalized synthetic diagnosis." },
+    diagnosisClaims: [],
+    diagnosisClaimEvidenceLinks: [],
+    auditEvents: [],
+    toolCalls: [],
+    hypotheses: [projectionHypothesis("An alternative that must not replace the diagnosis.")],
+    run: { status: "WAITING_APPROVAL", stopReason: "SUFFICIENT_EVIDENCE", modelCallCount: 4 },
+  } as unknown as InvestigationAggregate;
+  const prediction = __testOnlyLiveProvider.predictionFromAggregate(finalized, 10, []);
+  assert.equal(prediction.predictedRootCause, "A finalized synthetic diagnosis.");
+  assert.equal("citedEvidenceIds" in prediction, false);
+  assert.equal(projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("A failed-run alternative that must not be projected."),
+  ], { status: "FAILED", stopReason: "PLANNER_ERROR" })), null);
+});
+
+test("synthetic unresolved projection exposes scorer concepts and preserves known precedence risk", () => {
+  const text = projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("A checkout release defect remains possible.", { status: "SUPPORTED" }),
+    projectionHypothesis("Payment-provider instability remains possible.", { status: "SUPPORTED" }),
+  ]))!;
+  const groundTruth: InvestigationGroundTruth = {
+    canonicalRootCauseId: "SYNTHETIC-RC",
+    canonicalRootCause: "Synthetic alternatives remain unresolved.",
+    acceptableAliases: [],
+    requiredEvidenceIds: [], supportingEvidenceIds: [], distractorEvidenceIds: [],
+    rootCauseEvaluation: {
+      expectedAnswerMode: "ABSTAIN",
+      requiredConceptGroups: [
+        { id: "release-alternative", anyOf: ["CHECKOUT_RELEASE"] },
+        { id: "provider-alternative", anyOf: ["PAYMENT_PROVIDER_INSTABILITY"] },
+        { id: "alternatives-unresolved", anyOf: ["ALTERNATIVES_UNRESOLVED"] },
+      ],
+      optionalConcepts: ["EVIDENCE_INSUFFICIENT"],
+      forbiddenConcepts: ["DEFINITE_CAUSAL_ATTRIBUTION"],
+      uncertaintyPolicy: "REQUIRE_UNRESOLVED_ALTERNATIVES",
+      specificityPolicy: "ALLOW_MORE_SPECIFIC_IF_CONSISTENT",
+    },
+  };
+  const score = scoreRootCauseSemantics(groundTruth, {
+    caseId: "SYNTHETIC-NON-DATASET",
+    predictedRootCause: text,
+    predictedRootCauseId: null,
+    citedEvidenceIds: [], diagnosisClaims: [], modelCallCount: 0, toolCallCount: 0,
+  });
+  assert.deepEqual(score.audit.missingRequiredConcepts, []);
+
+  const assertive = projectInconclusivePrediction(projectionInput([
+    projectionHypothesis("The checkout regression was caused by a client release defect."),
+    projectionHypothesis("Payment-provider instability remains possible."),
+  ]))!;
+  const precedenceRisk = scoreRootCauseSemantics(groundTruth, {
+    caseId: "SYNTHETIC-PRECEDENCE-RISK",
+    predictedRootCause: assertive,
+    predictedRootCauseId: null,
+    citedEvidenceIds: [], diagnosisClaims: [], modelCallCount: 0, toolCallCount: 0,
+  });
+  assert.equal(precedenceRisk.audit.predictedAnswerMode, "CAUSAL");
+  assert.ok(precedenceRisk.audit.matchedConcepts.includes("ALTERNATIVES_UNRESOLVED"));
 });

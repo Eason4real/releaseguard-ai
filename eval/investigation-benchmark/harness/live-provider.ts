@@ -6,6 +6,10 @@ import { executeHarnessAgentRuntime, HarnessRuntimeExecutionError } from "./runt
 import { telemetryFromAggregate } from "./telemetry";
 import { benchmarkEvidenceMap } from "./fixture-adapter";
 import {
+  INCONCLUSIVE_PREDICTION_FALLBACK,
+  projectInconclusivePrediction,
+} from "./inconclusive-prediction";
+import {
   LIVE_MODEL_PROVIDERS,
   type HarnessAgentRequest,
   type HarnessExecutionOutcome,
@@ -110,10 +114,28 @@ const predictionFromAggregate = (
     return evidenceId ? [{ claimId: item.claimId, evidenceId }] : [];
   });
   const usage = summarizePlannerUsage(aggregate.auditEvents);
+  const inconclusivePrediction = !diagnosis && aggregate.run.status === "INCONCLUSIVE"
+    ? projectInconclusivePrediction({
+        run: {
+          status: aggregate.run.status,
+          stopReason: aggregate.run.stopReason,
+        },
+        hypotheses: aggregate.hypotheses.map((hypothesis) => ({
+          statement: hypothesis.statement,
+          status: hypothesis.status,
+          confidence: hypothesis.confidence,
+          supportScore: hypothesis.supportScore,
+          contradictionScore: hypothesis.contradictionScore,
+          createdAt: hypothesis.createdAt,
+        })),
+      })
+    : null;
   return {
     predictedRootCause: diagnosis?.rootCause
-      ?? "Insufficient evidence to determine a root cause from the available observations.",
+      ?? inconclusivePrediction
+      ?? INCONCLUSIVE_PREDICTION_FALLBACK,
     predictedRootCauseId: null,
+    ...(!diagnosis ? { citedEvidenceIds: [] } : {}),
     diagnosisClaims: claims.map((claim) => ({
       claimId: claim.id,
       type: claim.type,
