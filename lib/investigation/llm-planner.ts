@@ -6,6 +6,7 @@ import {
 } from "./model";
 import { modelToolDefinitions } from "./tools";
 import {
+  GROUNDING_REPAIR_DECISION_TYPES,
   PLANNER_STOP_REASON_CODES,
   PLANNER_WAIT_REASON_CODES,
   type InvestigationDecision,
@@ -16,6 +17,7 @@ import {
   type PlannerDecisionValidationCode,
   type PlannerDecisionValidationObservation,
 } from "./planner";
+import type { InvestigationAggregate } from "./types";
 import { getPendingEvidence } from "./hypothesis-invariants";
 import { ModelCallBudgetExhaustedError } from "./model-call-budget";
 import {
@@ -507,24 +509,102 @@ async function validationObservation(input: {
   };
 }
 
+export const allowedPlannerRepairDecisionTypes = (
+  error: PlannerDecisionValidationError | PlannerDecisionSemanticError,
+): InvestigationDecision["type"][] => {
+  if (error instanceof PlannerDecisionSemanticError && error.grounding?.recoverable) {
+    return [...GROUNDING_REPAIR_DECISION_TYPES];
+  }
+  return error.decisionType ? [error.decisionType] : [...DECISION_TYPES];
+};
+
+const emptyResultReason = (output: unknown, errorMessage: string | null) => {
+  if (output && typeof output === "object" && !Array.isArray(output)) {
+    const reason = (output as Record<string, unknown>).reason;
+    if (typeof reason === "string" && reason.trim()) return reason;
+  }
+  return errorMessage;
+};
+
+export const buildGroundingEvidenceInventory = (aggregate: InvestigationAggregate) => {
+  const pendingEvidenceIds = new Set(getPendingEvidence(aggregate).map((item) => item.id));
+  const toolByResultId = new Map(aggregate.toolCalls.flatMap((item) =>
+    item.result ? [[item.result.id, item] as const] : []));
+  return {
+    evidence: aggregate.evidence.map((item) => {
+      const assessments = aggregate.hypothesisEvidenceLinks
+        .filter((link) => link.evidenceId === item.id)
+        .map((link) => ({ hypothesisId: link.hypothesisId, relation: link.relation }));
+      return {
+        id: item.id,
+        category: item.category,
+        source: item.source,
+        tool: toolByResultId.get(item.toolResultId)?.name ?? null,
+        assessmentStatus: pendingEvidenceIds.has(item.id) ? "PENDING" : "ASSESSED",
+        assessments,
+      };
+    }),
+    emptyToolResults: aggregate.toolCalls
+      .filter((item) => item.result?.status === "EMPTY")
+      .map((item) => ({
+        toolCallId: item.id,
+        tool: item.name,
+        resultStatus: "EMPTY" as const,
+        reason: emptyResultReason(item.result?.output, item.result?.errorMessage ?? null),
+      })),
+    rules: {
+      toolCallDoesNotImplyEvidence: true,
+      emptyToolResultsCannotGroundClaims: true,
+    },
+  };
+};
+
 export const buildPlannerRepairFeedback = (
   error: PlannerDecisionValidationError | PlannerDecisionSemanticError,
+  aggregate?: InvestigationAggregate,
 ) => {
-  const contract = error.decisionType
-    ? formatPlannerDecisionContract(error.decisionType)
-    : DECISION_TYPES.map(formatPlannerDecisionContract).join("\n");
+  const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(error);
+  const contracts = allowedDecisionTypes.map((type) =>
+    `${type}: ${formatPlannerDecisionContract(type)}`).join("\n");
+  const groundingInventory = aggregate
+    && error instanceof PlannerDecisionSemanticError
+    && error.grounding
+    ? buildGroundingEvidenceInventory(aggregate)
+    : null;
+  const validationErrorPayload = {
+    kind: error.validationKind,
+    code: error.code,
+    path: error.path,
+    decisionType: error.decisionType,
+    message: error.message,
+    validationSubcode: error instanceof PlannerDecisionSemanticError
+      ? error.validationSubcode
+      : null,
+    grounding: error instanceof PlannerDecisionSemanticError ? error.grounding : null,
+  };
+  const segmentRepairInstructions = error instanceof PlannerDecisionSemanticError
+    && error.validationSubcode === "INVALID_SEGMENT_GROUNDING"
+    ? [
+        "AFFECTED_SEGMENT claim 必须引用当前 Run 中真实持久化的 SEGMENT_METRIC Evidence。",
+        "EMPTY 的 segment tool result 不能用于 grounding。",
+        "允许删除 unsupported AFFECTED_SEGMENT claim，或改写为当前 Evidence 真正支持的非 segment claim。",
+        "也可以返回 CALL_TOOL 继续获取所需 Evidence；无法获取时返回 STOP_INCONCLUSIVE 安全停止。",
+      ]
+    : [];
   return [
     error.validationKind === "SCHEMA"
       ? "上一个 Planner response 未通过正式 schema validation。只修复 JSON contract，不改变无关业务判断。"
       : "上一个 Planner response 已通过 schema，但未通过服务端 context semantic validation。只修复被拒绝的结构化引用或决策条件，不改变无关业务判断。",
-    `validationError=${JSON.stringify({ kind: error.validationKind, code: error.code,
-      path: error.path, decisionType: error.decisionType })}`,
-    error.decisionType
-      ? `必须保持 decision type 为 ${error.decisionType}；重新输出一个完整合法的该类型 InvestigationDecision。`
-      : "保持原本意图的 decision type；Server 不会替你选择或补全业务 decision。",
-    `正式 contract：${contract}`,
-    "必须只使用同一调查上下文中明确存在的 Evidence、Hypothesis 和工具；不得猜测、删除或由服务端补全业务字段。仅输出修复后的完整 JSON。",
-  ].join("\n");
+    `validationError=${JSON.stringify(validationErrorPayload)}`,
+    groundingInventory ? `groundingInventory=${JSON.stringify(groundingInventory)}` : null,
+    `allowedDecisionTypes=${JSON.stringify(allowedDecisionTypes)}`,
+    allowedDecisionTypes.length === 1
+      ? `必须保持 decision type 为 ${allowedDecisionTypes[0]}；重新输出一个完整合法的该类型 InvestigationDecision。`
+      : `本次 grounding repair 只能选择 ${allowedDecisionTypes.join("、")}；不得输出其他 decision type。`,
+    ...segmentRepairInstructions,
+    `正式 contract：\n${contracts}`,
+    "必须只使用同一调查上下文中明确存在的 Evidence、Hypothesis 和工具；不得猜测或由服务端补全业务字段。仅按上述明确允许的动作删除 unsupported claim。仅输出修复后的完整 JSON。",
+  ].filter((item): item is string => item !== null).join("\n");
 };
 
 export class LLMInvestigationPlanner implements InvestigationPlanner {
@@ -616,9 +696,17 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       const content = response.choices?.[0]?.message?.content ?? "";
       try {
         const decision = parseInvestigationDecision(content, attemptIndex);
-        if (repairError?.decisionType && decision.type !== repairError.decisionType) {
-          return validationError("INVALID_FIELD_VALUE", repairError.decisionType, "type",
-            `Planner repair 必须保持 decision type 为 ${repairError.decisionType}。`, attemptIndex);
+        if (repairError) {
+          const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(repairError);
+          if (!allowedDecisionTypes.includes(decision.type)) {
+            return validationError(
+              "INVALID_FIELD_VALUE",
+              repairError.decisionType,
+              "type",
+              `Planner repair decision type 必须属于 ${allowedDecisionTypes.join("、")}。`,
+              attemptIndex,
+            );
+          }
         }
         const modelCallObservation = this.modelCallObservations[observationIndex];
         if (modelCallObservation) {
@@ -665,7 +753,7 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         messages = [
           ...baseMessages,
           { role: "assistant", content },
-          { role: "user", content: buildPlannerRepairFeedback(error) },
+          { role: "user", content: buildPlannerRepairFeedback(error, aggregate) },
         ];
       }
     }

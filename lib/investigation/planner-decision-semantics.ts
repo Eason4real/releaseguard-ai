@@ -1,5 +1,6 @@
 import type {
   InvestigationDecision,
+  PlannerGroundingRepairMetadata,
   PlannerDecisionValidationCode,
 } from "./planner";
 import type { InvestigationAggregate, InvestigationStopReason } from "./types";
@@ -12,6 +13,7 @@ import {
   GroundedDiagnosisValidationError,
   validateGroundedDiagnosis,
 } from "./grounded-diagnosis";
+import type { GroundedDiagnosisValidationSubcode } from "./grounded-diagnosis";
 
 export type PlannerDecisionSemantics = {
   reasonCode: string | null;
@@ -44,6 +46,7 @@ export class PlannerDecisionSemanticError extends Error {
     message: string,
     readonly attempt = 0,
     readonly validationSubcode: string | null = null,
+    readonly grounding: PlannerGroundingRepairMetadata | null = null,
   ) {
     super(message);
   }
@@ -56,6 +59,7 @@ const semanticError = (
   path: string,
   message: string,
   validationSubcode: string | null = null,
+  grounding: PlannerGroundingRepairMetadata | null = null,
 ): never => {
   throw new PlannerDecisionSemanticError(
     code,
@@ -64,7 +68,41 @@ const semanticError = (
     message,
     context.attempt ?? 0,
     validationSubcode,
+    grounding,
   );
+};
+
+const recoverableGroundingRequirements: Partial<Record<
+  GroundedDiagnosisValidationSubcode,
+  string[]
+>> = {
+  INVALID_METRIC_GROUNDING: ["METRIC_ANOMALY", "PRODUCT_METRIC", "SEGMENT_METRIC"],
+  INVALID_SEGMENT_GROUNDING: ["SEGMENT_METRIC"],
+};
+
+const claimTypeAtValidationPath = (
+  decision: Extract<InvestigationDecision, { type: "FINALIZE" }>,
+  validationPath: string,
+) => {
+  const claimIndex = /^diagnosis\.claims\[(\d+)](?:\.|$)/.exec(validationPath)?.[1];
+  if (claimIndex === undefined) return null;
+  return decision.diagnosis.claims[Number(claimIndex)]?.type ?? null;
+};
+
+const groundingRepairMetadata = (
+  decision: Extract<InvestigationDecision, { type: "FINALIZE" }>,
+  validationSubcode: GroundedDiagnosisValidationSubcode,
+  validationPath: string,
+): PlannerGroundingRepairMetadata => {
+  const requiredEvidenceCategories = recoverableGroundingRequirements[validationSubcode] ?? [];
+  return {
+    validationPath,
+    validationSubcode,
+    rejectedClaimType: claimTypeAtValidationPath(decision, validationPath),
+    requiredEvidenceCategories,
+    missingEvidenceCategories: [...requiredEvidenceCategories],
+    recoverable: requiredEvidenceCategories.length > 0,
+  };
 };
 
 const assertBudget = (
@@ -232,10 +270,26 @@ const validateFinalize = (
     semanticError(decision, context, "FINALIZE_HYPOTHESIS_NOT_READY", "selectedHypothesisId",
       "HYPOTHESIS_NOT_FINALIZABLE: FINALIZE 只能选择服务端评定为 SUPPORTED/CONFIRMED 且至少 MEDIUM 的 Hypothesis。");
   }
-  const evidenceIds = new Set(aggregate.evidence.map((item) => item.id));
+  const evidenceById = new Map(aggregate.evidence.map((item) => [item.id, item]));
   decision.diagnosis.claims.forEach((claim, claimIndex) => {
+    const claimEvidencePath = `diagnosis.claims[${claimIndex}].evidenceIds`;
+    if (
+      claim.type === "AFFECTED_SEGMENT"
+      && !claim.evidenceIds.some((id) => evidenceById.get(id)?.category === "SEGMENT_METRIC")
+    ) {
+      const validationSubcode = "INVALID_SEGMENT_GROUNDING" as const;
+      semanticError(
+        decision,
+        context,
+        "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+        claimEvidencePath,
+        "INVALID_SEGMENT_GROUNDING: AFFECTED_SEGMENT 必须引用分群 Evidence。",
+        validationSubcode,
+        groundingRepairMetadata(decision, validationSubcode, claimEvidencePath),
+      );
+    }
     claim.evidenceIds.forEach((id, evidenceIndex) => {
-      if (!evidenceIds.has(id)) {
+      if (!evidenceById.has(id)) {
         semanticError(decision, context, "FINALIZE_EVIDENCE_NOT_FOUND",
           `diagnosis.claims[${claimIndex}].evidenceIds[${evidenceIndex}]`,
           "CROSS_RUN_EVIDENCE: Diagnosis claim 只能引用当前 Run 中存在的 Evidence。");
@@ -249,9 +303,24 @@ const validateFinalize = (
       disposition: decision.disposition,
     }, { validateLimitationText: false });
   } catch (error) {
-    semanticError(decision, context, "FINALIZE_GROUNDED_CONTRACT_MISMATCH", "diagnosis",
+    if (error instanceof GroundedDiagnosisValidationError) {
+      semanticError(
+        decision,
+        context,
+        "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+        error.validationPath,
+        error.message,
+        error.validationSubcode,
+        groundingRepairMetadata(decision, error.validationSubcode, error.validationPath),
+      );
+    }
+    semanticError(
+      decision,
+      context,
+      "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
+      "diagnosis",
       error instanceof Error ? error.message : "FINALIZE 未通过服务端 Grounded Contract。",
-      error instanceof GroundedDiagnosisValidationError ? error.validationSubcode : null);
+    );
   }
 };
 

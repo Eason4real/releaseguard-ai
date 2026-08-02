@@ -72,6 +72,24 @@ export type PlannerDecisionValidationCode =
   | "FINALIZE_EVIDENCE_NOT_FOUND"
   | "FINALIZE_GROUNDED_CONTRACT_MISMATCH";
 
+export const GROUNDING_REPAIR_DECISION_TYPES = [
+  "FINALIZE",
+  "CALL_TOOL",
+  "STOP_INCONCLUSIVE",
+] as const;
+
+export type GroundingRepairDecisionType =
+  (typeof GROUNDING_REPAIR_DECISION_TYPES)[number];
+
+export type PlannerGroundingRepairMetadata = {
+  validationPath: string;
+  validationSubcode: string;
+  rejectedClaimType: DiagnosisClaimType | null;
+  requiredEvidenceCategories: string[];
+  missingEvidenceCategories: string[];
+  recoverable: boolean;
+};
+
 export type PlannerDecisionValidationObservation = {
   outcome: "REPAIR_ATTEMPTED" | "REPAIRED" | "REPAIR_FAILED";
   validationKind: "SCHEMA" | "SEMANTIC";

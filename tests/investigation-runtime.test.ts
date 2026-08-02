@@ -108,6 +108,8 @@ import { continueInvestigation } from "../lib/investigation/revision-runtime";
 import { submitInvestigationMessage } from "../lib/investigation/chat-runtime";
 import { DeterministicInvestigationPlanner } from "../lib/investigation/deterministic-planner";
 import {
+  allowedPlannerRepairDecisionTypes,
+  buildGroundingEvidenceInventory,
   buildInitialPlannerSystemPrompt,
   buildPlannerRepairFeedback,
   formatPlannerDecisionContract,
@@ -1642,6 +1644,435 @@ function groundedFinalizeDecision(
   };
 }
 
+type StubbedPlannerRequest = { messages: Array<{ role: string; content: string }> };
+type StubbedPlannerResponse = InvestigationDecision
+  | (() => InvestigationDecision | Promise<InvestigationDecision>);
+
+async function withStubbedPlannerResponses<T>(
+  responses: StubbedPlannerResponse[],
+  run: (requests: StubbedPlannerRequest[]) => Promise<T>,
+) {
+  const requests: StubbedPlannerRequest[] = [];
+  const originalFetch = globalThis.fetch;
+  let responseIndex = 0;
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body)) as StubbedPlannerRequest);
+    const configuredResponse = responses[responseIndex];
+    responseIndex += 1;
+    if (!configuredResponse) throw new Error("Unexpected offline Planner request.");
+    const response = typeof configuredResponse === "function"
+      ? await configuredResponse()
+      : configuredResponse;
+    return Response.json({ choices: [{ message: { content: JSON.stringify(response) } }] });
+  };
+  try {
+    return await run(requests);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+const offlineTestPlanner = () => new LLMInvestigationPlanner({
+  provider: "OpenAI-compatible",
+  baseUrl: "https://example.invalid/v1",
+  model: "grounding-repair-offline-test",
+  apiKey: "test-only",
+});
+
+function unsupportedSegmentFinalizeDecision(
+  aggregate: InvestigationAggregate,
+  evidenceId = aggregate.evidence.find((item) => item.category === "PRODUCT_METRIC")!.id,
+) {
+  const decision = groundedFinalizeDecision(aggregate);
+  decision.diagnosis.claims.find((item) => item.type === "AFFECTED_SEGMENT")!.evidenceIds = [
+    evidenceId,
+  ];
+  return decision;
+}
+
+async function groundingRepairReplaySetup() {
+  const setup = await runningInvestigationWithHypotheses();
+  const metricCall = await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "query_metric",
+    args: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: { platform: "Android" },
+      granularity_minutes: 5,
+      include_baseline: true,
+    },
+    iteration: 1,
+    order: 1,
+    analytics: setup.store.analytics,
+    toolExecutor: async () => ({
+      status: "SUCCESS",
+      output: { summary: { current: 0.72, baseline: 0.97 } },
+      errorMessage: null,
+      retryable: false,
+      evidence: [{
+        category: "PRODUCT_METRIC",
+        statement: "The current product metric is materially below its established baseline.",
+        source: "Product Analytics Runtime",
+        strength: "HIGH",
+        provenance: "runtime_generated",
+      }],
+    }),
+  });
+  const emptySegmentCall = await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "segment_metric",
+    args: {
+      metric_key: setup.event.metricKey,
+      start_time: setup.event.firstBreachedAt,
+      end_time: setup.event.lastBreachedAt,
+      filters: { platform: "Android" },
+      dimension: "region",
+      limit: 10,
+    },
+    iteration: 1,
+    order: 2,
+    analytics: setup.store.analytics,
+    toolExecutor: async () => ({
+      status: "EMPTY",
+      output: { reason: "NO_SEGMENT_DATA" },
+      errorMessage: null,
+      retryable: false,
+      evidence: [],
+    }),
+  });
+  const productEvidence = metricCall.evidence[0];
+  assert.ok(productEvidence);
+  const links = setup.hypotheses.map((candidate, index) => hypothesisLink(
+    setup.runId,
+    productEvidence.id,
+    candidate.id,
+    index === 0 ? "SUPPORTS" : "NEUTRAL",
+  ));
+  await setup.store.saveHypothesisEvidenceLinks(links);
+  for (const candidate of setup.hypotheses) {
+    const calculated = calculateHypothesisConfidence(
+      [productEvidence],
+      links.filter((item) => item.hypothesisId === candidate.id),
+    );
+    await setup.store.updateHypothesis({ ...candidate, ...calculated });
+  }
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  assert.deepEqual(aggregate.evidence.map((item) => item.category), ["PRODUCT_METRIC"]);
+  assert.equal(emptySegmentCall.result.status, "EMPTY");
+  return { ...setup, aggregate, productEvidence, emptySegmentCall };
+}
+
+function groundingReplayFinalizeDecision(
+  aggregate: InvestigationAggregate,
+  segmentEvidenceId: string | null,
+) {
+  const selected = aggregate.hypotheses.find((item) => item.status === "SUPPORTED")!;
+  const productEvidence = aggregate.evidence.find((item) => item.category === "PRODUCT_METRIC")!;
+  const claims: Extract<InvestigationDecision, { type: "FINALIZE" }>["diagnosis"]["claims"] = [
+    {
+      type: "ROOT_CAUSE",
+      statement: selected.statement,
+      evidenceIds: [productEvidence.id],
+    },
+    {
+      type: "AFFECTED_METRIC",
+      statement: "The current product metric is below its established baseline.",
+      evidenceIds: [productEvidence.id],
+    },
+  ];
+  if (segmentEvidenceId) {
+    claims.push({
+      type: "AFFECTED_SEGMENT",
+      statement: "The available segment breakdown identifies an affected cohort.",
+      evidenceIds: [segmentEvidenceId],
+    });
+  }
+  return {
+    type: "FINALIZE",
+    selectedHypothesisId: selected.id,
+    diagnosis: {
+      summary: "Current persisted evidence supports a bounded product diagnosis.",
+      claims,
+    },
+    disposition: "OBSERVE",
+    rationale: "Finalize using only persisted and assessed runtime Evidence.",
+  } as const satisfies InvestigationDecision;
+}
+
+function invalidGroundingReplayFinalizeDecision(aggregate: InvestigationAggregate) {
+  const productEvidence = aggregate.evidence.find((item) => item.category === "PRODUCT_METRIC")!;
+  return groundingReplayFinalizeDecision(aggregate, productEvidence.id);
+}
+
+function replaySegmentToolDecision(
+  aggregate: InvestigationAggregate,
+): Extract<InvestigationDecision, { type: "CALL_TOOL" }> {
+  const selected = aggregate.hypotheses.find((item) => item.status === "SUPPORTED")!;
+  return {
+    type: "CALL_TOOL",
+    toolName: "segment_metric",
+    arguments: {
+      metric_key: aggregate.riskEvent!.metricKey,
+      start_time: aggregate.riskEvent!.firstBreachedAt,
+      end_time: aggregate.riskEvent!.lastBreachedAt,
+      filters: { platform: "Android" },
+      dimension: "user_type",
+      limit: 10,
+    },
+    targetHypothesisIds: [selected.id],
+    testIntent: "SUPPORT",
+    rationale: "Collect a production-schema segment breakdown without assuming data availability.",
+  };
+}
+
+function safeReplayStopDecision(): Extract<InvestigationDecision, { type: "STOP_INCONCLUSIVE" }> {
+  return {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "No persisted segment Evidence is available to support a segment claim.",
+    rationale: "Stop safely rather than resubmit an unsupported diagnosis.",
+  };
+}
+
+function assertGroundingReplayRepairContext(
+  request: StubbedPlannerRequest,
+  aggregate: InvestigationAggregate,
+  emptyToolCallId: string,
+) {
+  const repairMessage = request.messages.at(-1)?.content ?? "";
+  const validationPayload = repairMessage.match(/validationError=(\{[^\n]+\})/)?.[1];
+  const inventoryPayload = repairMessage.match(/groundingInventory=(\{[^\n]+\})/)?.[1];
+  assert.ok(validationPayload);
+  assert.ok(inventoryPayload);
+  const validation = JSON.parse(validationPayload);
+  const inventory = JSON.parse(inventoryPayload);
+  assert.equal(validation.decisionType, "FINALIZE");
+  assert.equal(validation.path, "diagnosis.claims[2].evidenceIds");
+  assert.equal(validation.validationSubcode, "INVALID_SEGMENT_GROUNDING");
+  assert.equal(validation.grounding.rejectedClaimType, "AFFECTED_SEGMENT");
+  assert.deepEqual(validation.grounding.requiredEvidenceCategories, ["SEGMENT_METRIC"]);
+  assert.deepEqual(validation.grounding.missingEvidenceCategories, ["SEGMENT_METRIC"]);
+  assert.equal(validation.grounding.recoverable, true);
+  assert.deepEqual(inventory.evidence.map((item: { id: string }) => item.id),
+    aggregate.evidence.map((item) => item.id));
+  assert.deepEqual(inventory.evidence.map((item: { category: string }) => item.category),
+    ["PRODUCT_METRIC"]);
+  assert.deepEqual(inventory.emptyToolResults, [{
+    toolCallId: emptyToolCallId,
+    tool: "segment_metric",
+    resultStatus: "EMPTY",
+    reason: "NO_SEGMENT_DATA",
+  }]);
+  assert.equal(inventory.rules.emptyToolResultsCannotGroundClaims, true);
+  assert.match(repairMessage,
+    /allowedDecisionTypes=\["FINALIZE","CALL_TOOL","STOP_INCONCLUSIVE"\]/);
+  assert.doesNotMatch(repairMessage,
+    /CASE-205|gold root cause|authored selector|expected app_version|benchmark split|required observation|supporting observation|fixture-only/i);
+  return { validation, inventory, repairMessage };
+}
+
+function assertNoReplayRepairFailure(aggregate: InvestigationAggregate) {
+  assert.equal(aggregate.run.stopReason === "PLANNER_SEMANTIC_ERROR", false);
+  assert.equal(aggregate.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_REPAIR_FAILED"), false);
+  assert.equal(aggregate.auditEvents.filter((event) =>
+    event.type === "PLANNER_DECISION_REPAIR_ATTEMPTED"
+    && event.details.validationSubcode === "INVALID_SEGMENT_GROUNDING").length, 1);
+}
+
+test("deterministic grounding replay A removes unsupported segment claim and finalizes", async () => {
+  const setup = await groundingRepairReplaySetup();
+  const invalid = invalidGroundingReplayFinalizeDecision(setup.aggregate);
+  const repaired = groundingReplayFinalizeDecision(setup.aggregate, null);
+  const result = await withStubbedPlannerResponses([invalid, repaired], async (requests) => {
+    const aggregate = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: offlineTestPlanner(),
+      analytics: setup.store.analytics,
+    });
+    assert.equal(requests.length, 2);
+    assertGroundingReplayRepairContext(
+      requests[1],
+      setup.aggregate,
+      setup.emptySegmentCall.call.id,
+    );
+    return aggregate!;
+  });
+
+  assert.deepEqual(result.iterations.map((item) => item.decisionType), ["FINALIZE"]);
+  assert.equal(result.run.status, "WAITING_VERIFICATION");
+  assert.equal(result.run.stopReason, null);
+  assert.ok(result.diagnosis);
+  assert.equal(result.diagnosisClaims.some((item) => item.type === "AFFECTED_SEGMENT"), false);
+  assert.deepEqual(result.evidence.map((item) => item.category), ["PRODUCT_METRIC"]);
+  assert.equal(result.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_REPAIRED"), true);
+  assertNoReplayRepairFailure(result);
+});
+
+test("deterministic grounding replay B1 executes CALL_TOOL success through AgentLoop", async () => {
+  const setup = await groundingRepairReplaySetup();
+  const invalid = invalidGroundingReplayFinalizeDecision(setup.aggregate);
+  const callTool = replaySegmentToolDecision(setup.aggregate);
+  const result = await withStubbedPlannerResponses([
+    invalid,
+    callTool,
+    async () => {
+      const aggregate = (await setup.store.getAggregate(setup.runId))!;
+      const segmentEvidence = aggregate.evidence.find((item) => item.category === "SEGMENT_METRIC")!;
+      return {
+        type: "ASSESS_EVIDENCE",
+        rationale: "Assess the newly persisted segment Evidence before finalization.",
+        assessments: [{
+          evidenceId: segmentEvidence.id,
+          relations: aggregate.hypotheses
+            .filter((item) => item.status !== "REJECTED")
+            .map((item) => ({
+              targetHypothesisId: item.id,
+              relation: item.id === invalid.selectedHypothesisId ? "SUPPORTS" as const : "NEUTRAL" as const,
+              explanation: item.id === invalid.selectedHypothesisId
+                ? "The segment observation supports the selected bounded hypothesis."
+                : "The segment observation does not distinguish this alternative.",
+            })),
+        }],
+      };
+    },
+    async () => {
+      const aggregate = (await setup.store.getAggregate(setup.runId))!;
+      const segmentEvidence = aggregate.evidence.find((item) => item.category === "SEGMENT_METRIC")!;
+      return groundingReplayFinalizeDecision(aggregate, segmentEvidence.id);
+    },
+  ], async (requests) => {
+    const aggregate = await runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: offlineTestPlanner(),
+      analytics: setup.store.analytics,
+      toolExecutor: async (toolName) => {
+        assert.equal(toolName, "segment_metric");
+        return {
+          status: "SUCCESS",
+          output: { data: { breakdown: [{ segment: "enterprise", value: 0.68 }] } },
+          errorMessage: null,
+          retryable: false,
+          evidence: [{
+            category: "SEGMENT_METRIC",
+            statement: "The enterprise cohort has the largest observed metric decline.",
+            source: "Product Analytics Runtime",
+            strength: "HIGH",
+            provenance: "runtime_generated",
+          }],
+        };
+      },
+    });
+    assert.equal(requests.length, 4);
+    assertGroundingReplayRepairContext(
+      requests[1],
+      setup.aggregate,
+      setup.emptySegmentCall.call.id,
+    );
+    return aggregate!;
+  });
+
+  assert.deepEqual(result.iterations.map((item) => item.decisionType), [
+    "CALL_TOOL",
+    "ASSESS_EVIDENCE",
+    "FINALIZE",
+  ]);
+  const executed = result.toolCalls.find((item) =>
+    item.name === "segment_metric" && item.arguments.dimension === "user_type");
+  assert.equal(executed?.result?.status, "SUCCESS");
+  const segmentEvidence = result.evidence.find((item) => item.category === "SEGMENT_METRIC");
+  assert.ok(segmentEvidence);
+  assert.ok(result.hypothesisEvidenceLinks.some((item) =>
+    item.evidenceId === segmentEvidence.id
+    && item.hypothesisId === invalid.selectedHypothesisId
+    && item.relation === "SUPPORTS"));
+  assert.equal(result.run.status, "WAITING_VERIFICATION");
+  assert.equal(result.run.stopReason, null);
+  assert.ok(result.diagnosisClaims.some((item) =>
+    item.type === "AFFECTED_SEGMENT"
+    && result.diagnosisClaimEvidenceLinks.some((link) =>
+      link.claimId === item.id && link.evidenceId === segmentEvidence.id)));
+  assertNoReplayRepairFailure(result);
+});
+
+test("deterministic grounding replay B2 records CALL_TOOL EMPTY and stops without a loop", async () => {
+  const setup = await groundingRepairReplaySetup();
+  const invalid = invalidGroundingReplayFinalizeDecision(setup.aggregate);
+  const callTool = replaySegmentToolDecision(setup.aggregate);
+  const result = await withStubbedPlannerResponses(
+    [invalid, callTool, safeReplayStopDecision()],
+    async (requests) => {
+      const aggregate = await runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: offlineTestPlanner(),
+        analytics: setup.store.analytics,
+        toolExecutor: async () => ({
+          status: "EMPTY",
+          output: { reason: "NO_SEGMENT_DATA" },
+          errorMessage: null,
+          retryable: false,
+          evidence: [],
+        }),
+      });
+      assert.equal(requests.length, 3);
+      assertGroundingReplayRepairContext(
+        requests[1],
+        setup.aggregate,
+        setup.emptySegmentCall.call.id,
+      );
+      return aggregate!;
+    },
+  );
+
+  assert.deepEqual(result.iterations.map((item) => item.decisionType), [
+    "CALL_TOOL",
+    "STOP_INCONCLUSIVE",
+  ]);
+  assert.equal(result.run.status, "INCONCLUSIVE");
+  assert.equal(result.run.stopReason, "INSUFFICIENT_EVIDENCE");
+  assert.equal(result.diagnoses.length, 0);
+  assert.deepEqual(result.evidence.map((item) => item.category), ["PRODUCT_METRIC"]);
+  const finalInventory = buildGroundingEvidenceInventory(result);
+  assert.equal(finalInventory.emptyToolResults.length, 2);
+  assert.ok(finalInventory.emptyToolResults.every((item) => item.resultStatus === "EMPTY"));
+  assert.equal(finalInventory.evidence.some((item) => item.category === "SEGMENT_METRIC"), false);
+  assertNoReplayRepairFailure(result);
+});
+
+test("deterministic grounding replay C accepts controlled STOP_INCONCLUSIVE", async () => {
+  const setup = await groundingRepairReplaySetup();
+  const invalid = invalidGroundingReplayFinalizeDecision(setup.aggregate);
+  const result = await withStubbedPlannerResponses(
+    [invalid, safeReplayStopDecision()],
+    async (requests) => {
+      const aggregate = await runAgentLoop(setup.store, {
+        runId: setup.runId,
+        planner: offlineTestPlanner(),
+        analytics: setup.store.analytics,
+      });
+      assert.equal(requests.length, 2);
+      assertGroundingReplayRepairContext(
+        requests[1],
+        setup.aggregate,
+        setup.emptySegmentCall.call.id,
+      );
+      return aggregate!;
+    },
+  );
+
+  assert.deepEqual(result.iterations.map((item) => item.decisionType), ["STOP_INCONCLUSIVE"]);
+  assert.equal(result.run.status, "INCONCLUSIVE");
+  assert.equal(result.run.stopReason, "INSUFFICIENT_EVIDENCE");
+  assert.equal(result.diagnoses.length, 0);
+  assert.equal(result.toolCalls.length, setup.aggregate.toolCalls.length);
+  assert.deepEqual(result.evidence.map((item) => item.id),
+    setup.aggregate.evidence.map((item) => item.id));
+  assertNoReplayRepairFailure(result);
+});
+
 test("Grounded Diagnosis preserves every rejection rule as a stable validation subcode", async () => {
   const setup = await groundedReadyInvestigation();
   const baseDecision = groundedFinalizeDecision(setup.aggregate);
@@ -1776,26 +2207,32 @@ test("Grounded Diagnosis preserves every rejection rule as a stable validation s
   });
 });
 
-test("FINALIZE persists its grounded subcode without changing bounded repair input", async () => {
+test("grounding repair receives precise validation detail and runtime-only inventory", async () => {
   const setup = await groundedReadyInvestigation();
-  const invalid = groundedFinalizeDecision(setup.aggregate);
-  invalid.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.statement =
-    "A different root cause.";
-  const requests: Array<{ messages: Array<{ role: string; content: string }> }> = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (_input, init) => {
-    requests.push(JSON.parse(String(init?.body)));
-    return Response.json({ choices: [{ message: { content: JSON.stringify(invalid) } }] });
-  };
-  try {
+  const emptyCall = await executeAndRecordTool(setup.store, {
+    runId: setup.runId,
+    name: "segment_metric",
+    args: { dimension: "region" },
+    iteration: 2,
+    order: 4,
+    analytics: setup.store.analytics,
+    toolExecutor: async () => ({
+      status: "EMPTY",
+      output: { reason: "NO_SEGMENT_DATA" },
+      errorMessage: null,
+      retryable: false,
+      evidence: [],
+    }),
+  });
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const invalid = groundedFinalizeDecision(aggregate);
+  invalid.diagnosis.claims.find((item) => item.type === "AFFECTED_SEGMENT")!.evidenceIds = [
+    aggregate.evidence.find((item) => item.category === "PRODUCT_METRIC")!.id,
+  ];
+  await withStubbedPlannerResponses([invalid, invalid], async (requests) => {
     const result = await runAgentLoop(setup.store, {
       runId: setup.runId,
-      planner: new LLMInvestigationPlanner({
-        provider: "OpenAI-compatible",
-        baseUrl: "https://example.invalid/v1",
-        model: "grounded-subcode-test",
-        apiKey: "test-only",
-      }),
+      planner: offlineTestPlanner(),
       analytics: setup.store.analytics,
     });
     assert.equal(requests.length, 2);
@@ -1808,23 +2245,208 @@ test("FINALIZE persists its grounded subcode without changing bounded repair inp
     assert.ok(validationEvents.every((event) =>
       event.details.validationKind === "SEMANTIC"
       && event.details.validationCode === "FINALIZE_GROUNDED_CONTRACT_MISMATCH"
-      && event.details.validationPath === "diagnosis"
-      && event.details.validationSubcode === "ROOT_CAUSE_HYPOTHESIS_MISMATCH"));
+      && event.details.validationPath === "diagnosis.claims[3].evidenceIds"
+      && event.details.validationSubcode === "INVALID_SEGMENT_GROUNDING"));
     const repairMessage = requests[1].messages.at(-1)?.content ?? "";
     assert.match(repairMessage, /FINALIZE_GROUNDED_CONTRACT_MISMATCH/);
-    assert.doesNotMatch(JSON.stringify(requests[1]), /ROOT_CAUSE_HYPOTHESIS_MISMATCH|validationSubcode/);
+    assert.match(repairMessage, /INVALID_SEGMENT_GROUNDING/);
+    assert.match(repairMessage, /SEGMENT_METRIC/);
+    assert.match(repairMessage, /EMPTY 的 segment tool result 不能用于 grounding/);
     const validationPayload = repairMessage.match(/validationError=(\{[^\n]+\})/)?.[1];
     assert.ok(validationPayload);
-    assert.deepEqual(JSON.parse(validationPayload), {
-      kind: "SEMANTIC",
-      code: "FINALIZE_GROUNDED_CONTRACT_MISMATCH",
-      path: "diagnosis",
-      decisionType: "FINALIZE",
+    const parsedValidation = JSON.parse(validationPayload);
+    assert.equal(parsedValidation.path, "diagnosis.claims[3].evidenceIds");
+    assert.equal(parsedValidation.validationSubcode, "INVALID_SEGMENT_GROUNDING");
+    assert.match(parsedValidation.message, /AFFECTED_SEGMENT 必须引用分群 Evidence/);
+    assert.equal(parsedValidation.grounding.rejectedClaimType, "AFFECTED_SEGMENT");
+    assert.deepEqual(parsedValidation.grounding.requiredEvidenceCategories, ["SEGMENT_METRIC"]);
+    assert.deepEqual(parsedValidation.grounding.missingEvidenceCategories, ["SEGMENT_METRIC"]);
+    const inventoryPayload = repairMessage.match(/groundingInventory=(\{[^\n]+\})/)?.[1];
+    assert.ok(inventoryPayload);
+    const inventory = JSON.parse(inventoryPayload);
+    assert.deepEqual(
+      inventory.evidence.map((item: { id: string }) => item.id),
+      aggregate.evidence.map((item) => item.id),
+    );
+    assert.ok(inventory.evidence.every((item: Record<string, unknown>) =>
+      typeof item.category === "string"
+      && typeof item.source === "string"
+      && typeof item.tool === "string"
+      && ["ASSESSED", "PENDING"].includes(String(item.assessmentStatus))));
+    assert.deepEqual(inventory.emptyToolResults, [{
+      toolCallId: emptyCall.call.id,
+      tool: "segment_metric",
+      resultStatus: "EMPTY",
+      reason: "NO_SEGMENT_DATA",
+    }]);
+    assert.equal(inventory.evidence.some((item: { id: string }) =>
+      item.id === emptyCall.call.id), false);
+    assert.deepEqual(inventory.rules, {
+      toolCallDoesNotImplyEvidence: true,
+      emptyToolResultsCannotGroundClaims: true,
     });
+    assert.match(repairMessage,
+      /allowedDecisionTypes=\["FINALIZE","CALL_TOOL","STOP_INCONCLUSIVE"\]/);
+    assert.doesNotMatch(repairMessage,
+      /caseId|benchmarkSplit|goldRootCause|fixtureSelector|expectedObservation|requiredObservation|supportingObservation/);
     assert.equal(result?.diagnoses.length, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
+  });
+});
+
+test("AFFECTED_SEGMENT deterministically requires persisted SEGMENT_METRIC evidence", async () => {
+  const setup = await groundedReadyInvestigation();
+  const check = (decision: InvestigationDecision) => {
+    assert.throws(
+      () => validatePlannerDecisionSemantics(decision, {
+        aggregate: setup.aggregate,
+        remainingIterations: 5,
+        remainingToolCalls: 5,
+      }),
+      (error) => error instanceof PlannerDecisionSemanticError
+        && error.code === "FINALIZE_GROUNDED_CONTRACT_MISMATCH"
+        && error.path === "diagnosis.claims[3].evidenceIds"
+        && error.validationSubcode === "INVALID_SEGMENT_GROUNDING"
+        && error.grounding?.rejectedClaimType === "AFFECTED_SEGMENT"
+        && error.grounding.requiredEvidenceCategories[0] === "SEGMENT_METRIC",
+    );
+  };
+  check(unsupportedSegmentFinalizeDecision(setup.aggregate));
+  check(unsupportedSegmentFinalizeDecision(setup.aggregate, "EV-NOT-IN-RUN"));
+});
+
+test("non-recoverable grounding repair remains restricted to FINALIZE", async () => {
+  const setup = await groundedReadyInvestigation();
+  const invalid = groundedFinalizeDecision(setup.aggregate);
+  invalid.diagnosis.claims.find((item) => item.type === "ROOT_CAUSE")!.statement =
+    "A different root cause.";
+  let semanticError: PlannerDecisionSemanticError | null = null;
+  try {
+    validatePlannerDecisionSemantics(invalid, {
+      aggregate: setup.aggregate,
+      remainingIterations: 5,
+      remainingToolCalls: 5,
+    });
+  } catch (error) {
+    if (error instanceof PlannerDecisionSemanticError) semanticError = error;
   }
+  assert.ok(semanticError);
+  assert.equal(semanticError.validationSubcode, "ROOT_CAUSE_HYPOTHESIS_MISMATCH");
+  assert.equal(semanticError.grounding?.recoverable, false);
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(semanticError), ["FINALIZE"]);
+});
+
+test("grounding repair can remove an unsupported segment claim", async () => {
+  const setup = await groundedReadyInvestigation();
+  const invalid = unsupportedSegmentFinalizeDecision(setup.aggregate);
+  const repaired = groundedFinalizeDecision(setup.aggregate);
+  repaired.diagnosis.claims = repaired.diagnosis.claims.filter((item) =>
+    item.type !== "AFFECTED_SEGMENT");
+  const result = await withStubbedPlannerResponses([invalid, repaired], () =>
+    runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: offlineTestPlanner(),
+      analytics: setup.store.analytics,
+    }));
+  assert.ok(result?.diagnosis);
+  assert.equal(result?.run.status, "WAITING_APPROVAL");
+  assert.equal(result?.run.stopReason, null);
+  assert.equal(result?.diagnosisClaims.some((item) => item.type === "AFFECTED_SEGMENT"), false);
+  assert.ok(result?.diagnosisClaims.some((item) => item.type === "AFFECTED_METRIC"));
+  assert.ok(result?.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_REPAIRED"));
+});
+
+test("recoverable grounding repair can continue investigation with CALL_TOOL", async () => {
+  const setup = await groundedReadyInvestigation();
+  const invalid = unsupportedSegmentFinalizeDecision(setup.aggregate);
+  const selectedHypothesisId = invalid.selectedHypothesisId;
+  const continueInvestigation: InvestigationDecision = {
+    type: "CALL_TOOL",
+    toolName: "segment_metric",
+    arguments: { dimension: "region" },
+    targetHypothesisIds: [selectedHypothesisId],
+    testIntent: "SUPPORT",
+    rationale: "Collect missing segment evidence.",
+  };
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "The requested segment evidence remains unavailable.",
+    rationale: "Stop safely without an unsupported segment claim.",
+  };
+  const result = await withStubbedPlannerResponses(
+    [invalid, continueInvestigation, stop],
+    () => runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: offlineTestPlanner(),
+      analytics: setup.store.analytics,
+      toolExecutor: async () => ({
+        status: "EMPTY",
+        output: { reason: "NO_SEGMENT_DATA" },
+        errorMessage: null,
+        retryable: false,
+        evidence: [],
+      }),
+    }),
+  );
+  assert.equal(result?.run.status, "INCONCLUSIVE");
+  assert.equal(result?.run.stopReason, "INSUFFICIENT_EVIDENCE");
+  assert.ok(result?.toolCalls.some((item) =>
+    item.name === "segment_metric"
+    && item.arguments.dimension === "region"
+    && item.result?.status === "EMPTY"));
+  assert.ok(result?.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_REPAIRED"));
+});
+
+test("recoverable grounding repair can stop inconclusive", async () => {
+  const setup = await groundedReadyInvestigation();
+  const invalid = unsupportedSegmentFinalizeDecision(setup.aggregate);
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "No persisted segment evidence can support the claim.",
+    rationale: "Stop safely instead of resubmitting an invalid FINALIZE.",
+  };
+  const result = await withStubbedPlannerResponses([invalid, stop], () =>
+    runAgentLoop(setup.store, {
+      runId: setup.runId,
+      planner: offlineTestPlanner(),
+      analytics: setup.store.analytics,
+    }));
+  assert.equal(result?.run.status, "INCONCLUSIVE");
+  assert.equal(result?.run.stopReason, "INSUFFICIENT_EVIDENCE");
+  assert.equal(result?.diagnoses.length, 0);
+  assert.ok(result?.auditEvents.some((event) =>
+    event.type === "PLANNER_DECISION_REPAIRED"));
+});
+
+test("valid segment and PRODUCT_METRIC-only FINALIZE paths remain allowed", async () => {
+  const setup = await groundedReadyInvestigation();
+  const valid = groundedFinalizeDecision(setup.aggregate);
+  assert.doesNotThrow(() => validatePlannerDecisionSemantics(valid, {
+    aggregate: setup.aggregate,
+    remainingIterations: 5,
+    remainingToolCalls: 5,
+  }));
+
+  const productMetricOnly = structuredClone(valid);
+  productMetricOnly.diagnosis.claims = productMetricOnly.diagnosis.claims.filter((item) =>
+    item.type !== "AFFECTED_SEGMENT");
+  assert.doesNotThrow(() => validatePlannerDecisionSemantics(productMetricOnly, {
+    aggregate: setup.aggregate,
+    remainingIterations: 5,
+    remainingToolCalls: 5,
+  }));
+
+  const result = await runAgentLoop(setup.store, {
+    runId: setup.runId,
+    planner: { type: "DETERMINISTIC", async plan() { return valid; } },
+    analytics: setup.store.analytics,
+  });
+  assert.equal(result?.run.status, "WAITING_APPROVAL");
+  assert.equal(result?.run.stopReason, null);
+  assert.ok(result?.diagnosisClaims.some((item) => item.type === "AFFECTED_SEGMENT"));
 });
 
 async function observedGroundedInvestigation() {
