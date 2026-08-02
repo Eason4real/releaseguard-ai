@@ -12,6 +12,44 @@ const normalizedText = (value: string) => value
   .replace(/[\u2018\u2019]/g, "'")
   .replace(/[\u2013\u2014]/g, "-");
 
+const explicitEvidenceShortfallPatterns = [
+  /\binsufficient evidence\b/,
+  /\b(?:not|isn't|is not) enough evidence\b/,
+  /\black(?:s|ed|ing)? enough evidence\b/,
+  /\b(?:cannot|can't|unable to) (?:determine|confirm) (?:a |the )?(?:single|unique|one) root cause\b/,
+];
+
+const explicitUnresolvedAlternativePatterns = [
+  /\bunresolved alternatives?\b/,
+  /\balternatives? [^.]{0,80}\bremain (?:possible|plausible|viable|unresolved)\b/,
+  /\b(?:multiple|competing) (?:alternatives?|explanations?|hypotheses)\b[^.]{0,80}\b(?:unresolved|plausible|possible|viable)\b/,
+];
+
+const explicitCannotDistinguishPatterns = [
+  /\b(?:cannot|can't|unable to) (?:reliably )?(?:distinguish|differentiate) (?:among|between) (?:them|these|the alternatives?|these alternatives?|the explanations?|these explanations?)\b/,
+  /\b(?:cannot|can't|unable to) determine which (?:alternative|explanation|hypothesis|cause)\b/,
+];
+
+const explicitUniqueConclusionPatterns = [
+  /\bthe (?:single|unique|actual|confirmed|definitive) root cause (?:is|was)\b/,
+  /\b(?:ultimately|finally|therefore|thus|however|nevertheless)\b[^.]{0,160}\b(?:root cause (?:is|was)|(?:is|was|were) caused by|(?:results?|resulted) from|due to)\b/,
+  /\b(?:we|i) (?:conclude|determine|confirm|find) (?:that )?[^.]{0,120}\b(?:root cause (?:is|was)|(?:is|was|were) caused by)\b/,
+];
+
+const matchesAny = (value: string, patterns: RegExp[]) =>
+  patterns.some((pattern) => pattern.test(value));
+
+const hasExplicitUncertaintyFrame = (value: string) =>
+  matchesAny(value, explicitEvidenceShortfallPatterns)
+  && matchesAny(value, explicitUnresolvedAlternativePatterns)
+  && matchesAny(value, explicitCannotDistinguishPatterns);
+
+const hasExplicitUniqueConclusion = (value: string) =>
+  matchesAny(value, explicitUniqueConclusionPatterns);
+
+const isExplicitAbstention = (value: string) =>
+  hasExplicitUncertaintyFrame(value) && !hasExplicitUniqueConclusion(value);
+
 const conceptPatterns: Record<RootCauseSemanticConcept, RegExp[]> = {
   RECOMMENDATION_SYSTEM: [/\brecommend(?:ation|ations|er)\b/],
   FEATURE_FLAG_ROLLOUT: [/\bfeature[- ]?flag\b/, /\bflag rollout\b/],
@@ -37,7 +75,17 @@ const conceptPatterns: Record<RootCauseSemanticConcept, RegExp[]> = {
     /\b(?:both|multiple) [^.]{0,80}\b(?:remain|are) (?:possible|plausible|viable)\b/,
     /\bversus\b[^.]{0,80}\b(?:unresolved|unclear|uncertain)\b/,
   ],
-  CHECKOUT_RELEASE: [/\bcheckout (?:release|client)\b/, /\brelease\b[^.]{0,40}\bcheckout\b/],
+  CHECKOUT_RELEASE: [
+    /\bcheckout (?:release|client)\b/,
+    /\brelease\b[^.]{0,40}\bcheckout\b/,
+    /\brel-\d+\s+release\b/,
+    /\brelease (?:change|rollout|deployment)\b/,
+    /\b(?:application|app|client|component|service|software) release\b/,
+    /\brollout\b/,
+    /\bdeployment\b/,
+    /\bversion change\b/,
+    /\brel-\d+\b[^.]{0,80}\b[\p{L}\p{N}_-]*(?:client|component)\b[^.]{0,40}\bchange\b/u,
+  ],
   PAYMENT_PROVIDER_INSTABILITY: [
     /\bpayment[- ]provider (?:instability|outage|failure|failures|timeout|timeouts)\b/,
     /\b(?:external )?payment provider\b/,
@@ -61,14 +109,19 @@ const conceptPatterns: Record<RootCauseSemanticConcept, RegExp[]> = {
 
 export const detectRootCauseConcepts = (value: string) => {
   const text = normalizedText(value);
-  return (Object.entries(conceptPatterns) as Array<[
+  const concepts = (Object.entries(conceptPatterns) as Array<[
     RootCauseSemanticConcept,
     RegExp[],
   ]>).filter(([, patterns]) => patterns.some((pattern) => pattern.test(text)))
     .map(([concept]) => concept);
+  return isExplicitAbstention(text)
+    ? concepts.filter((concept) => concept !== "DEFINITE_CAUSAL_ATTRIBUTION")
+    : concepts;
 };
 
 export const detectPredictedAnswerMode = (value: string): RootCauseAnswerMode => {
+  const text = normalizedText(value);
+  if (isExplicitAbstention(text)) return "ABSTAIN";
   const concepts = new Set(detectRootCauseConcepts(value));
   if (concepts.has("DEFINITE_CAUSAL_ATTRIBUTION")) return "CAUSAL";
   if (concepts.has("EVIDENCE_INSUFFICIENT") || concepts.has("ALTERNATIVES_UNRESOLVED")) {

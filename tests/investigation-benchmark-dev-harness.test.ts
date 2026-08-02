@@ -1312,7 +1312,7 @@ test("finalized projection remains unchanged and failed state does not project a
   ], { status: "FAILED", stopReason: "PLANNER_ERROR" })), null);
 });
 
-test("synthetic unresolved projection exposes scorer concepts and preserves known precedence risk", () => {
+test("synthetic unresolved projection scopes causal phrases to explicit alternatives", () => {
   const text = projectInconclusivePrediction(projectionInput([
     projectionHypothesis("A checkout release defect remains possible.", { status: "SUPPORTED" }),
     projectionHypothesis("Payment-provider instability remains possible.", { status: "SUPPORTED" }),
@@ -1347,12 +1347,15 @@ test("synthetic unresolved projection exposes scorer concepts and preserves know
     projectionHypothesis("The checkout regression was caused by a client release defect."),
     projectionHypothesis("Payment-provider instability remains possible."),
   ]))!;
-  const precedenceRisk = scoreRootCauseSemantics(groundTruth, {
+  const scopedAlternative = scoreRootCauseSemantics(groundTruth, {
     caseId: "SYNTHETIC-PRECEDENCE-RISK",
     predictedRootCause: assertive,
     predictedRootCauseId: null,
     citedEvidenceIds: [], diagnosisClaims: [], modelCallCount: 0, toolCallCount: 0,
   });
-  assert.equal(precedenceRisk.audit.predictedAnswerMode, "CAUSAL");
-  assert.ok(precedenceRisk.audit.matchedConcepts.includes("ALTERNATIVES_UNRESOLVED"));
+  assert.equal(scopedAlternative.audit.predictedAnswerMode, "ABSTAIN");
+  assert.ok(scopedAlternative.audit.matchedConcepts.includes("ALTERNATIVES_UNRESOLVED"));
+  assert.equal(scopedAlternative.audit.matchedConcepts.includes("DEFINITE_CAUSAL_ATTRIBUTION"), false);
+  assert.equal(scopedAlternative.audit.uncertaintyPolicyResult, "PASS");
+  assert.equal(scopedAlternative.correct, true);
 });

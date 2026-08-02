@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { loadInvestigationBenchmarkDevDataset } from
   "../eval/investigation-benchmark/dataset/dev";
 import { rescoreFrozenBaselineReport } from
   "../eval/investigation-benchmark/harness/offline-rescore";
 import { scoreInvestigationCase } from "../eval/investigation-benchmark/scorer";
+import {
+  detectPredictedAnswerMode,
+  detectRootCauseConcepts,
+} from "../eval/investigation-benchmark/root-cause-semantic-scorer";
 import type {
   InvestigationBenchmarkCase,
   NormalizedInvestigationResult,
@@ -38,6 +43,86 @@ const score = (caseId: string, text: string, groundingStatus?: "GROUNDED" | "UNG
   assert.ok(benchmarkCase);
   return scoreInvestigationCase(benchmarkCase, prediction(benchmarkCase, text, groundingStatus));
 };
+
+test("explicit uncertainty overrides causal phrases inside unresolved alternatives", () => {
+  const text = "Insufficient evidence to confirm a single root cause. The following unresolved "
+    + "alternatives remain plausible, and the observations cannot distinguish among them: "
+    + "(1) A client change is the root cause; (2) the decline results from a rollout; "
+    + "(3) the incident was caused by a dependency.";
+  assert.equal(detectPredictedAnswerMode(text), "ABSTAIN");
+  const concepts = detectRootCauseConcepts(text);
+  assert.ok(concepts.includes("EVIDENCE_INSUFFICIENT"));
+  assert.ok(concepts.includes("ALTERNATIVES_UNRESOLVED"));
+  assert.equal(concepts.includes("DEFINITE_CAUSAL_ATTRIBUTION"), false);
+});
+
+test("a true causal answer and a causal conclusion after a weak disclaimer remain causal", () => {
+  assert.equal(detectPredictedAnswerMode(
+    "The single root cause is a malformed client configuration.",
+  ), "CAUSAL");
+  assert.equal(detectPredictedAnswerMode(
+    "The evidence is limited, but the single root cause is a malformed client configuration.",
+  ), "CAUSAL");
+  assert.equal(detectPredictedAnswerMode(
+    "Insufficient evidence leaves unresolved alternatives that cannot be distinguished. "
+      + "However, the definitive root cause is a malformed client configuration.",
+  ), "CAUSAL");
+});
+
+test("release concepts recognize identifiers, client changes, rollout, deployment, and version changes", () => {
+  for (const text of [
+    "REL-777 release (MobileClient change) remains an alternative.",
+    "A release change remains possible.",
+    "The application rollout remains possible.",
+    "The service deployment remains possible.",
+    "A version change remains possible.",
+    "REL-888 (SyntheticComponent change) remains possible.",
+  ]) assert.ok(detectRootCauseConcepts(text).includes("CHECKOUT_RELEASE"), text);
+});
+
+test("semantic scorer implementation contains no case-specific release identifiers", async () => {
+  const source = await readFile(
+    "eval/investigation-benchmark/root-cause-semantic-scorer.ts",
+    "utf8",
+  );
+  for (const forbidden of ["CASE-219", "REL-219", "CheckoutClient", "REL-777", "MobileClient"]) {
+    assert.equal(source.includes(forbidden), false, forbidden);
+  }
+});
+
+test("frozen CASE-219 offline projection scores as an explicit unresolved abstention", async (t) => {
+  const artifactPath = "eval-results/investigation-benchmark/"
+    + "post-harness-fix-case-219-run1.reprojected-c64c5c5.json";
+  let validation;
+  try {
+    validation = JSON.parse(await readFile(artifactPath, "utf8")) as {
+      originalPrediction: NormalizedInvestigationResult;
+      projectedPrediction: NormalizedInvestigationResult;
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      t.skip("Local offline validation artifact is not present.");
+      return;
+    }
+    throw error;
+  }
+  const benchmarkCase = cases.get("CASE-219");
+  assert.ok(benchmarkCase);
+  const before = scoreInvestigationCase(benchmarkCase, validation.originalPrediction);
+  const after = scoreInvestigationCase(benchmarkCase, validation.projectedPrediction);
+  assert.equal(before.rootCause.audit.predictedAnswerMode, "ABSTAIN");
+  assert.deepEqual(before.rootCause.audit.missingRequiredConcepts, [
+    "release-alternative", "provider-alternative", "alternatives-unresolved",
+  ]);
+  assert.equal(after.rootCause.audit.expectedAnswerMode, "ABSTAIN");
+  assert.equal(after.rootCause.audit.predictedAnswerMode, "ABSTAIN");
+  assert.deepEqual(after.rootCause.audit.missingRequiredConcepts, []);
+  assert.ok(after.rootCause.audit.matchedConcepts.includes("CHECKOUT_RELEASE"));
+  assert.ok(after.rootCause.audit.matchedConcepts.includes("PAYMENT_PROVIDER_INSTABILITY"));
+  assert.ok(after.rootCause.audit.matchedConcepts.includes("ALTERNATIVES_UNRESOLVED"));
+  assert.equal(after.rootCause.audit.uncertaintyPolicyResult, "PASS");
+  assert.equal(after.rootCause.correct, true);
+});
 
 test("CASE-206 accepts a more-specific semantic equivalent through the controlled rubric", () => {
   const result = score("CASE-206",
