@@ -149,7 +149,8 @@ test("isolated preflight executes the Live adapter without scorer or benchmark a
   for (const forbidden of [
     "CASE-901", "NON_BENCHMARK", "PREFLIGHT_TEST_ONLY", "groundTruth", "difficulty",
     "canonicalRootCause", "acceptableAliases", "requiredEvidenceIds", "supportingEvidenceIds",
-    "distractorEvidenceIds", SECRET,
+    "distractorEvidenceIds", "role", "expectedRootCause", "selector",
+    "benchmarkEvidenceId", "matchedObservationId", SECRET,
   ]) assert.equal(serializedRequests.includes(forbidden), false, forbidden);
 
   const serializedReport = JSON.stringify(report);

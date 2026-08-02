@@ -64,6 +64,7 @@ const fixture: LivePreflightFixture = {
       toolName: "get_release",
       observationScope: "CURRENT_INCIDENT",
       status: "SUCCESS",
+      selector: { releaseId: release.id },
       output: {
         schema_version: "1",
         data: {

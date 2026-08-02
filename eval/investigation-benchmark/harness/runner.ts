@@ -11,6 +11,7 @@ import type {
 import { validateInvestigationBenchmarkDataset } from "../dataset/validator";
 import { calculateHarnessSemanticHash } from "./semantic-hash";
 import { HARNESS_TELEMETRY_SCHEMA_VERSION } from "./telemetry";
+import { projectObservationSelector } from "./fixture-adapter";
 import type {
   DevHarnessReport,
   DevHarnessRunOptions,
@@ -46,6 +47,14 @@ const observationRequest = (
       toolName: item.toolName,
       observationScope: item.observationScope,
       status: "SUCCESS",
+      selector: projectObservationSelector({
+        toolName: item.toolName,
+        output: item.payload,
+        metricKey: execution.agentInput.riskEvent?.metricKey ?? null,
+        filters: execution.agentInput.riskEvent?.filters ?? {},
+        releaseId: execution.agentInput.release?.id ?? null,
+        releaseVersion: execution.agentInput.release?.version ?? null,
+      }),
       output: structuredClone(item.payload),
     };
   });

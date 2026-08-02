@@ -15,7 +15,14 @@ import {
   type HarnessExecutionProvider,
   type HarnessExecutionProviderFactory,
   type HarnessExecutionTelemetry,
+  type HarnessFixtureExecutionRecord,
 } from "../eval/investigation-benchmark/harness";
+import { benchmarkEvidenceMap } from
+  "../eval/investigation-benchmark/harness/fixture-adapter";
+import { __testOnlyLiveProvider } from
+  "../eval/investigation-benchmark/harness/live-provider";
+import { __testOnlyDeterministicProvider } from
+  "../eval/investigation-benchmark/harness/provider";
 import {
   INVESTIGATION_BENCHMARK_DEV_EXPECTED_HASH,
   INVESTIGATION_BENCHMARK_DEV_VERSION,
@@ -45,6 +52,60 @@ class CapturingProvider implements HarnessExecutionProvider {
 const capturingFactory = (requests: HarnessAgentRequest[]): HarnessExecutionProviderFactory => ({
   executionMetadata: deterministicMetadata,
   create: () => new CapturingProvider(requests),
+});
+
+const scriptedToolPlanner = (
+  calls: Array<{ toolName: string; arguments: Record<string, unknown> }>,
+): InvestigationPlanner => ({
+  type: "DETERMINISTIC",
+  async plan(context) {
+    const hypotheses = context.aggregate.hypotheses.filter((item) => item.status !== "REJECTED");
+    if (hypotheses.length === 0) {
+      return {
+        type: "CREATE_HYPOTHESES",
+        hypotheses: [{
+          statement: "The public fixture observations support a test-only hypothesis.",
+          supportIf: "A compatible public selector returns an observation.",
+          refuteIf: "No compatible public selector returns an observation.",
+        }],
+        rationale: "Create one deterministic test hypothesis.",
+      };
+    }
+    const assessed = new Set(context.aggregate.hypothesisEvidenceLinks.map((item) => item.evidenceId));
+    const pending = context.aggregate.evidence.filter((item) => !assessed.has(item.id));
+    if (pending.length > 0) {
+      return {
+        type: "ASSESS_EVIDENCE",
+        assessments: pending.map((evidence) => ({
+          evidenceId: evidence.id,
+          relations: hypotheses.map((hypothesis) => ({
+            targetHypothesisId: hypothesis.id,
+            relation: "NEUTRAL" as const,
+            explanation: "Record the fixture observation without deriving an answer label.",
+          })),
+        })),
+        rationale: "Assess every persisted observation.",
+      };
+    }
+    const executed = context.aggregate.toolCalls.filter((item) => item.proposedActionId === null).length;
+    const next = calls[executed];
+    if (next) {
+      return {
+        type: "CALL_TOOL",
+        toolName: next.toolName,
+        arguments: next.arguments,
+        targetHypothesisIds: hypotheses.map((item) => item.id),
+        testIntent: "SUPPORT",
+        rationale: "Execute the next deterministic selector test.",
+      };
+    }
+    return {
+      type: "STOP_INCONCLUSIVE",
+      reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "The fixture selector test is complete.",
+      rationale: "End the bounded offline test.",
+    };
+  },
 });
 
 test("formal Dev harness executes all 22 cases in stable order with isolated providers", async () => {
@@ -101,6 +162,328 @@ test("runtime adapter uses isolated shared AgentLoop state and existing read-onl
   assert.equal(runA.evidence.some((item) => secondEvidenceIds.has(item.id)), false);
 });
 
+test("fixture matching rejects a wrong segment dimension without consuming the observation", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-206")!;
+  const request = __testOnly.observationRequest(fixture);
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan(context) {
+      const hypotheses = context.aggregate.hypotheses.filter((item) => item.status !== "REJECTED");
+      if (hypotheses.length === 0) {
+        return {
+          type: "CREATE_HYPOTHESES",
+          hypotheses: [{
+            statement: "The exposed new-user cohort is affected by the rollout.",
+            supportIf: "The matching user-type segment observation is available.",
+            refuteIf: "The matching user-type segment observation is unavailable.",
+          }],
+          rationale: "Create a test-only hypothesis.",
+        };
+      }
+      const assessed = new Set(context.aggregate.hypothesisEvidenceLinks.map((item) => item.evidenceId));
+      const pending = context.aggregate.evidence.filter((item) => !assessed.has(item.id));
+      if (pending.length > 0) {
+        return {
+          type: "ASSESS_EVIDENCE",
+          assessments: pending.map((evidence) => ({
+            evidenceId: evidence.id,
+            relations: hypotheses.map((hypothesis) => ({
+              targetHypothesisId: hypothesis.id,
+              relation: "SUPPORTS" as const,
+              explanation: "The matching segment observation supports the hypothesis.",
+            })),
+          })),
+          rationale: "Assess matched evidence.",
+        };
+      }
+      const calls = context.aggregate.toolCalls.filter((item) => item.proposedActionId === null);
+      const risk = context.aggregate.riskEvent!;
+      if (calls.length < 2) {
+        return {
+          type: "CALL_TOOL",
+          toolName: "segment_metric",
+          arguments: {
+            metric_key: risk.metricKey,
+            start_time: risk.firstBreachedAt,
+            end_time: risk.lastBreachedAt,
+            filters: risk.filters,
+            dimension: calls.length === 0 ? "region" : "user_type",
+          },
+          targetHypothesisIds: hypotheses.map((item) => item.id),
+          testIntent: "SUPPORT",
+          rationale: "Exercise incompatible and compatible selectors in order.",
+        };
+      }
+      return {
+        type: "STOP_INCONCLUSIVE",
+        reasonCode: "INSUFFICIENT_EVIDENCE",
+        reason: "Selector behavior has been observed.",
+        rationale: "End the bounded fixture test.",
+      };
+    },
+  };
+
+  let matches: HarnessFixtureExecutionRecord[] = [];
+  const aggregate = await executeHarnessAgentRuntime(request, {
+    planner,
+    maxIterations: 8,
+    maxToolCalls: 2,
+    onFixtureExecutions: (value) => { matches = value; },
+  });
+  const results = aggregate.toolCalls.map((call) => call.result?.status);
+  assert.deepEqual(results, ["EMPTY", "SUCCESS"]);
+  assert.equal(aggregate.evidence.length, 1);
+  assert.equal(aggregate.evidence[0].category, "SEGMENT_METRIC");
+  assert.equal(aggregate.evidence[0].source, "Benchmark Fixture");
+  assert.equal(aggregate.evidence[0].provenance, "synthetic");
+  assert.equal(matches[0].matched, false);
+  assert.equal(matches[0].benchmarkEvidenceId, null);
+  assert.equal(matches[0].matchedObservationId, null);
+  assert.equal(matches[1].matched, true);
+  assert.equal(matches[1].benchmarkEvidenceId,
+    request.observations.find((item) => item.toolName === "segment_metric")!.evidenceId);
+  assert.equal(benchmarkEvidenceMap(aggregate, matches).size, 1);
+});
+
+test("app-version selection cannot consume a platform observation or shift its citation", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-219")!;
+  const base = __testOnly.observationRequest(fixture);
+  const risk = base.agentInput.riskEvent!;
+  const platform = base.observations.find((item) =>
+    item.toolName === "segment_metric" && item.selector.dimension === "platform")!;
+  const request = { ...base, observations: [platform] };
+  const common = {
+    metric_key: risk.metricKey,
+    start_time: risk.firstBreachedAt,
+    end_time: risk.lastBreachedAt,
+    filters: risk.filters,
+  };
+  let records: HarnessFixtureExecutionRecord[] = [];
+  const aggregate = await executeHarnessAgentRuntime(request, {
+    planner: scriptedToolPlanner([
+      { toolName: "segment_metric", arguments: { ...common, dimension: "app_version" } },
+      { toolName: "segment_metric", arguments: { ...common, dimension: "platform" } },
+    ]),
+    maxIterations: 8,
+    maxToolCalls: 2,
+    onFixtureExecutions: (value) => { records = value; },
+  });
+  assert.deepEqual(aggregate.toolCalls.map((call) => call.result?.status), ["EMPTY", "SUCCESS"]);
+  assert.deepEqual(records.map((item) => item.benchmarkEvidenceId), [null, platform.evidenceId]);
+  assert.deepEqual([...benchmarkEvidenceMap(aggregate, records).values()], [platform.evidenceId]);
+});
+
+test("fixture Evidence uses production release and metric categories", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-202")!;
+  const aggregate = await executeHarnessAgentRuntime(__testOnly.observationRequest(fixture));
+  assert.deepEqual(aggregate.evidence.map((item) => item.category),
+    ["RELEASE_CHANGE", "PRODUCT_METRIC"]);
+  assert.ok(aggregate.evidence.every((item) => item.source === "Benchmark Fixture"));
+  assert.ok(aggregate.evidence.every((item) => item.provenance === "synthetic"));
+});
+
+test("all fixture tools map to production categories with fixture provenance", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-202")!;
+  const base = __testOnly.observationRequest(fixture);
+  const risk = base.agentInput.riskEvent!;
+  const release = base.agentInput.release!;
+  const request: HarnessAgentRequest = {
+    ...base,
+    observations: [
+      { evidenceId: "EV-15001", sourceRef: "fixture://SRC-15001", toolName: "get_release",
+        observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+        selector: { releaseId: release.id }, output: { data: { id: release.id } } },
+      { evidenceId: "EV-15002", sourceRef: "fixture://SRC-15002", toolName: "query_metric",
+        observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+        selector: { metricKey: risk.metricKey, platform: "Web" }, output: { data: { metric: risk.metricKey } } },
+      { evidenceId: "EV-15003", sourceRef: "fixture://SRC-15003", toolName: "segment_metric",
+        observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+        selector: { metricKey: risk.metricKey, dimension: "region", platform: "Web" },
+        output: { data: { dimension: "region", breakdown: [] } } },
+      { evidenceId: "EV-15004", sourceRef: "fixture://SRC-15004", toolName: "search_user_feedback",
+        observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+        selector: { metricKey: risk.metricKey, platform: "Web" }, output: { matches: [] } },
+      { evidenceId: "EV-15005", sourceRef: "fixture://SRC-15005", toolName: "search_similar_incidents",
+        observationScope: "HISTORICAL", status: "SUCCESS",
+        selector: { metricKey: risk.metricKey, platform: "Web" }, output: { matches: [] } },
+    ],
+  };
+  const commonMetricArgs = {
+    metric_key: risk.metricKey,
+    start_time: risk.firstBreachedAt,
+    end_time: risk.lastBreachedAt,
+    filters: { platform: "Web" },
+  };
+  const aggregate = await executeHarnessAgentRuntime(request, {
+    planner: scriptedToolPlanner([
+      { toolName: "get_release", arguments: { release_id: release.id } },
+      { toolName: "query_metric", arguments: { ...commonMetricArgs, granularity_minutes: 5 } },
+      { toolName: "segment_metric", arguments: { ...commonMetricArgs, dimension: "region" } },
+      { toolName: "search_user_feedback", arguments: { query: "search timeout", platform: "Web" } },
+      { toolName: "search_similar_incidents", arguments: {
+        query: "search timeout", metricKey: risk.metricKey, platform: "Web",
+      } },
+    ]),
+    maxIterations: 14,
+    maxToolCalls: 5,
+  });
+  assert.deepEqual(aggregate.evidence.map((item) => item.category), [
+    "RELEASE_CHANGE", "PRODUCT_METRIC", "SEGMENT_METRIC", "USER_FEEDBACK", "SIMILAR_INCIDENT",
+  ]);
+  assert.ok(aggregate.evidence.every((item) => item.source === "Benchmark Fixture"));
+  assert.ok(aggregate.evidence.every((item) => item.provenance === "synthetic"));
+});
+
+test("a matching metric observation satisfies unchanged grounded Finalize validation", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-202")!;
+  const request = __testOnly.observationRequest(fixture);
+  const rootCause = "The search release changed timeout handling.";
+  const planner: InvestigationPlanner = {
+    type: "DETERMINISTIC",
+    async plan(context) {
+      const hypothesis = context.aggregate.hypotheses.find((item) => item.status !== "REJECTED");
+      if (!hypothesis) {
+        return {
+          type: "CREATE_HYPOTHESES",
+          hypotheses: [{
+            statement: rootCause,
+            supportIf: "The affected metric observation confirms the decline.",
+            refuteIf: "The affected metric observation is unavailable.",
+          }],
+          rationale: "Create a deterministic grounding hypothesis.",
+        };
+      }
+      const metricEvidence = context.aggregate.evidence.find((item) =>
+        item.category === "PRODUCT_METRIC");
+      if (!context.aggregate.toolCalls.some((item) => item.name === "query_metric")) {
+        const risk = context.aggregate.riskEvent!;
+        return {
+          type: "CALL_TOOL",
+          toolName: "query_metric",
+          arguments: {
+            metric_key: risk.metricKey,
+            start_time: risk.firstBreachedAt,
+            end_time: risk.lastBreachedAt,
+            filters: risk.filters,
+            granularity_minutes: 5,
+            include_baseline: true,
+          },
+          targetHypothesisIds: [hypothesis.id],
+          testIntent: "SUPPORT",
+          rationale: "Collect the matching metric observation.",
+        };
+      }
+      const assessed = metricEvidence && context.aggregate.hypothesisEvidenceLinks.some((item) =>
+        item.evidenceId === metricEvidence.id && item.hypothesisId === hypothesis.id);
+      if (metricEvidence && !assessed) {
+        return {
+          type: "ASSESS_EVIDENCE",
+          assessments: [{
+            evidenceId: metricEvidence.id,
+            relations: [{
+              targetHypothesisId: hypothesis.id,
+              relation: "SUPPORTS",
+              explanation: "The current product metric supports the selected hypothesis.",
+            }],
+          }],
+          rationale: "Assess the metric evidence before finalization.",
+        };
+      }
+      assert.ok(metricEvidence);
+      return {
+        type: "FINALIZE",
+        selectedHypothesisId: hypothesis.id,
+        diagnosis: {
+          summary: "The current metric decline supports the selected release hypothesis.",
+          claims: [{ type: "ROOT_CAUSE", statement: rootCause, evidenceIds: [metricEvidence.id] }, {
+            type: "AFFECTED_METRIC",
+            statement: "Search completion rate declined during the incident window.",
+            evidenceIds: [metricEvidence.id],
+          }],
+        },
+        disposition: "OBSERVE",
+        rationale: "Finalize with current metric evidence.",
+      };
+    },
+  };
+  let observability: LiveEvalObservability | undefined;
+  const aggregate = await executeHarnessAgentRuntime(request, {
+    planner,
+    maxIterations: 6,
+    maxToolCalls: 1,
+    onObservability: (value) => { observability = value; },
+  });
+  assert.equal(aggregate.run.status, "WAITING_VERIFICATION");
+  assert.ok(aggregate.diagnosis);
+  const telemetry = telemetryFromAggregate(request, aggregate, [], observability);
+  assert.equal(telemetry.plannerValidationEvents.some((item) =>
+    item.validationSubcode === "INVALID_METRIC_GROUNDING"), false);
+});
+
+test("actual execution records preserve reverse selector order and deterministic citation mapping", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures.find((item) =>
+    item.benchmarkCase.caseId === "CASE-208")!;
+  const base = __testOnly.observationRequest(fixture);
+  const risk = base.agentInput.riskEvent!;
+  const request: HarnessAgentRequest = {
+    ...base,
+    observations: [{
+      evidenceId: "EV-15101", sourceRef: "fixture://SRC-15101", toolName: "segment_metric",
+      observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+      selector: { metricKey: risk.metricKey, dimension: "app_version", platform: "Android" },
+      output: { data: { dimension: "app_version", breakdown: [{ value: "10.4", rate: 0.43 }] } },
+    }, {
+      evidenceId: "EV-15102", sourceRef: "fixture://SRC-15102", toolName: "segment_metric",
+      observationScope: "CURRENT_INCIDENT", status: "SUCCESS",
+      selector: { metricKey: risk.metricKey, dimension: "region", platform: "Android" },
+      output: { data: { dimension: "region", breakdown: [{ value: "AU", rate: 0.42 }] } },
+    }],
+  };
+  const common = {
+    metric_key: risk.metricKey,
+    start_time: risk.firstBreachedAt,
+    end_time: risk.lastBreachedAt,
+    filters: { platform: "Android" },
+  };
+  const execute = async () => {
+    let records: HarnessFixtureExecutionRecord[] = [];
+    const aggregate = await executeHarnessAgentRuntime(request, {
+      planner: scriptedToolPlanner([
+        { toolName: "segment_metric", arguments: { ...common, dimension: "region" } },
+        { toolName: "segment_metric", arguments: { ...common, dimension: "app_version" } },
+      ]),
+      maxIterations: 8,
+      maxToolCalls: 2,
+      onFixtureExecutions: (value) => { records = value; },
+    });
+    return { aggregate, records, citations: benchmarkEvidenceMap(aggregate, records) };
+  };
+  const first = await execute();
+  const second = await execute();
+  assert.deepEqual(first.records.map((item) => item.benchmarkEvidenceId), ["EV-15102", "EV-15101"]);
+  assert.deepEqual(first.records.map((item) => item.matchedObservationId),
+    ["HARNESS-OBS-002", "HARNESS-OBS-001"]);
+  assert.deepEqual([...first.citations.values()], ["EV-15102", "EV-15101"]);
+  assert.deepEqual(__testOnlyDeterministicProvider.citedEvidenceIdsFromAggregate(
+    first.aggregate, first.records,
+  ), ["EV-15102", "EV-15101"]);
+  assert.deepEqual([...__testOnlyLiveProvider.evidenceIdMap(
+    first.aggregate, first.records,
+  ).values()], ["EV-15102", "EV-15101"]);
+  const stableRecord = (item: HarnessFixtureExecutionRecord) => ({
+    ...item,
+    toolCallId: null,
+    toolResultId: null,
+  });
+  assert.deepEqual(first.records.map(stableRecord), second.records.map(stableRecord));
+  assert.deepEqual([...first.citations.values()], [...second.citations.values()]);
+});
+
 test("Agent-visible requests use an exact whitelist and exclude benchmark answers and metadata", async () => {
   const requests: HarnessAgentRequest[] = [];
   const report = await runInvestigationBenchmarkDevHarness({
@@ -116,7 +499,7 @@ test("Agent-visible requests use an exact whitelist and exclude benchmark answer
     ["dataSources", "incidentId", "incidentQuestion", "release", "riskEvent"]);
   assert.ok(request.observations.every((item) =>
     Object.keys(item).sort().join(",")
-      === "evidenceId,observationScope,output,sourceRef,status,toolName"));
+      === "evidenceId,observationScope,output,selector,sourceRef,status,toolName"));
   assert.ok(request.observations.every((item) => /^EV-\d{3,}$/.test(item.evidenceId)));
   assert.ok(request.agentInput.dataSources.every((item) => /^fixture:\/\/SRC-\d{3,}$/.test(item.sourceRef)));
 
@@ -595,16 +978,16 @@ test("duplicate guard telemetry links the rejected candidate without changing ex
   assert.equal(runA.telemetry.telemetryIdentity, runB.telemetry.telemetryIdentity);
 });
 
-test("default fixture provider exposes deterministic citation edge cases to unchanged scorer semantics", async () => {
+test("default fixture provider does not cite a metric observation selected for another metric", async () => {
   const report = await runInvestigationBenchmarkDevHarness({
     sourceCommit,
     providerFactory: createDeterministicHarnessProviderFactory(),
     caseId: "CASE-201",
   });
   const result = report.cases[0];
-  assert.equal(result.scoring.evidence.citedCount, 2);
+  assert.equal(result.scoring.evidence.citedCount, 1);
   assert.equal(result.scoring.evidence.relevantCount, 1);
-  assert.equal(result.scoring.evidence.precision, 1 / 2);
+  assert.equal(result.scoring.evidence.precision, 1);
   assert.deepEqual(result.scoring.evidence.duplicateEvidenceIds,
     [...new Set(result.normalizedPrediction?.citedEvidenceIds)]);
   assert.deepEqual(result.scoring.evidence.unknownEvidenceIds, []);

@@ -4,12 +4,14 @@ import { resolveModelEndpoint } from "../../../lib/investigation/model";
 import { summarizePlannerUsage } from "../../../lib/investigation/planner-usage";
 import { executeHarnessAgentRuntime, HarnessRuntimeExecutionError } from "./runtime";
 import { telemetryFromAggregate } from "./telemetry";
+import { benchmarkEvidenceMap } from "./fixture-adapter";
 import {
   LIVE_MODEL_PROVIDERS,
   type HarnessAgentRequest,
   type HarnessExecutionOutcome,
   type HarnessExecutionProvider,
   type HarnessExecutionProviderFactory,
+  type HarnessFixtureExecutionRecord,
   type LiveHarnessManifestModelConfiguration,
   type LiveHarnessModelConfig,
   type LiveModelProvider,
@@ -89,32 +91,20 @@ const manifestConfiguration = (
 });
 
 const evidenceIdMap = (
-  request: HarnessAgentRequest,
   aggregate: InvestigationAggregate,
-) => {
-  const remaining = [...request.observations];
-  const mapped = new Map<string, string>();
-  for (const call of aggregate.toolCalls.filter((item) => item.proposedActionId === null)) {
-    const index = remaining.findIndex((item) => item.toolName === call.name);
-    if (index < 0) continue;
-    const [observation] = remaining.splice(index, 1);
-    for (const evidence of aggregate.evidence.filter((item) => item.toolResultId === call.resultId)) {
-      mapped.set(evidence.id, observation.evidenceId);
-    }
-  }
-  return mapped;
-};
+  fixtureExecutions: readonly HarnessFixtureExecutionRecord[],
+) => benchmarkEvidenceMap(aggregate, fixtureExecutions);
 
 const predictionFromAggregate = (
-  request: HarnessAgentRequest,
   aggregate: InvestigationAggregate,
   durationMs: number,
+  fixtureExecutions: readonly HarnessFixtureExecutionRecord[],
 ) => {
   const diagnosis = aggregate.diagnosis;
   const claims = aggregate.diagnosisClaims.filter((item) => item.diagnosisId === diagnosis?.id);
   const claimIds = new Set(claims.map((item) => item.id));
   const links = aggregate.diagnosisClaimEvidenceLinks.filter((item) => claimIds.has(item.claimId));
-  const evidenceIds = evidenceIdMap(request, aggregate);
+  const evidenceIds = evidenceIdMap(aggregate, fixtureExecutions);
   const mappedLinks = links.flatMap((item) => {
     const evidenceId = evidenceIds.get(item.evidenceId);
     return evidenceId ? [{ claimId: item.claimId, evidenceId }] : [];
@@ -191,6 +181,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
     this.#executed = true;
     const startedAt = performance.now();
     let observability;
+    let fixtureExecutions: HarnessFixtureExecutionRecord[] = [];
     try {
       const aggregate = await executeHarnessAgentRuntime(request, {
         planner: new LLMInvestigationPlanner(this.#config),
@@ -200,6 +191,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
         maxIterations: 16,
         maxToolCalls: 10,
         onObservability: (value) => { observability = value; },
+        onFixtureExecutions: (value) => { fixtureExecutions = value; },
       });
       const terminalInvestigationState = aggregate.diagnosis
         ? "FINALIZED" as const
@@ -219,9 +211,9 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
         status: "PASS",
         terminalInvestigationState,
         prediction: predictionFromAggregate(
-          request,
           aggregate,
           performance.now() - startedAt,
+          fixtureExecutions,
         ),
         telemetry: telemetryFromAggregate(request, aggregate, [this.#config.apiKey], observability),
       };
@@ -258,5 +250,6 @@ export const createLiveLLMHarnessProviderFactory = (
 export const __testOnlyLiveProvider = {
   providerErrorCode,
   providerErrorCategory,
+  evidenceIdMap,
   predictionFromAggregate,
 };

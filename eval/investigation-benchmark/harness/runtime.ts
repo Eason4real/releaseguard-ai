@@ -14,7 +14,14 @@ import {
 import { getActiveHypotheses, getPendingEvidence } from
   "../../../lib/investigation/hypothesis-invariants";
 import { LiveEvalStore, type LiveEvalObservability } from "../../support/live-eval-store";
-import type { HarnessAgentRequest } from "./types";
+import {
+  bindFixtureExecutionRecords,
+  createFixtureExecutionRecord,
+  observationMatchesSelector,
+  productionEvidenceCategory,
+  selectorFromToolArguments,
+} from "./fixture-adapter";
+import type { HarnessAgentRequest, HarnessFixtureExecutionRecord } from "./types";
 
 type ObservedToolDecision = {
   iteration: number;
@@ -167,26 +174,35 @@ class HarnessRuntimePlanner implements InvestigationPlanner {
   }
 }
 
-const fixtureToolExecutor = (request: HarnessAgentRequest): InvestigationToolExecutor => {
-  const remaining = [...request.observations];
-  return async (name) => {
-    const index = remaining.findIndex((item) => item.toolName === name);
+const fixtureToolExecutor = (request: HarnessAgentRequest) => {
+  const remaining = request.observations.map((observation, index) => ({ observation, index }));
+  const records: HarnessFixtureExecutionRecord[] = [];
+  const executor: InvestigationToolExecutor = async (name, args) => {
+    const selector = selectorFromToolArguments(name, args);
+    const index = remaining.findIndex(({ observation }) =>
+      observationMatchesSelector(observation, name, selector));
     if (index < 0) {
+      const output = { data: null, reason: "FIXTURE_OBSERVATION_UNAVAILABLE" };
+      records.push(createFixtureExecutionRecord(name, args, null, null, output));
       return {
         status: "EMPTY",
-        output: { data: null, reason: "FIXTURE_OBSERVATION_UNAVAILABLE" },
+        output,
         errorMessage: null,
         retryable: false,
       };
     }
-    const [observation] = remaining.splice(index, 1);
+    const [{ observation, index: observationIndex }] = remaining.splice(index, 1);
+    records.push(createFixtureExecutionRecord(
+      name, args, observation, observationIndex, observation.output,
+    ));
+    const category = productionEvidenceCategory(name);
     return {
       status: observation.status,
       output: structuredClone(observation.output),
       errorMessage: observation.status === "ERROR" ? "FIXTURE_TOOL_ERROR" : null,
       retryable: false,
-      evidence: observation.status === "SUCCESS" ? [{
-        category: "FIXTURE_OBSERVATION",
+      evidence: observation.status === "SUCCESS" && category ? [{
+        category,
         statement: `The read-only ${name} tool returned a current investigation observation.`,
         source: "Benchmark Fixture",
         strength: "MEDIUM",
@@ -194,6 +210,7 @@ const fixtureToolExecutor = (request: HarnessAgentRequest): InvestigationToolExe
       }] : [],
     };
   };
+  return { executor, records };
 };
 
 const seedAnalytics = async (request: HarnessAgentRequest) => {
@@ -242,12 +259,14 @@ export async function executeHarnessAgentRuntime(
     maxIterations?: number;
     maxToolCalls?: number;
     onObservability?: (observability: LiveEvalObservability) => void;
+    onFixtureExecutions?: (records: HarnessFixtureExecutionRecord[]) => void;
   } = {},
 ) {
   const analytics = await seedAnalytics(request);
   const store = new LiveEvalStore(analytics);
   const observedTools: ObservedToolDecision[] = [];
   const observedStop = { decision: null as ObservedStopDecision | null };
+  const fixtureExecution = fixtureToolExecutor(request);
   const runId = await startInvestigation(store, {
     question: request.agentInput.incidentQuestion,
     provider: options.provider ?? "HARNESS_PROVIDER",
@@ -265,10 +284,12 @@ export async function executeHarnessAgentRuntime(
       analytics,
       maxIterations: options.maxIterations ?? 8,
       maxToolCalls: options.maxToolCalls ?? 2,
-      toolExecutor: fixtureToolExecutor(request),
+      toolExecutor: fixtureExecution.executor,
     });
   } catch (error) {
     const failedAggregate = await store.getAggregate(runId);
+    bindFixtureExecutionRecords(failedAggregate, fixtureExecution.records);
+    options.onFixtureExecutions?.(structuredClone(fixtureExecution.records));
     const observability = runtimeObservability(
       store, runId, failedAggregate, observedTools, observedStop.decision,
     );
@@ -276,6 +297,8 @@ export async function executeHarnessAgentRuntime(
     throw new HarnessRuntimeExecutionError(error, failedAggregate, observability);
   }
   if (!aggregate) throw new Error("HARNESS_RUNTIME_RESULT_MISSING");
+  bindFixtureExecutionRecords(aggregate, fixtureExecution.records);
+  options.onFixtureExecutions?.(structuredClone(fixtureExecution.records));
   options.onObservability?.(runtimeObservability(
     store, runId, aggregate, observedTools, observedStop.decision,
   ));

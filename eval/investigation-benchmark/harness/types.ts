@@ -58,7 +58,38 @@ export type HarnessToolObservation = {
   toolName: string;
   observationScope: "CURRENT_INCIDENT" | "HISTORICAL";
   status: "SUCCESS" | "EMPTY" | "ERROR";
+  selector: HarnessObservationSelector;
   output: unknown;
+};
+
+export type HarnessObservationSelector = {
+  releaseId?: string;
+  metricKey?: string;
+  dimension?: string;
+  platform?: string;
+  version?: string;
+  region?: string;
+  userType?: string;
+};
+
+export type HarnessProductionEvidenceCategory =
+  | "RELEASE_CHANGE"
+  | "PRODUCT_METRIC"
+  | "SEGMENT_METRIC"
+  | "USER_FEEDBACK"
+  | "SIMILAR_INCIDENT";
+
+export type HarnessFixtureExecutionRecord = {
+  matched: boolean;
+  matchedObservationId: string | null;
+  benchmarkEvidenceId: string | null;
+  category: HarnessProductionEvidenceCategory | null;
+  selector: HarnessObservationSelector;
+  output: unknown;
+  toolName: string;
+  toolSignature: string;
+  toolCallId: string | null;
+  toolResultId: string | null;
 };
 
 export type HarnessAgentRequest = {

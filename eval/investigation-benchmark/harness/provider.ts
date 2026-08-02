@@ -3,12 +3,25 @@ import type {
   HarnessExecutionOutcome,
   HarnessExecutionProvider,
   HarnessExecutionProviderFactory,
+  HarnessFixtureExecutionRecord,
 } from "./types";
 import { executeHarnessAgentRuntime } from "./runtime";
 import { telemetryFromAggregate } from "./telemetry";
+import { benchmarkEvidenceMap } from "./fixture-adapter";
 
 const requireCount = (value: number, label: string) => {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error(`INVALID_${label.toUpperCase()}`);
+};
+
+const citedEvidenceIdsFromAggregate = (
+  aggregate: Awaited<ReturnType<typeof executeHarnessAgentRuntime>>,
+  fixtureExecutions: readonly HarnessFixtureExecutionRecord[],
+) => {
+  const evidenceIds = benchmarkEvidenceMap(aggregate, fixtureExecutions);
+  return aggregate.evidence.flatMap((item) => {
+    const evidenceId = evidenceIds.get(item.id);
+    return evidenceId ? [evidenceId] : [];
+  });
 };
 
 export class DeterministicHarnessProvider implements HarnessExecutionProvider {
@@ -37,8 +50,10 @@ export class DeterministicHarnessProvider implements HarnessExecutionProvider {
     // This fixture-compatible provider intentionally makes no capability claim. It executes the
     // observable script and applies one case-agnostic stopping policy without answer lookup.
     let observability;
+    let fixtureExecutions: HarnessFixtureExecutionRecord[] = [];
     const aggregate = await executeHarnessAgentRuntime(request, {
       onObservability: (value) => { observability = value; },
+      onFixtureExecutions: (value) => { fixtureExecutions = value; },
     });
     if (aggregate.run.status !== "INCONCLUSIVE") {
       return {
@@ -47,12 +62,7 @@ export class DeterministicHarnessProvider implements HarnessExecutionProvider {
         error: aggregate.run.errorMessage ?? `INVALID_TERMINAL_STATE: ${aggregate.run.status}`,
       };
     }
-    const executedTools = new Set(aggregate.toolCalls
-      .filter((call) => call.proposedActionId === null && call.status === "COMPLETED")
-      .map((call) => call.name));
-    const successful = request.observations.filter((item) =>
-      item.status === "SUCCESS" && executedTools.has(item.toolName));
-    const citedEvidenceIds = successful.map((item) => item.evidenceId);
+    const citedEvidenceIds = citedEvidenceIdsFromAggregate(aggregate, fixtureExecutions);
     const statement = "Insufficient evidence to determine a root cause from the available observations.";
     const prediction = {
       predictedRootCause: statement,
@@ -88,3 +98,5 @@ export const createDeterministicHarnessProviderFactory = (): HarnessExecutionPro
   },
   create: () => new DeterministicHarnessProvider(),
 });
+
+export const __testOnlyDeterministicProvider = { citedEvidenceIdsFromAggregate };
