@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "releaseguard-ai",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -9,6 +9,7 @@
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
     "build": "bash scripts/build-verified.sh",
+    "build:edgeone": "next build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/production-bundle.test.mjs && node scripts/run-runtime-tests.mjs && node --test tests/rendered-html.test.mjs",
     "eval": "node scripts/run-runtime-tests.mjs && node scripts/run-rag-eval.mjs && node scripts/run-real-public-rag-eval.mjs && node scripts/run-phase4-eval.mjs",
