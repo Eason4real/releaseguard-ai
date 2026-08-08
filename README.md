@@ -12,7 +12,7 @@ ReleaseGuard 把一次发布风险调查拆成可检查的业务链路：
 
 这是确定性的 Demo / Replay 数据，不是生产数据，也不会在公开模式下调用真实 LLM、GitHub 或 D1。页面可以逐步播放完整调查，也可以查看故障注入回放，观察规划校验失败后的有界修复路径。
 
-Live Demo: https://releaseguard-ai.edgeone.dev
+Live Demo: https://releaseguard.easonchao.com
 
 This is a portfolio demo using demo/replay data.
 
