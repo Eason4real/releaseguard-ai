@@ -1,7 +1,24 @@
 {
   "name": "releaseguard-ai",
   "version": "0.1.0",
+  "description": "Auditable AI agent for post-release incident investigation, evidence-based diagnosis, approval, and recovery verification.",
   "private": true,
+  "license": "MIT",
+  "homepage": "https://releaseguard.easonchao.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eason4real/releaseguard-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Eason4real/releaseguard-ai/issues"
+  },
+  "keywords": [
+    "ai-agent",
+    "incident-investigation",
+    "release-risk",
+    "llm-evaluation",
+    "human-in-the-loop"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },
