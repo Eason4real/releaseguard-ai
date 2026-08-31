@@ -16,7 +16,7 @@ This project follows the structure of [Keep a Changelog](https://keepachangelog.
 
 - Reframed public documentation from portfolio language toward users and developers.
 - Clarified the boundaries among public replay, Live Agent execution, and local/CI fallback modes.
-- Made English the default for public repository documentation while preserving complete Simplified Chinese mirrors of the public entry pages.
+- Added a complete English README alongside the Chinese-default repository homepage, while keeping contributor, security, evaluation, and technical documentation English-first.
 
 ## [0.1.0] - 2026-08-02
 
