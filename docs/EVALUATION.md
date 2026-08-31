@@ -1,89 +1,91 @@
 # ReleaseGuard AI Evaluation
 
-## 1. 评测目标
+English | [简体中文](EVALUATION.zh-CN.md)
 
-ReleaseGuard的评测不只判断“最终答案像不像”，而是检查一次调查是否能够在受控预算内完成、是否引用有效证据、是否保留不确定性，以及运行时能否守住工具和审批边界。
+## 1. Evaluation goals
 
-当前仓库提供三类验证：
+ReleaseGuard evaluation does more than compare the wording of a final answer. It checks whether an investigation completes within controlled budgets, cites valid evidence, preserves warranted uncertainty, and respects tool and approval boundaries.
 
-1. **运行时回归测试**：状态机、工具、证据、审批、执行、验证、风险检测和检索行为。
-2. **确定性离线评测**：无需外部模型凭证，可在CI中重复运行。
-3. **Live LLM评测**：使用配置的外部模型，单独记录模型、参数、Token、耗时和原始结果，不作为无凭证CI的强制Gate。
+The repository provides three validation layers:
 
-## 2. 数据范围
+1. **Runtime regression tests:** State transitions, tools, evidence, approval, execution, verification, risk detection, and retrieval behavior.
+2. **Deterministic offline evaluation:** Reproducible in CI without an external model credential.
+3. **Live LLM evaluation:** Records the model, parameters, tokens, latency, and raw output separately and is not a required gate for credential-free CI.
 
-调查Benchmark当前包含22个公开事故重建或确定性Fixture案例。每个案例将Agent可见输入与评测专用Ground Truth分离，包含：
+## 2. Dataset scope
 
-- 事故问题与风险上下文；
-- 可供工具访问的证据Fixture；
-- 标准根因与可接受表达；
-- 必需支持证据、其他支持证据和干扰证据；
-- 因果回答或正确保留结论的预期模式；
-- 难度、类别和语义评分规则。
+The investigation benchmark currently contains 22 reconstructed public incidents or deterministic fixture cases. Agent-visible input is separated from evaluation-only ground truth. Each case includes:
 
-数据位于：
+- an incident question and risk context;
+- evidence fixtures accessible through tools;
+- the canonical root cause and accepted expressions;
+- required supporting evidence, optional supporting evidence, and distractors;
+- the expected causal-answer or abstention mode;
+- difficulty, category, and semantic scoring rules.
+
+The dataset is stored under:
 
 ```text
 eval/investigation-benchmark/dataset/
 ```
 
-公开数据、Fixture和评测输出均不得表述为企业私有生产数据。
+Public data, fixtures, and evaluation output must never be presented as private enterprise production data.
 
-## 3. 答案泄漏控制
+## 3. Answer-leakage controls
 
-- Ground Truth、标准根因和语义Rubric只供Scorer使用，不进入Planner输入、工具上下文、Observation或持久化调查状态。
-- Runner通过独立Execution Input构建Agent可见输入。
-- 历史事故相似性只能作为假设线索，不能直接作为当前根因证据。
-- 如果语料中出现能够直接揭示当前案例答案的复盘内容，该案例必须隔离、重构或明确标记为检索复盘测试。
-- 数据集和语义规则均生成Hash，用于识别评测前后的数据变化。
+- Ground truth, canonical root causes, and semantic rubrics are available only to the scorer. They do not enter Planner input, tool context, observations, or persisted investigation state.
+- The runner constructs a separate execution input containing only Agent-visible fields.
+- Historical incident similarity may suggest a hypothesis but cannot directly support the current incident's root cause.
+- A case containing a postmortem that directly reveals its own answer must be isolated, redesigned, or explicitly classified as a retrieval-replay test.
+- Dataset content and semantic rules are hashed so changes before and after a run remain detectable.
 
-详细契约见 [investigation-benchmark-evaluation-contract.md](investigation-benchmark-evaluation-contract.md)。
+See [investigation-benchmark-evaluation-contract.md](investigation-benchmark-evaluation-contract.md) for the detailed contract.
 
-## 4. 指标定义
+## 4. Metrics
 
 ### Root Cause Top-1
 
-先判断预期和预测是明确因果结论还是保留结论，再依次进行稳定ID、精确别名和受控语义Rubric匹配。
+The scorer first determines whether the expected and predicted outputs are causal conclusions or abstentions, then applies stable-ID, exact-alias, and controlled semantic-rubric matching in that order.
 
-- 错误ID不能通过相似文本补救。
-- 因果案例中的泛化“证据不足”不算正确。
-- 保留结论案例中的确定性归因不算正确。
-- 不能自动确定的边界案例进入 `REVIEW_REQUIRED`，不会被静默计为正确或错误。
+- An incorrect ID cannot be repaired by similar prose.
+- Generic “insufficient evidence” is not correct for a causal case.
+- Definite attribution is not correct for an abstention case.
+- Boundary cases that cannot be scored automatically become `REVIEW_REQUIRED`; they are never silently counted as correct or incorrect.
 
-报告必须同时展示自动评测覆盖率、正确数、错误数、待复核数和运行失败数，不能只展示一个百分比。
+Reports must include automatic-evaluation coverage, correct cases, incorrect cases, review-required cases, and runtime failures rather than exposing only a percentage.
 
 ### Evidence Precision
 
-唯一支持证据引用数 ÷ 全部唯一引用数。干扰项和未知Evidence ID保留在分母中；零引用的Precision为0。
+Unique supporting evidence citations divided by all unique citations. Distractors and unknown evidence IDs remain in the denominator; a response with no citations has precision 0.
 
 ### Unsupported Claim Rate
 
-在可机器验证的事实性诊断Claim中，`UNGROUNDED` Claim所占比例。旧版不可验证Claim不会被推断为已支持，而是标记为不可评测。
+The proportion of machine-verifiable factual diagnostic claims classified as `UNGROUNDED`. Legacy claims that cannot be evaluated are marked unavailable rather than inferred to be supported.
 
 ### Investigation Cost
 
-记录实际模型调用数、工具调用数、端到端耗时和可获得的Token信息。缺失Token不会被估算。
+Records actual model calls, tool calls, end-to-end duration, and token information when available. Missing token usage is never estimated.
 
 ### Reliability
 
-对相同数据和配置进行重复运行时，比较流程完成、最终根因、证据引用和语义Hash的一致性。确定性Harness默认运行两次并要求结果Hash一致。
+Repeated runs with identical data and configuration are compared for workflow completion, final root cause, evidence citations, and semantic hash. The deterministic harness runs twice by default and requires identical result hashes.
 
-## 5. 当前对照设计
+## 5. Comparison design
 
-正式公开报告应在冻结数据集和相同输入条件下比较：
+A formal public report should compare systems on a frozen dataset and under equivalent input conditions:
 
-| 方案 | 说明 |
+| System | Description |
 | --- | --- |
-| Direct LLM | 一次性获得允许的静态上下文，不使用Agent Loop和动态工具选择 |
-| Current Agent | 改进前的ReleaseGuard Agent |
-| Improved Agent | 根据冻结Benchmark错误切片改进后的Agent |
-| Fixed Workflow（可选） | 仅在仓库存在可解释的固定流程时使用；不得为凑对照而伪造 |
+| Direct LLM | Receives the allowed static context once, without the Agent Loop or dynamic tool selection |
+| Current Agent | ReleaseGuard Agent before the evaluated improvement |
+| Improved Agent | ReleaseGuard Agent after changes derived from frozen benchmark error slices |
+| Fixed Workflow (optional) | Included only when the repository contains a real, explainable fixed workflow; never invented merely to fill a comparison table |
 
-当前仓库已具备Current Agent、确定性Provider和Live Adapter。未实际执行并保存原始输出的方案，不会在README中展示结果。
+The repository currently includes the Current Agent, a deterministic provider, and a Live Adapter. A system that has not been executed with preserved raw output is not presented as a measured result in the README.
 
-## 6. 复现命令
+## 6. Reproduction commands
 
-完整的无凭证验证：
+Complete credential-free validation:
 
 ```bash
 npm ci
@@ -94,7 +96,7 @@ npm run eval
 npm run eval:investigation-dev-harness
 ```
 
-局部评测：
+Focused evaluation:
 
 ```bash
 npm run eval:rag
@@ -102,7 +104,7 @@ npm run eval:rag:real
 npm run eval:investigation-dev-harness
 ```
 
-Live LLM评测需要单独配置：
+Live LLM evaluation requires separate configuration:
 
 ```bash
 LIVE_EVAL_API_KEY=...
@@ -111,27 +113,27 @@ LIVE_EVAL_MODEL=...
 npm run eval:investigation-live
 ```
 
-不要把凭证写入命令历史、报告、Issue或源码。Live运行必须记录Commit、模型、参数和结果文件，未运行的测试明确标记为未运行。
+Do not place credentials in shell history, reports, issues, or source code. A Live run must record its commit, model, parameters, and result file. Tests that were not run must be labeled as not run.
 
-## 7. 结果发布要求
+## 7. Publishing results
 
-正式结果应至少公开：
+A formal result should publish at least:
 
-- 测试Commit和运行时间；
-- 数据集与语义规则Hash；
-- 模型、Provider和解码参数；
-- 每个方案的原始运行记录；
-- 每案例预测、证据、评分和评分原因；
-- 聚合指标及原始分子/分母；
-- 失败类型、待人工复核队列和已知限制；
-- 可重复执行的命令。
+- the tested commit and run time;
+- dataset and semantic-rule hashes;
+- model, provider, and decoding parameters;
+- raw run records for every compared system;
+- per-case predictions, evidence, scores, and scoring rationale;
+- aggregate metrics with their raw numerators and denominators;
+- failure categories, the human-review queue, and known limitations;
+- reproducible commands.
 
-不得通过删除失败案例、修改Gold Label、硬编码答案或只报告最佳一次运行来提高结果。
+Results must not be improved by deleting failed cases, changing gold labels, hard-coding answers, or reporting only the best run.
 
-## 8. 已知限制
+## 8. Known limitations
 
-- 22个案例只能支持项目级离线比较，不能证明企业生产环境普适性。
-- 公开历史事故可能已经出现在模型预训练语料中；运行时答案隔离不能完全消除预训练记忆风险。
-- 确定性Provider验证Harness和评分稳定性，不等于验证真实模型能力。
-- LLM-as-Judge若使用同一模型，必须标注为非独立评审；当前确定性语义评分不冒充人工审核。
-- 端到端Agent运行时间不能直接推导真实人工节省时间。
+- Twenty-two cases support project-level offline comparison but cannot establish broad enterprise production generalization.
+- Public historical incidents may appear in model pretraining data. Runtime answer isolation cannot eliminate pretraining-memory risk.
+- The deterministic provider validates the harness and scorer, not the capability of a real model.
+- An LLM-as-Judge using the same model must be disclosed as non-independent. The current deterministic semantic scorer does not claim to replace human review.
+- End-to-end Agent runtime cannot be converted directly into claims about human time saved.

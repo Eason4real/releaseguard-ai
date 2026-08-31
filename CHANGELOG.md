@@ -1,30 +1,33 @@
 # Changelog
 
-本项目遵循 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 的结构。当前处于早期公开阶段，版本号不代表生产可用性承诺。
+English | [简体中文](CHANGELOG.zh-CN.md)
+
+This project follows the structure of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). ReleaseGuard AI is at an early public stage; version numbers are not production-readiness guarantees.
 
 ## [Unreleased]
 
 ### Added
 
-- GitHub Actions持续集成，覆盖类型检查、Lint、构建、测试和确定性评测。
-- 面向外部读者的README、文档导航、评测方法、贡献指南、安全策略和路线图。
-- MIT License。
+- GitHub Actions continuous integration covering type checking, linting, build verification, tests, and deterministic evaluation.
+- Public-facing README, documentation navigation, evaluation methodology, contribution guidance, security policy, and roadmap.
+- MIT License.
 
 ### Changed
 
-- 将公开说明从求职展示语言调整为用户与开发者导向。
-- 强化公开Replay、Live Agent和本地/CI回退之间的边界说明。
+- Reframed public documentation from portfolio language toward users and developers.
+- Clarified the boundaries among public replay, Live Agent execution, and local/CI fallback modes.
+- Made English the default for public repository documentation while preserving complete Simplified Chinese mirrors of the public entry pages.
 
 ## [0.1.0] - 2026-08-02
 
 ### Added
 
-- 确定性风险检测、风险事件与调查运行时。
-- 结构化Planner、受控Agent Loop和原子调查工具。
-- 竞争性假设、支持/反驳证据与结构化诊断。
-- 针对 `CREATE_GITHUB_ISSUE` 的人工审批、冻结参数和防重放机制。
-- 公开Replay体验、3分钟引导和完整最佳实践案例。
-- 历史事故混合检索、22案例调查Benchmark与回归测试。
+- Deterministic risk detection, risk events, and the investigation runtime.
+- Structured Planners, a controlled Agent Loop, and atomic investigation tools.
+- Competing hypotheses, supporting and contradicting evidence, and structured diagnosis.
+- Human approval, frozen arguments, and replay protection for `CREATE_GITHUB_ISSUE`.
+- Public replay experience, three-minute guide, and full best-practice walkthrough.
+- Hybrid historical-incident retrieval, a 22-case investigation benchmark, and regression tests.
 
 [Unreleased]: https://github.com/Eason4real/releaseguard-ai/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Eason4real/releaseguard-ai/releases/tag/v0.1.0

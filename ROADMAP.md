@@ -1,31 +1,33 @@
 # ReleaseGuard AI Roadmap
 
-路线图描述产品优先级，不代表已完成能力或交付承诺。已实现范围以代码、测试和README为准。
+English | [简体中文](ROADMAP.zh-CN.md)
 
-## Now: 评测可信度与公开可复现性
+This roadmap describes product priorities, not completed capabilities or delivery commitments. The implementation, automated tests, and main README remain the source of truth for current behavior.
 
-- 冻结公开事故重建数据集和评分规则。
-- 发布 Direct LLM、当前Agent与改进Agent的同条件对照结果。
-- 保存逐案例原始输出、评分理由、运行参数和错误切片。
-- 增加多次运行稳定性、Token、成本和端到端耗时统计。
-- 明确答案泄漏检查和人工复核队列。
+## Now: Evaluation credibility and public reproducibility
 
-## Next: 调查质量与可观测性
+- Freeze the public incident-reconstruction dataset and scoring rules.
+- Publish comparable Direct LLM, current Agent, and improved Agent results under the same input conditions.
+- Preserve per-case raw outputs, scoring rationale, run parameters, and error slices.
+- Add repeated-run stability, token, cost, and end-to-end latency reporting.
+- Make answer-leakage checks and the human-review queue explicit.
 
-- 根据Benchmark中高频失败改进Planner约束、证据充分性和工具参数校验。
-- 增强无信息增益调用检测、失败恢复和反证检查。
-- 提供可分享的调查轨迹和版本化评测页面。
-- 扩充不同行业与故障类型的公开案例，同时保持Gold Label可审计。
+## Next: Investigation quality and observability
 
-## Later: 受控集成
+- Improve Planner constraints, evidence sufficiency, and tool-argument validation using frequent benchmark failure modes.
+- Strengthen no-information-gain detection, failure recovery, and contradicting-evidence checks.
+- Provide shareable investigation traces and versioned evaluation reports.
+- Expand public cases across industries and failure types while keeping gold labels auditable.
 
-- 在明确权限模型后评估更多只读业务数据源。
-- 在真实需求和安全审查成立后评估Jira/Linear等受审批写动作。
-- 研究多用户、租户隔离和企业认证；不会在缺少访问控制时开放Live能力。
+## Later: Controlled integrations
 
-## Explicitly not planned for the current scope
+- Evaluate additional read-only business data sources after defining an explicit permission model.
+- Evaluate approval-protected Jira or Linear actions only after real demand and security review.
+- Research multi-user access, tenant isolation, and enterprise authentication without exposing Live capabilities before access control exists.
 
-- 无审批的自动回滚或生产修复；
-- 用LLM替代确定性异常检测；
-- 为展示复杂度而引入Multi-Agent；
-- 把公开或合成案例包装成私有企业生产数据。
+## Explicitly outside the current scope
+
+- automatic rollback or production remediation without approval;
+- replacing deterministic anomaly detection with an LLM;
+- introducing Multi-Agent orchestration merely to demonstrate complexity;
+- presenting public or synthetic cases as private enterprise production data.
