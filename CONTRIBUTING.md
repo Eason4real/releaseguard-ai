@@ -1,15 +1,17 @@
 # Contributing to ReleaseGuard AI
 
-感谢你关注 ReleaseGuard AI。项目欢迎可复现的问题、公开事故案例、评测改进和小范围工程贡献。
+English | [简体中文](CONTRIBUTING.zh-CN.md)
 
-## 提交 Issue 前
+Thank you for your interest in ReleaseGuard AI. The project welcomes reproducible bug reports, public incident cases, evaluation improvements, and focused engineering contributions.
 
-- 搜索现有 Issue，避免重复提交。
-- 对产品或评测问题，说明预期行为、实际行为和复现步骤。
-- 对事故案例，提供公开来源、可用于调查的输入、最终根因依据和可能的答案泄漏风险。
-- 不要提交 API Key、Token、Cookie、私有日志、客户数据或其他敏感信息。
+## Before opening an issue
 
-## 本地开发
+- Search existing issues to avoid duplicates.
+- For product or evaluation problems, describe the expected behavior, actual behavior, and reproduction steps.
+- For incident cases, provide public sources, the investigation inputs, the evidence for the final root cause, and any potential answer-leakage risk.
+- Never submit API keys, tokens, cookies, private logs, customer data, or other sensitive information.
+
+## Local development
 
 ```bash
 npm ci
@@ -17,18 +19,22 @@ cp .env.example .env
 npm run dev
 ```
 
-默认使用 `PUBLIC_DEMO` 或本地确定性回退。除非你明确拥有权限，不要连接生产 D1 或真实外部系统。
+The default environment uses `PUBLIC_DEMO` or the deterministic local fallback. Do not connect to production D1 or real external systems unless you have explicit authorization.
 
-## 变更要求
+## Change requirements
 
-1. 保持单一 Investigation Agent、结构化状态、原子工具和人工审批边界。
-2. 不把 LLM 输出当作权限、审批或状态流转的权威来源。
-3. 不保存隐藏思维链；只保存公开理由、假设、观察和证据引用。
-4. 不为通过 Benchmark 硬编码 `case_id`、事故名称或 Gold Label。
-5. 对行为变更添加聚焦的回归测试。
-6. 保持公开 Fixture、离线模拟和生产数据之间的明确区分。
+1. Preserve the single Investigation Agent, structured state, atomic tools, and human-approval boundary.
+2. Never treat LLM output as authoritative for permissions, approval, or state transitions.
+3. Do not persist hidden chain-of-thought. Persist only public rationale, hypotheses, observations, and evidence references.
+4. Do not hard-code `case_id`, incident names, or gold labels to pass a benchmark.
+5. Add focused regression coverage for behavioral changes.
+6. Keep public fixtures, offline simulations, and production data clearly separated.
 
-## 提交前验证
+## Documentation translations
+
+English documentation is the source of truth. When a change affects documented behavior, update the corresponding Simplified Chinese file in the same pull request when one exists. Translation changes must preserve capability claims, limitations, commands, links, and security boundaries.
+
+## Verification before submission
 
 ```bash
 npm run tsc
@@ -38,11 +44,11 @@ npm run eval
 npm run eval:investigation-dev-harness
 ```
 
-Live LLM Eval 依赖外部凭证，不作为普通 Pull Request 的强制检查。若运行过，请在 PR 中记录模型、参数、Commit和原始结果位置。
+Live LLM evaluation depends on external credentials and is not a required check for an ordinary pull request. If you run it, record the model, parameters, commit, and raw-result location in the pull request without exposing credentials.
 
-## Pull Request
+## Pull requests
 
-- 使用简洁、具体的标题。
-- 说明问题、方案、风险和验证结果。
-- 一个 PR 只解决一个连贯问题。
-- 不提交 `.env`、密钥、`node_modules`、构建产物、数据库、运行日志或缓存。
+- Use a concise, specific title.
+- Explain the problem, approach, risks, and verification results.
+- Keep each pull request focused on one coherent change.
+- Do not commit `.env` files, credentials, `node_modules`, build output, databases, runtime logs, or caches.

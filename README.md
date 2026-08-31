@@ -1,5 +1,7 @@
 # ReleaseGuard AI
 
+简体中文 | [English](README.en.md)
+
 [![CI](https://github.com/Eason4real/releaseguard-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Eason4real/releaseguard-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2f6f5e.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg)](https://www.typescriptlang.org/)
@@ -9,7 +11,7 @@
 
 > An auditable AI agent for post-release incident investigation, evidence-based diagnosis, human approval, and recovery verification.
 
-**[在线体验](https://releaseguard.easonchao.com)** · **[3 分钟引导](https://releaseguard.easonchao.com/guided-experience)** · **[完整案例](https://releaseguard.easonchao.com/best-practice)** · **[评测方法](docs/EVALUATION.md)** · **[系统架构](docs/AGENT_ARCHITECTURE.md)**
+**[在线体验](https://releaseguard.easonchao.com)** · **[3 分钟引导](https://releaseguard.easonchao.com/guided-experience)** · **[完整案例](https://releaseguard.easonchao.com/best-practice)** · **[评测方法](docs/EVALUATION.zh-CN.md)** · **[系统架构（英文）](docs/AGENT_ARCHITECTURE.md)**
 
 ## 为什么做 ReleaseGuard
 
@@ -81,7 +83,7 @@ flowchart TD
 | Investigation Cost | 实际模型调用、工具调用、Token与端到端耗时 |
 | Reliability | 相同输入多次运行时，流程和结论是否稳定 |
 
-具体定义、泄漏控制、已知限制和复现命令见 **[Evaluation](docs/EVALUATION.md)**。公开案例和离线模拟结果不会被描述为企业生产数据或真实人工提效。
+具体定义、泄漏控制、已知限制和复现命令见 **[评测方法](docs/EVALUATION.zh-CN.md)**。公开案例和离线模拟结果不会被描述为企业生产数据或真实人工提效。
 
 ## 快速开始
 
@@ -149,7 +151,7 @@ worker/                      Cloudflare Worker 入口与绑定
 - LLM输出不能绕过服务端工具白名单、参数校验、预算、审批和状态机。
 - 审批只绑定一次具体动作及其冻结参数，不代表对某类动作的长期授权。
 - 不保存或展示隐藏的模型思维链，只保存面向用户的理由、假设、观察和证据引用。
-- 安全问题请按 [SECURITY.md](SECURITY.md) 中的方式私下报告，不要在公开 Issue 中提交密钥或敏感日志。
+- 安全问题请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 中的方式私下报告，不要在公开 Issue 中提交密钥或敏感日志。
 
 ## 已知限制
 
@@ -161,12 +163,12 @@ worker/                      Cloudflare Worker 入口与绑定
 
 ## 文档与参与
 
-- [文档导航](docs/README.md)
-- [产品规格](docs/PRODUCT_SPEC.md)
-- [Agent 架构](docs/AGENT_ARCHITECTURE.md)
-- [评测方法](docs/EVALUATION.md)
-- [路线图](ROADMAP.md)
-- [变更记录](CHANGELOG.md)
-- [贡献指南](CONTRIBUTING.md)
+- [文档导航](docs/README.zh-CN.md)
+- [产品规格（英文）](docs/PRODUCT_SPEC.md)
+- [Agent 架构（英文）](docs/AGENT_ARCHITECTURE.md)
+- [评测方法](docs/EVALUATION.zh-CN.md)
+- [路线图](ROADMAP.zh-CN.md)
+- [变更记录](CHANGELOG.zh-CN.md)
+- [贡献指南](CONTRIBUTING.zh-CN.md)
 
 欢迎通过 Issue 提交可复现的问题、评测案例或设计讨论。项目采用 [MIT License](LICENSE)。
