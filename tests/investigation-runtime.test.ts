@@ -111,6 +111,7 @@ import {
   allowedPlannerRepairDecisionTypes,
   buildGroundingEvidenceInventory,
   buildInitialPlannerSystemPrompt,
+  buildDiscriminatorPlanningContext,
   buildKnownInvestigationSlices,
   buildPlannerRepairFeedback,
   formatPlannerDecisionContract,
@@ -1826,8 +1827,99 @@ test("planner context derives structured known slices without benchmark metadata
   const compact = plannerCompactContext(request);
   assert.deepEqual(compact.knownInvestigationSlices,
     buildKnownInvestigationSlices(setup.aggregate));
+  assert.deepEqual(compact.discriminatorPlanningContext,
+    buildDiscriminatorPlanningContext(setup.aggregate, null));
   assert.doesNotMatch(JSON.stringify(compact),
     /CASE-205|gold|authored selector|expected observation|fixture-only|benchmark split/i);
+});
+
+test("planner discriminator context inventories successful query shapes and unresolved competitors", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const context = buildDiscriminatorPlanningContext(setup.aggregate, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.map((item) => item.id),
+      },
+    },
+  });
+  assert.deepEqual(context.unresolvedCompetitors, [{
+    hypothesisIds: setup.aggregate.hypotheses.map((item) => item.id).sort(),
+    status: "UNRESOLVED",
+  }]);
+  const metricQuery = context.attemptedQueryShapes.find((item) => item.tool === "query_metric")!;
+  assert.equal(metricQuery.resultStatus, "SUCCESS");
+  assert.equal(metricQuery.state, "OBSERVED");
+  assert.equal(metricQuery.dimension, null);
+  assert.equal(metricQuery.filters.platform, "Desktop");
+  assert.ok(metricQuery.canonicalSignature.includes("query_metric"));
+  assert.equal(context.discriminatorGaps.length, 1);
+  assert.equal(context.discriminatorGaps[0].suggestedTool, null);
+});
+
+test("planner discriminator context distinguishes EMPTY attempts and canonicalizes aliases", async () => {
+  const setup = await plannerSearchPolicySetup(true);
+  const context = buildDiscriminatorPlanningContext(setup.aggregate, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.slice(0, 2).map((item) => item.id),
+      },
+    },
+  });
+  const emptyRegion = context.attemptedQueryShapes.find((item) =>
+    item.tool === "segment_metric" && item.dimension === "region")!;
+  assert.equal(emptyRegion.resultStatus, "EMPTY");
+  assert.equal(emptyRegion.state, "ATTEMPTED_EMPTY");
+  assert.equal(emptyRegion.filters.appVersion, "6.5.0");
+
+  const reordered = {
+    metricKey: setup.event.metricKey,
+    endTime: setup.event.lastBreachedAt,
+    startTime: setup.event.firstBreachedAt,
+    filters: { app_version: "6.5.0", platform: "Desktop" },
+    dimension: "region",
+    limit: 10,
+  };
+  const reorderedContext = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    toolCalls: [...setup.aggregate.toolCalls, {
+      ...setup.aggregate.toolCalls.find((item) => item.name === "segment_metric")!,
+      arguments: reordered,
+      result: { ...setup.aggregate.toolCalls.find((item) => item.name === "segment_metric")!.result! },
+    }],
+  });
+  const regionQueries = reorderedContext.attemptedQueryShapes.filter((item) =>
+    item.tool === "segment_metric" && item.dimension === "region");
+  assert.equal(new Set(regionQueries.map((item) => item.canonicalSignature)).size, 1);
+
+  const pendingCall = {
+    ...setup.aggregate.toolCalls[0],
+    result: null,
+    arguments: { ...setup.aggregate.toolCalls[0].arguments, dimension: "user_type" },
+  };
+  const pendingShape = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    toolCalls: [...setup.aggregate.toolCalls, pendingCall],
+  }).attemptedQueryShapes.at(-1)!;
+  assert.equal(pendingShape.resultStatus, "ERROR");
+  assert.equal(pendingShape.state, "ATTEMPTED_FAILED");
+});
+
+test("planner discriminator context removes the gap after direct refutation", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const firstEvidence = setup.aggregate.evidence[0];
+  const context = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    hypothesisEvidenceLinks: setup.aggregate.hypotheses.slice(0, 2).map((hypothesis) => ({
+      ...hypothesisLink(setup.runId, firstEvidence.id, hypothesis.id, "CONTRADICTS"),
+    })),
+  }, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.slice(0, 2).map((item) => item.id),
+      },
+    },
+  });
+  assert.deepEqual(context.discriminatorGaps, []);
 });
 
 test("planner segment drill-down contract preserves orthogonal filters and dimension choice", async () => {

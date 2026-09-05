@@ -24,6 +24,7 @@ import {
   PlannerDecisionSemanticError,
   validatePlannerDecisionSemantics,
 } from "./planner-decision-semantics";
+import { createSemanticToolSignature } from "./tool-query-policy";
 
 const DECISION_TYPES = [
   "CREATE_HYPOTHESES",
@@ -47,6 +48,29 @@ export type KnownInvestigationSlice = {
   values: Array<string | number>;
   unit: "PERCENT" | null;
   sources: string[];
+};
+
+export type AttemptedQueryShape = {
+  tool: string;
+  canonicalSignature: string;
+  dimension: string | null;
+  filters: Record<string, unknown>;
+  resultStatus: "SUCCESS" | "EMPTY" | "ERROR";
+  state: "OBSERVED" | "ATTEMPTED_EMPTY" | "ATTEMPTED_FAILED";
+};
+
+export type DiscriminatorPlanningContext = {
+  unresolvedCompetitors: Array<{
+    hypothesisIds: string[];
+    status: "UNRESOLVED";
+  }>;
+  attemptedQueryShapes: AttemptedQueryShape[];
+  discriminatorGaps: Array<{
+    hypothesisIds: string[];
+    missingSignal: string;
+    source: "HYPOTHESIS_CONDITIONS";
+    suggestedTool: string | null;
+  }>;
 };
 
 type KnownSliceAggregate = Pick<
@@ -80,6 +104,83 @@ const rolloutPercent = (value: unknown) => {
   const percent = candidate <= 1 ? candidate * 100 : candidate;
   if (percent > 100) return null;
   return Math.round(percent * 1_000) / 1_000;
+};
+
+const queryResultStatus = (status: unknown): AttemptedQueryShape["resultStatus"] =>
+  status === "SUCCESS" ? "SUCCESS" : status === "EMPTY" ? "EMPTY" : "ERROR";
+
+const queryState = (status: AttemptedQueryShape["resultStatus"]): AttemptedQueryShape["state"] =>
+  status === "SUCCESS" ? "OBSERVED" : status === "EMPTY" ? "ATTEMPTED_EMPTY" : "ATTEMPTED_FAILED";
+
+const readinessUnresolvedHypothesisIds = (runtimeGuidance: unknown) => {
+  const guidance = structuredRecord(runtimeGuidance);
+  const staged = structuredRecord(guidance.stagedArchitecture);
+  const readiness = structuredRecord(staged.readiness);
+  return Array.isArray(readiness.unresolvedCompetingHypothesisIds)
+    ? readiness.unresolvedCompetingHypothesisIds.filter((item): item is string =>
+        typeof item === "string" && item.trim().length > 0).sort()
+    : [];
+};
+
+export const buildDiscriminatorPlanningContext = (
+  aggregate: InvestigationAggregate,
+  runtimeGuidance: unknown = null,
+): DiscriminatorPlanningContext => {
+  const unresolvedIds = readinessUnresolvedHypothesisIds(runtimeGuidance);
+  const viable = aggregate.hypotheses
+    .filter((item) => item.status !== "REJECTED")
+    .map((item) => item.id)
+    .sort();
+  const competitorIds = unresolvedIds.length >= 2 ? unresolvedIds : viable;
+  const unresolvedCompetitors = competitorIds.length >= 2
+    ? [{ hypothesisIds: competitorIds, status: "UNRESOLVED" as const }]
+    : [];
+
+  const attemptedQueryShapes = aggregate.toolCalls
+    .filter((call) => call.proposedActionId === null)
+    .map((call): AttemptedQueryShape => {
+      const resultStatus = queryResultStatus(call.result?.status);
+      const args = call.arguments ?? {};
+      const filters = structuredRecord(args.filters);
+      const dimension = structuredText(args.dimension);
+      return {
+        tool: call.name,
+        canonicalSignature: createSemanticToolSignature(call.name, args),
+        dimension,
+        filters,
+        resultStatus,
+        state: queryState(resultStatus),
+      };
+    });
+
+  const gaps = unresolvedCompetitors.flatMap(({ hypothesisIds }) => {
+    const hypotheses = hypothesisIds.flatMap((id) => {
+      const hypothesis = aggregate.hypotheses.find((item) => item.id === id);
+      return hypothesis ? [{ id, supportIf: hypothesis.supportIf, refuteIf: hypothesis.refuteIf }] : [];
+    });
+    if (hypotheses.length < 2) return [];
+    const missingSignal = hypotheses.map((item) =>
+      `${item.id}: supportIf=${item.supportIf}; refuteIf=${item.refuteIf}`).join(" | ");
+    const hypothesesWithDiscriminatingEvidence = new Set(
+      aggregate.hypothesisEvidenceLinks
+        .filter((link) => link.relation === "SUPPORTS" || link.relation === "CONTRADICTS")
+        .map((link) => link.hypothesisId),
+    );
+    const allHaveDiscriminatingEvidence = hypotheses.every((item) =>
+      hypothesesWithDiscriminatingEvidence.has(item.id));
+    return allHaveDiscriminatingEvidence ? [] : [{
+      hypothesisIds,
+      missingSignal,
+      source: "HYPOTHESIS_CONDITIONS" as const,
+      suggestedTool: null,
+    }];
+  });
+
+  return {
+    unresolvedCompetitors,
+    attemptedQueryShapes,
+    discriminatorGaps: gaps,
+  };
 };
 
 export const buildKnownInvestigationSlices = (
@@ -343,6 +444,7 @@ export const buildInitialPlannerSystemPrompt = (policyVersion: "V2" | "V3" | "V4
   "某个 segment_metric query shape 返回 EMPTY 后，将该 dimension + filters 组合视为当前查询形状不可用，不得重复完全相同调用。只在剩余 Hypothesis 明确需要时选择另一个有判别力的维度；不要为消耗预算枚举全部维度，无合理下一步时使用 STOP_INCONCLUSIVE。region 和 user_type 仍可在相应 Hypothesis 需要地理或 cohort 区分时选择。",
   "收敛规则：如果相关当前事件来源已经查询，某个替代 Hypothesis 仍没有任何 SUPPORTS Evidence，且现有当前事件 Evidence 支持另一 Hypothesis，不得仅因这个无支持的推测继续保持多解；应通过 ASSESS_EVIDENCE 将反证明确关联，使其被服务端拒绝或降级，然后在 Grounded Contract 满足时 FINALIZE。只有两个或更多替代解释仍各自拥有当前事件支持，或缺少可区分它们的必要来源时，才 STOP_INCONCLUSIVE。",
   "调用工具前先检查 toolResults、knownInvestigationSlices 和 remainingToolCalls。已覆盖关键 release、impact、segment/feedback 证据且没有新的可判别 query shape 时，不得重复探索或为耗尽预算继续调用；应评估剩余证据并 FINALIZE 或明确 STOP_INCONCLUSIVE。",
+  "discriminatorPlanningContext 是服务端从当前 hypotheses、Evidence relations、readiness 和 tool history 推导的下一步调查视图。优先补足 discriminatorGaps，避免重复 attemptedQueryShapes 中相同 canonicalSignature；ATTEMPTED_EMPTY 和 ATTEMPTED_FAILED 也表示该 query shape 已尝试。若 suggestedTool=null，不得伪造工具能力，可有界 STOP_INCONCLUSIVE。",
   "ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。",
   "预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。",
   "FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。",
@@ -856,6 +958,10 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       })),
       pendingEvidenceIds: getPendingEvidence(aggregate).map((evidence) => evidence.id),
       knownInvestigationSlices: buildKnownInvestigationSlices(aggregate),
+      discriminatorPlanningContext: buildDiscriminatorPlanningContext(
+        aggregate,
+        context.runtimeGuidance,
+      ),
       evidenceReadiness: {
         categoriesPresent: [...new Set(aggregate.evidence.map((item) => item.category))].sort(),
         supportedHypotheses: aggregate.hypotheses.filter((item) =>
