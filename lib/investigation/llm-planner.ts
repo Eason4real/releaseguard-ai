@@ -18,7 +18,7 @@ import {
   type PlannerDecisionValidationObservation,
 } from "./planner";
 import type { InvestigationAggregate } from "./types";
-import { getPendingEvidence } from "./hypothesis-invariants";
+import { getActiveHypotheses, getPendingEvidence } from "./hypothesis-invariants";
 import { ModelCallBudgetExhaustedError } from "./model-call-budget";
 import {
   PlannerDecisionSemanticError,
@@ -692,7 +692,20 @@ async function validationObservation(input: {
 
 export const allowedPlannerRepairDecisionTypes = (
   error: PlannerDecisionValidationError | PlannerDecisionSemanticError,
+  context: {
+    aggregate?: InvestigationAggregate;
+    readiness?: string;
+    remainingToolCalls?: number;
+  } = {},
 ): InvestigationDecision["type"][] => {
+  if (error instanceof PlannerDecisionSemanticError
+    && error.code === "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED"
+    && context.aggregate
+    && getActiveHypotheses(context.aggregate).length > 0
+    && context.readiness === "NEEDS_COLLECTION"
+    && (context.remainingToolCalls ?? 0) > 0) {
+    return ["CALL_TOOL", "STOP_INCONCLUSIVE"];
+  }
   if (error instanceof PlannerDecisionSemanticError && error.grounding?.recoverable) {
     return [...GROUNDING_REPAIR_DECISION_TYPES];
   }
@@ -743,8 +756,12 @@ export const buildGroundingEvidenceInventory = (aggregate: InvestigationAggregat
 export const buildPlannerRepairFeedback = (
   error: PlannerDecisionValidationError | PlannerDecisionSemanticError,
   aggregate?: InvestigationAggregate,
+  context: { readiness?: string; remainingToolCalls?: number } = {},
 ) => {
-  const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(error);
+  const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(error, {
+    aggregate,
+    ...context,
+  });
   const contracts = allowedDecisionTypes.map((type) =>
     `${type}: ${formatPlannerDecisionContract(type)}`).join("\n");
   const groundingInventory = aggregate
@@ -772,6 +789,16 @@ export const buildPlannerRepairFeedback = (
         "也可以返回 CALL_TOOL 继续获取所需 Evidence；无法获取时返回 STOP_INCONCLUSIVE 安全停止。",
       ]
     : [];
+  const activeHypothesisRepairInstructions = allowedDecisionTypes.includes("CALL_TOOL")
+    && error instanceof PlannerDecisionSemanticError
+    && error.code === "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED"
+    ? [
+        "当前 Run 已存在 active Hypotheses；不得继续 CREATE_HYPOTHESES，也不得修改已有 Hypothesis 状态。",
+        "如果仍需调查，必须返回完整合法的 CALL_TOOL；如果没有合法 collection action，返回 STOP_INCONCLUSIVE。",
+        "若 testIntent=DISCRIMINATE，targetHypothesisIds 必须引用至少两个 active Hypothesis。",
+        "CALL_TOOL 仍必须通过现有 schema、semantic validation 和 duplicate guard。",
+      ]
+    : [];
   return [
     error.validationKind === "SCHEMA"
       ? "上一个 Planner response 未通过正式 schema validation。只修复 JSON contract，不改变无关业务判断。"
@@ -783,6 +810,7 @@ export const buildPlannerRepairFeedback = (
       ? `必须保持 decision type 为 ${allowedDecisionTypes[0]}；重新输出一个完整合法的该类型 InvestigationDecision。`
       : `本次 grounding repair 只能选择 ${allowedDecisionTypes.join("、")}；不得输出其他 decision type。`,
     ...segmentRepairInstructions,
+    ...activeHypothesisRepairInstructions,
     `正式 contract：\n${contracts}`,
     "必须只使用同一调查上下文中明确存在的 Evidence、Hypothesis 和工具；不得猜测或由服务端补全业务字段。仅按上述明确允许的动作删除 unsupported claim。仅输出修复后的完整 JSON。",
   ].filter((item): item is string => item !== null).join("\n");
@@ -897,10 +925,16 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       });
       const latencyMs = performance.now() - started;
       const content = response.choices?.[0]?.message?.content ?? "";
+      const stagedReadiness = (context.runtimeGuidance?.stagedArchitecture as
+        { readiness?: { status?: unknown } } | undefined)?.readiness?.status;
       try {
         const decision = parseInvestigationDecision(content, attemptIndex);
         if (repairError) {
-          const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(repairError);
+          const allowedDecisionTypes = allowedPlannerRepairDecisionTypes(repairError, {
+            aggregate,
+            readiness: typeof stagedReadiness === "string" ? stagedReadiness : undefined,
+            remainingToolCalls: context.remainingToolCalls,
+          });
           if (!allowedDecisionTypes.includes(decision.type)) {
             return validationError(
               "INVALID_FIELD_VALUE",
@@ -956,7 +990,10 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
         messages = [
           ...baseMessages,
           { role: "assistant", content },
-          { role: "user", content: buildPlannerRepairFeedback(error, aggregate) },
+          { role: "user", content: buildPlannerRepairFeedback(error, aggregate, {
+            readiness: typeof stagedReadiness === "string" ? stagedReadiness : undefined,
+            remainingToolCalls: context.remainingToolCalls,
+          }) },
         ];
       }
     }

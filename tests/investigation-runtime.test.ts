@@ -2630,6 +2630,91 @@ test("non-recoverable grounding repair remains restricted to FINALIZE", async ()
   assert.deepEqual(allowedPlannerRepairDecisionTypes(semanticError), ["FINALIZE"]);
 });
 
+test("hypothesis-limit repair narrowly permits collection transition only when collection is required", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED",
+    "CREATE_HYPOTHESES",
+    "hypotheses",
+    "too many active hypotheses",
+  );
+  const context = {
+    aggregate,
+    readiness: "NEEDS_COLLECTION",
+    remainingToolCalls: 3,
+  };
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, context), [
+    "CALL_TOOL", "STOP_INCONCLUSIVE",
+  ]);
+  const feedback = buildPlannerRepairFeedback(error, aggregate, context);
+  assert.match(feedback, /已存在 active Hypotheses/);
+  assert.match(feedback, /不得继续 CREATE_HYPOTHESES/);
+  assert.match(feedback, /完整合法的 CALL_TOOL/);
+  assert.match(feedback, /testIntent=DISCRIMINATE/);
+  assert.match(feedback, /duplicate guard/);
+});
+
+test("hypothesis-limit repair remains locked outside collection state or budget", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED",
+    "CREATE_HYPOTHESES",
+    "hypotheses",
+    "too many active hypotheses",
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "READY_FOR_CAUSAL", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 0,
+  }), ["CREATE_HYPOTHESES"]);
+});
+
+test("ordinary schema and semantic repairs do not gain cross-type replanning", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const schemaError = new PlannerDecisionValidationError(
+    "INVALID_JSON", "CREATE_HYPOTHESES", "$", "invalid JSON", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(schemaError, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+  const semanticError = new PlannerDecisionSemanticError(
+    "DUPLICATE_HYPOTHESIS", "CREATE_HYPOTHESES", "hypotheses[0].statement", "duplicate", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(semanticError, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+});
+
+test("allowed hypothesis-limit repair CALL_TOOL still uses the normal decision contract", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED", "CREATE_HYPOTHESES", "hypotheses", "too many", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CALL_TOOL", "STOP_INCONCLUSIVE"]);
+  const callTool = parseInvestigationDecision(JSON.stringify({
+    type: "CALL_TOOL",
+    toolName: "query_metric",
+    arguments: { metric_key: setup.event.metricKey },
+    targetHypothesisIds: setup.hypotheses.map((item) => item.id),
+    testIntent: "DISCRIMINATE",
+    rationale: "Test the competing hypotheses.",
+  }));
+  assert.equal(callTool.type, "CALL_TOOL");
+  validatePlannerDecisionSemantics(callTool, {
+    aggregate,
+    remainingIterations: 5,
+    remainingToolCalls: 3,
+    availableToolNames: ["query_metric"],
+  });
+});
+
 test("grounding repair can remove an unsupported segment claim", async () => {
   const setup = await groundedReadyInvestigation();
   const invalid = unsupportedSegmentFinalizeDecision(setup.aggregate);
