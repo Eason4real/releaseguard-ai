@@ -1,0 +1,57 @@
+{
+  "schema_version": "releaseguard-evaluation-scoring-v1",
+  "frozen_before_improvement": true,
+  "root_cause": {
+    "scale": {
+      "2": "Core cause, mechanism, and affected object agree with Gold.",
+      "1": "Correct component or causal direction, but mechanism is incomplete or has a secondary error.",
+      "0": "Cause conflicts with Gold, only restates symptoms, or makes an unsupported attribution.",
+      "N/A": "Evidence is objectively insufficient and the system correctly abstains."
+    },
+    "strict_correct_scores": [2],
+    "lenient_hit_scores": [1, 2]
+  },
+  "completion": {
+    "technical": [
+      "runtime_terminated_normally",
+      "output_schema_valid",
+      "no_unhandled_tool_state_or_approval_error"
+    ],
+    "business": [
+      "technical_completion",
+      "root_cause_or_explicit_insufficient_evidence",
+      "critical_evidence_traceable"
+    ]
+  },
+  "evidence": [
+    "citation_validity",
+    "citation_support",
+    "unsupported_claim_rate",
+    "critical_evidence_recall",
+    "support_and_contradiction_handling"
+  ],
+  "tools": [
+    "success_rate",
+    "invalid_argument_rate",
+    "duplicate_call_rate",
+    "no_information_gain_rate",
+    "mean_call_count",
+    "failure_recovery_rate",
+    "critical_tool_recall"
+  ],
+  "stability": {
+    "runs_per_case_per_system": 3,
+    "metrics": ["pass_at_1", "all_three_pass", "root_cause_consistency", "intervention_free_rate"]
+  },
+  "confidence_interval": {
+    "method": "wilson",
+    "confidence": 0.95
+  },
+  "judge": {
+    "enabled_only_for_semantic_boundaries": true,
+    "blind_system_name": true,
+    "randomize_system_output_order": true,
+    "low_confidence_requires_review": true,
+    "human_review_claim_prohibited_without_actual_review": true
+  }
+}

@@ -1,0 +1,2025 @@
+{
+  "schemaVersion": "investigation-live-benchmark-report-v1",
+  "reportStatus": "INCOMPLETE",
+  "label": "Live LLM Benchmark",
+  "manifest": {
+    "runId": "HARNESS-V5-RUN-1",
+    "datasetId": "INVESTIGATION-BENCHMARK-DEV",
+    "datasetVersion": "0.2.0",
+    "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "evaluationContractVersion": "phase1a-v2",
+    "telemetrySchemaVersion": "benchmark-observability-v3",
+    "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+    "executionProvider": "LIVE_LLM_PROVIDER",
+    "runtimeMode": "LIVE_LLM",
+    "enabledTools": [
+      "get_release",
+      "query_metric",
+      "segment_metric",
+      "search_user_feedback",
+      "search_similar_incidents"
+    ],
+    "modelConfiguration": {
+      "provider": "deepseek",
+      "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+      "baseUrl": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.1,
+      "topP": "PROVIDER_DEFAULT",
+      "maxOutputTokens": 5000,
+      "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+      "maxModelCalls": 20,
+      "toolBudget": 10,
+      "maxIterations": 16,
+      "timeoutMs": 75000,
+      "schemaRepairMax": 2,
+      "transportRetry": 2,
+      "fixtureQueryHints": true,
+      "harnessVersion": "V5",
+      "sourceIdentity": "sha256:13fb5483e633fa570a4a7d19d9649f020c3ac1ad08336712a1fc5b90620b375b",
+      "concurrency": 1,
+      "credentialPresent": true
+    },
+    "startedAt": "2026-09-02T08:45:14.384Z",
+    "completedAt": null,
+    "totalCases": 22,
+    "processedCases": 4,
+    "completedCases": 0,
+    "failedCases": 4,
+    "inconclusiveCases": 0
+  },
+  "cases": [
+    {
+      "caseId": "CASE-201",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 2,
+        "plannerValidationEvents": [
+          {
+            "iteration": 4,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "805eb8d001659cc77fdeeb82098bb9c1b6f012637df05ec2faa972dacdd03761",
+            "responseStructure": null
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 2,
+            "outcome": "REPAIR_FAILED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. Release 9.2.0 for Android changed CheckoutConfirmation and ReceiptScreen and went to full rollout just before the checkout completion drop (10:00-11:00), so I will frame competing explanations around the release change, a coincident upstream/dependency cause, and a measurement regression."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Comparing checkout_completion_rate by app_version on Android during the incident window will show whether the drop is isolated to 9.2.0 (supporting changed-flow hypotheses HYP-1/HYP-2) or also affects other Android versions (supporting external/dependency hypothesis HYP-3). If 9.2.0 is uniquely low, that discriminates HYP-1/HYP-2 from HYP-3; if older versions also drop, HYP-3 gains support."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "先处理当前唯一待评估 Evidence：它是 incident 窗口内 Android 按 app_version 的 checkout_completion_rate 分群结果。结果为 9.2.0 显著低于 9.1.4，因此该证据只直接证明异常是 9.2.0 版本专属，尚未触及具体机制，对各假设的可支持程度需据此区分。"
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Planner 没有返回可解析的 JSON object。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "checkout_completion_rate",
+              "start_time": "2031-01-01T10:00:00.000Z",
+              "end_time": "2031-01-01T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "dimension": "app_version",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-031"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-031",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "分群显示 9.2.0 的 checkout_completion_rate=0.61，而相同 Android 平台的旧版本 9.1.4=0.94，异常精确地落在新版发布之后的新版本上，符合 9.2.0 引入的 checkout_confirmation_v2 流程造成 Android 9.2.0 用户无法完成结账的预期。"
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "该分群证据只说明完成率下降集中在 9.2.0，无法区分是用户在付款前放弃还是付款成功但 ReceiptScreen 导致完成事件漏计；它既不支持也不反驳 ReceiptScreen 机制。"
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "该证据把异常隔离到 9.2.0 与 9.1.4 两个版本之间，既不能证明也不能排除后端/支付/外部依赖恰好只影响新版路径；需要 cart_add_rate 或支付环节观测来判断外部依赖是否参与。"
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The checkout_confirmation_v2 flow introduced in Android release 9.2.0 has a functional or UI regression that prevents Android 9.2.0 users from completing checkout.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The ReceiptScreen change in Android release 9.2.0 breaks post-payment return/confirmation handling, causing successful checkouts to be undercounted even though payments are being completed.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "A backend, payment-provider, or dependency issue coinciding with the 9.2.0 rollout, rather than the app code change itself, caused checkout completion to fail only for users on the newly released Android version.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 6,
+        "toolCallCount": 1,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "35d59adfe9f459fadf0f43258444761be81b6f768185e2d878855f7035d1170a"
+      },
+      "scoring": {
+        "caseId": "CASE-201",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-201",
+            "rootCause": "The Android 9.2.0 release regressed checkout confirmation behavior."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-202",
+      "category": "release_regression",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 3,
+        "plannerValidationEvents": [
+          {
+            "iteration": 6,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 6,
+            "attemptIndex": 1,
+            "outcome": "REPAIRED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "31d140b3424c8b42ff7be47a7f9a74923cd6e1a4a97a52c969a545e9825c3447",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "31d140b3424c8b42ff7be47a7f9a74923cd6e1a4a97a52c969a545e9825c3447",
+                "responseLength": 805,
+                "topLevelKeys": [
+                  "arguments",
+                  "queryValue",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "limit",
+                    "metricKey",
+                    "platform",
+                    "query",
+                    "version"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "queryValue",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "limit",
+                    "metricKey",
+                    "platform",
+                    "query",
+                    "version"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              }
+            }
+          },
+          {
+            "iteration": 9,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 9,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 9,
+            "attemptIndex": 2,
+            "outcome": "REPAIR_FAILED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "RISK-202 显示 Web 上 search_completion_rate 在 REL-202 全量发布后 1 小时开始下降 25%；需用竞争假设区分发布回归、后端/依赖故障与流量构成变化。"
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Compare Web search query volume during the breach window against its baseline. Stable or defined query volume would weaken HYP-3 composition/degradation-of-session-mix and point toward functional failure in HYP-1/HYP-2; sharply changed volume would keep segment-composition explanations viable. If EMPTY/no-data is returned, no volume inference is possible and next step will pivot to user feedback or similar incidents."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "当前 pending Evidence 为 search_query_count(Web, 10:00–11:00)的只读观测，需先将其纳入三个竞争假设的评估矩阵；查询量稳定略升与完成率下降并存，只能部分区分假设，不能据此改变服务端状态。"
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "用户反馈能提供机制层证据，帮助区分 REL-202 引入的 transport/RequestBudget 回归（HYP-57）与后端/网络性能故障（HYP-252）以及会话构成偏移（HYP-dd47）。若反馈集中在 web-31.4 且描述查询发起后被中止/超时，将支持 HYP-57 并削弱另两者；若反馈描述后端全局慢查询/错误或多版本受影响，将支持 HYP-252；若几乎无反馈或反馈指向正常搜索后放弃，则难以支持功能缺陷并可能支持构成偏移。该调用直接面向事发窗口和受影响版本用户，具有判别力。"
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "先处理未评估的当前事件用户反馈证据：EU-09b4 对应事发窗口 web-31.4 Web 用户报告 'request timed out' 与 'results disappear after several seconds'，与 REL-202 transport/RequestBudget 导致的请求中止/超时机制相容，因而支持 HYP-57；该反馈并不提供多版本/多平台或独立后端时序信息，无法确认 HYP-252 的外部依赖故障假设，也不反映低完成率会话构成偏移，故对其余两个假设均保持中性。"
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "HYP-57（REL-202 的 SearchTransport/RequestBudget 回归）已获当前事件支持，但还缺机制类证据；HYP-252（后端或网络性能故障，发布仅时间相关）与 HYP-57 在“是否局限于 web-31.4 且由 transport/budget 逻辑引发”上互相排斥。检索历史相似事故可按 version=web-31.4、platform=Web 和 search_completion_rate 区分释因：若历史事故指向同样的 web-31.4 transport/budget 超时则显著支持 HYP-57 并削弱 HYP-252；若显示多版本/平台同时受影响则支持 HYP-252；若返回无关或无匹配则按当前证据趋向收敛。"
+          },
+          {
+            "sequence": 7,
+            "iterationId": "ITERATION-007",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "必须先评估待处理的历史事故证据（EV-6ce6d376）。该证据仅提供一条历史相似事故标题'Index saturation during a seasonal catalog import'，未提供多版本/多平台共现、当前事件时间对齐或代码变更关联，因此对三个假说均不构成支持或反驳，全部标记为 NEUTRAL。"
+          },
+          {
+            "sequence": 8,
+            "iterationId": "ITERATION-008",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Previous feedback was filtered to web-31.4, masking whether timeouts also affect other Web versions. Broadening search_user_feedback to all Web versions for the incident window will distinguish a release-specific regression (H1) from a platform-wide backend/network failure (H2). If older/non-changed versions also show timeouts, H2 gains current-incident support and H1 is contradicted; if only web-31.4 appears, H1 remains the leading explanation and H2 can be rejected."
+          },
+          {
+            "sequence": 9,
+            "iterationId": "ITERATION-009",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Planner 没有返回可解析的 JSON object。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "search_query_count",
+              "start_time": "2031-01-02T10:00:00.000Z",
+              "end_time": "2031-01-02T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-051"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "search_user_feedback",
+            "arguments": {
+              "query": "abandoned search sessions timeout or error during search",
+              "startTime": "2031-01-02T09:00:00.000Z",
+              "endTime": "2031-01-02T11:00:00.000Z",
+              "platform": "Web",
+              "version": "web-31.4",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "matches"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-052"
+            ],
+            "error": null
+          },
+          {
+            "order": 3,
+            "iteration": 6,
+            "toolCallId": "TOOL_CALL-003",
+            "toolName": "search_similar_incidents",
+            "arguments": {
+              "query": "Web search sessions abandoned after requests time out or results disappear following SearchTransport RequestBudget change",
+              "metricKey": "search_completion_rate",
+              "platform": "Web",
+              "version": "web-31.4",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "matches"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-053"
+            ],
+            "error": null
+          },
+          {
+            "order": 4,
+            "iteration": 8,
+            "toolCallId": "TOOL_CALL-004",
+            "toolName": "search_user_feedback",
+            "arguments": {
+              "query": "Web search sessions time out or results disappear during search",
+              "startTime": "2031-01-02T09:00:00.000Z",
+              "endTime": "2031-01-02T11:00:00.000Z",
+              "platform": "Web",
+              "limit": 30
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "empty_reason",
+                "query_shape_hints",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-051",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-052",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "USER_FEEDBACK",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only search_user_feedback tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-053",
+            "toolCallId": "TOOL_CALL-003",
+            "category": "SIMILAR_INCIDENT",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only search_similar_incidents tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "事发窗口 Web 搜索查询量约等于基线(1.03 vs 1)，说明请求发起/输入流量未消失，与 REL-202 transport/RequestBudget 导致请求发出后中止或超时、用户未获结果即放弃的机制相容：前端仍收到查询但未完成。"
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "查询量稳定略升既不能证实也不能排除后端/网络性能故障：故障也可能表现为相同或略增的请求尝试后失败；该聚合观测不携带延迟、错误率或失败原因信息。"
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "该观测只有 Web 总查询量，没有 region/userType/客户端画像的分群信息，无法判断完成率下降是否由低完成率会话构成偏移驱动。"
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-052",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "事发窗口内 Web/web-31.4 用户反馈称搜索请求超时或结果数秒后消失，恰与 REL-202 发布后 search_transport_v3/RequestBudget 变更引发请求中止/超时的机制一致；这与查询量稳定但完成率下降的时序证据相互印证。"
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-052",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "超时/结果消失本身也与后端或网络性能故障相容，但该反馈按 web-31.4 检索，未包含其他版本或平台同时受影响的证据，无法支持'多版本/平台共现且发布仅时间相关'的外部依赖假设，也不能排除该假设。"
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-052",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "反馈虽带 AU/SG 区域标签，但样本量过小且内容描述的是请求失败而非低完成率新会话涌入，不能证明完成率下降由特定 region/userType/画像的会话构成偏移驱动。"
+          },
+          {
+            "iteration": 7,
+            "evidenceId": "EV-053",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "历史事故描述的是季节目录导入导致索引饱和，并未指向 web-31.4 的 search_transport_v3/RequestBudget 代码回归；不具有支持或反驳发布缺陷机制的判别力。"
+          },
+          {
+            "iteration": 7,
+            "evidenceId": "EV-053",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "索引饱和类后端故障在机制上可能造成超时/结果消失，但该证据未提供当前后端依赖事件的时间对齐、也未显示多版本/平台同时受影响，不足以支持'REL-202 仅为时间相关'的替代解释，也不构成反驳。"
+          },
+          {
+            "iteration": 7,
+            "evidenceId": "EV-053",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "该历史事故未包含 region/userType/会话构成的分群信息，无法支持或反驳低完成率会话构成偏移的假说。"
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 6,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 7,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 6,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 6,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 7,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 7,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-202 引入的 search_transport_v3/RequestBudget 变更存在回归，导致 Web 搜索请求被中止或超时，用户未获得结果便放弃会话，拉低 search_completion_rate。",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 6,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "事发时段 Web 搜索依赖的后端服务或网络发生性能故障，导致搜索请求变慢/失败、用户放弃会话；REL-202 发布仅为时间上相关而非原因。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "事发窗口内 Web 搜索会话的构成发生偏移（例如某地区、用户类型或异常流量进入大量低完成率会话），稀释了整体 search_completion_rate，并无功能缺陷。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 12,
+        "toolCallCount": 4,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "4057a6b1db69eec90a72759bb5b6f5cdb208fe03386212d83e1c4dc4e5535d4d"
+      },
+      "scoring": {
+        "caseId": "CASE-202",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-202",
+            "rootCause": "The web release regressed search request timeout handling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-203",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 4,
+        "plannerValidationEvents": [
+          {
+            "iteration": 4,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "d5ecb37d9e54bb5c89571c91cb2a6864f7077424eff123469fc77d1d266bdb21",
+            "responseStructure": null
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 2,
+            "outcome": "REPAIRED",
+            "validationKind": "SCHEMA",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "ebb2ef7e0c3d9cb3c002c548953f3d9ebd9fbc2e76cc5c65c8a7f7a11ba51230",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "ebb2ef7e0c3d9cb3c002c548953f3d9ebd9fbc2e76cc5c65c8a7f7a11ba51230",
+                "responseLength": 1374,
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "endTime",
+                    "limit",
+                    "platform",
+                    "query",
+                    "startTime",
+                    "version"
+                  ],
+                  "targetHypothesisIdsCount": 3
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "endTime",
+                    "limit",
+                    "platform",
+                    "query",
+                    "startTime",
+                    "version"
+                  ],
+                  "targetHypothesisIdsCount": 3
+                }
+              }
+            }
+          },
+          {
+            "iteration": 6,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 6,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 6,
+            "attemptIndex": 2,
+            "outcome": "REPAIR_FAILED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No competing hypotheses exist yet for crash-free session drop isolated to staged iOS 12.0.0 cohort. Proposed alternatives center on the changed DeepLinkRouter module, staged-cohort composition/measurement artifact, and external/OS-level crash causes to allow later discrimination via release facts, feedback, and segment evidence."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "当前无任何已收集证据。该查询按 app_version 对 iOS 的 crash_free_session_rate 分组，可检验异常是否仅存在于 12.0.0（支持版本内代码缺陷或该版本特有外部因素）还是在多个 iOS 版本同时出现（支持测量/环境因素）。它直接区分 HYP-1/HYP-3 与 HYP-2，并为后续归因提供分段基线；若返回 EMPTY 则转向用户反馈证据。"
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Process pending segment_metric evidence before planning next tool call. The breakdown isolates the crash-free dip to appVersion 12.0.0 (0.89, n=900) against healthy 11.9.2 (0.995, n=3100) on iOS, which is consistent with a code-induced defect but does not yet link it to DeepLinkRouter; it also does not discriminate artifact/environment hypotheses without additional feedback or context."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "This feedback search differentiates the DeepLinkRouter defect hypothesis (HYP-6bab70b1) from the staged-cohort/instrumentation artifact hypothesis (HYP-54914514) and external environmental hypothesis (HYP-67050db2). SUCCESS: reports of crashes or deep-link failures on iOS 12.0.0 during the incident window would support HYP-6bab70b1 and contradict HYP-54914514; reports tied to OS/network/region rather than routing would support HYP-67050db2. After evaluating results I will assess all three hypotheses and either FINALIZE if one clearly wins or continue with a discriminating segment_metric slice (e.g., user_type or region) if evidence remains ambiguous. EMPTY/NO_MATCH: no user-facing crash or deep-link symptom reports would weaken the code-defect mechanism and favor the artifact/external explanations, leading me to request a different segment dimension or STOP_INCONCLUSIVE if no further discriminating query shape is available."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "The pending user feedback evidence contains a single unrelated UI polish issue (settings label truncation on small screen) rather than any crash or deep-link report, so it lacks discriminating power across the three hypotheses and must be marked neutral for all."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Planner 没有返回可解析的 JSON object。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "crash_free_session_rate",
+              "start_time": "2031-01-03T10:00:00.000Z",
+              "end_time": "2031-01-03T11:00:00.000Z",
+              "filters": {
+                "platform": "iOS"
+              },
+              "dimension": "app_version",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-071"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "search_user_feedback",
+            "arguments": {
+              "query": "crash after iOS 12.0.0 update deep link",
+              "platform": "iOS",
+              "version": "12.0.0",
+              "startTime": "2031-01-03T10:00:00.000Z",
+              "endTime": "2031-01-03T11:00:00.000Z",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "matches"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-072"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-071",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-072",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "USER_FEEDBACK",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only search_user_feedback tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "Shows crash-free-session loss is isolated to appVersion 12.0.0 while 11.9.2 remains healthy on the same platform, matching the staged-code-defect signature; it does not yet confirm DeepLinkRouter as the cause."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The version-specific concentration is also compatible with a version-bound instrumentation or cohort artifact, so this observation neither confirms nor refutes the non-code artifact explanation."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "No platform/OS/region/network variable beyond iOS is present in this breakdown, so it cannot yet distinguish an external environmental cause from code or artifact explanations; absence of impact on 11.9.2 is only weak context."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-072",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "The feedback is about truncated settings label text, not a crash or deep-link failure; it does not confirm the DeepLinkRouter crash mechanism and is too weak and off-target to refute it."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-072",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "A non-crash UI rendering issue neither supports nor refutes the staged-rollout composition/instrumentation artifact explanation for the crash-free-session drop."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-072",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The feedback is unrelated to platform/OS/region/network factors and does not provide any signal about an external environmental cause."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "A defect introduced in iOS 12.0.0's DeepLinkRouter changes causes crashes during deep-link handling, lowering crash-free session rate only in the staged iOS cohort.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The staged iOS 12.0.0 cohort's lower crash-free session rate is not caused by new app code but by a composition or instrumentation artifact of the staged rollout (e.g., session-counting/SDK issue or biased user segment), not a genuine crash defect.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "An external or environmental factor (e.g., iOS-specific OS incompatibility, third-party service failure, or region/network condition) disproportionately crashes sessions for the staged iOS 12.0.0 cohort, independent of the DeepLinkRouter code change.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 10,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "afe26ddf350f21da66076b0e381c3db28466f7404570f94b025ad95758c024ea"
+      },
+      "scoring": {
+        "caseId": "CASE-203",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-203",
+            "rootCause": "The staged iOS 12.0.0 release introduced a crash regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-204",
+      "category": "release_regression",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 2,
+        "plannerValidationEvents": [
+          {
+            "iteration": 2,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 2,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 2,
+            "attemptIndex": 2,
+            "outcome": "REPAIR_FAILED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "问题要求比较 REL-204 与 REL-904 并确定哪个变更与失败一致。当前只有 REL-204 的上下文，REL-904 尚待读取；先建立两个候选 release 分别为根因的假设及一个外部因素竞争假设，便于后续用 release 信息、指标和反馈判别。"
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Planner 没有返回可解析的 JSON object。"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-204 的 ReceiptTheme 变更（web-44.2）导致 Web 端 purchase_success_rate 在 2031-01-04T10:00-11:00 UTC 下降。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "REL-904 的变更（待核实发布信息）导致 Web 端 purchase_success_rate 在 2031-01-04T10:00-11:00 UTC 下降。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "失败根因既不在 REL-204 也不在 REL-904 中，而是外部服务或基础环境波动所致。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 4,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "96ab802de473115eb5265c6c722943a3cd26083ee20897a228df1e2fdb9656f0"
+      },
+      "scoring": {
+        "caseId": "CASE-204",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-204",
+            "rootCause": "The earlier purchase response adapter release introduced an incompatible response format."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    }
+  ],
+  "aggregate": {
+    "totalCases": 4,
+    "completedCases": 0,
+    "failedCases": 4,
+    "inconclusiveCases": 0,
+    "rootCauseTop1Accuracy": null,
+    "rootCauseExactMatchAccuracy": null,
+    "rootCauseSemanticAccuracy": null,
+    "automaticallyEvaluatedCases": 0,
+    "correctCases": 0,
+    "incorrectCases": 0,
+    "reviewRequiredCases": 0,
+    "runtimeFailedCases": 4,
+    "autoEvaluationCoverage": 0,
+    "autoEvaluableAccuracy": null,
+    "meanEvidencePrecision": 0,
+    "meanUnsupportedClaimRate": null,
+    "groundingEvaluableCases": 0,
+    "groundingUnavailableCases": 4,
+    "medianModelCalls": 0,
+    "medianToolCalls": 0,
+    "totalModelCalls": 0,
+    "totalToolCalls": 0,
+    "plannerValidationFailures": 4,
+    "plannerDecisionRepairAttempts": 11,
+    "plannerDecisionRepairSuccesses": 2,
+    "plannerDecisionRepairRate": 0.18181818181818182,
+    "plannerFirstAttemptSuccessRate": 0.7142857142857143,
+    "plannerFinalSuccessRate": 0.8095238095238095,
+    "errorTaxonomyCounts": {
+      "PLANNER_SCHEMA_ERROR": 4,
+      "INVALID_PLANNER_DECISION": 0,
+      "RUNTIME_ERROR": 0
+    },
+    "groundedContractMismatches": 0,
+    "tokenUsage": {
+      "inputTokens": null,
+      "outputTokens": null,
+      "totalTokens": null,
+      "completeness": "UNAVAILABLE"
+    },
+    "totalDurationMs": null,
+    "estimatedOrActualCost": null
+  },
+  "breakdown": {
+    "category": {
+      "release_regression": {
+        "totalCases": 4,
+        "completedCases": 0,
+        "failedCases": 4,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 4,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 4,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 4,
+        "plannerDecisionRepairAttempts": 11,
+        "plannerDecisionRepairSuccesses": 2,
+        "plannerDecisionRepairRate": 0.18181818181818182,
+        "plannerFirstAttemptSuccessRate": 0.7142857142857143,
+        "plannerFinalSuccessRate": 0.8095238095238095,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 4,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "totalCases": 2,
+        "completedCases": 0,
+        "failedCases": 2,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 2,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 2,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 2,
+        "plannerDecisionRepairAttempts": 6,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 0.16666666666666666,
+        "plannerFirstAttemptSuccessRate": 0.7,
+        "plannerFinalSuccessRate": 0.8,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 2,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "HARD": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 1,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 1,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 1,
+        "plannerDecisionRepairAttempts": 2,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": 0,
+        "plannerFirstAttemptSuccessRate": 0.5,
+        "plannerFinalSuccessRate": 0.5,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 1,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "MEDIUM": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 1,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 1,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 1,
+        "plannerDecisionRepairAttempts": 3,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 0.3333333333333333,
+        "plannerFirstAttemptSuccessRate": 0.7777777777777778,
+        "plannerFinalSuccessRate": 0.8888888888888888,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 1,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      }
+    }
+  },
+  "semanticHash": "f30d068721871e0b23866aae147afe08d60f8f95609a0d51ac49b91920f87316"
+}

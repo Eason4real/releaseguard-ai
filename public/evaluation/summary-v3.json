@@ -1,0 +1,1883 @@
+{
+  "schemaVersion": "releaseguard-v2-v3-comparison-summary-v1",
+  "generatedAt": "2026-09-02T04:14:42.969Z",
+  "evaluationVersion": "0.2.0-harness-v3",
+  "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+  "improvedSourceDiffSha256": "ba4a80bf149e6f9dfc62def0fe194e60417cec241ce0ecd45ebf33c1eb467d38  -",
+  "dataset": {
+    "cases": 22,
+    "runsPerSystem": 3,
+    "trialsPerSystem": 66,
+    "hash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "frozenArtifactSha256": "dcc805265a0ba6f419b4edde4258848e183914b9a656939ff1b82ed33fdf5d27",
+    "sourceClassDistribution": {
+      "repository_native": 6,
+      "synthetic": 16
+    },
+    "incidentTypeDistribution": {
+      "configuration": 4,
+      "insufficient_evidence": 4,
+      "release_regression": 5,
+      "unknown": 3,
+      "upstream_dependency": 3,
+      "user_feedback": 3
+    },
+    "difficultyDistribution": {
+      "EASY": 6,
+      "HARD": 5,
+      "MEDIUM": 11
+    },
+    "claimBoundary": "22 governed offline reconstructed cases: 16 synthetic and 6 repository-native. They are not 22 independently sourced public postmortems and are not production enterprise data."
+  },
+  "model": {
+    "schema_version": "releaseguard-evaluation-model-v1",
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "temperature": 0.1,
+    "top_p": "provider_default",
+    "max_output_tokens": 5000,
+    "request_timeout_ms": 75000,
+    "transport_retries": 0,
+    "schema_repairs": 1,
+    "current_agent": {
+      "max_model_calls": 20,
+      "max_tool_calls": 10,
+      "max_iterations": 16
+    },
+    "concurrency": 1,
+    "pricing": {
+      "currency": "USD",
+      "unit_tokens": 1000000,
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "as_of": "2026-08-31",
+      "peak": {
+        "input_cache_miss": 0.44,
+        "output": 1.32
+      },
+      "off_peak": {
+        "input_cache_miss": 0.22,
+        "output": 0.66
+      },
+      "cache_hit_not_assumed": true
+    }
+  },
+  "scoring": {
+    "schema_version": "releaseguard-evaluation-scoring-v1",
+    "frozen_before_improvement": true,
+    "root_cause": {
+      "scale": {
+        "0": "Cause conflicts with Gold, only restates symptoms, or makes an unsupported attribution.",
+        "1": "Correct component or causal direction, but mechanism is incomplete or has a secondary error.",
+        "2": "Core cause, mechanism, and affected object agree with Gold.",
+        "N/A": "Evidence is objectively insufficient and the system correctly abstains."
+      },
+      "strict_correct_scores": [
+        2
+      ],
+      "lenient_hit_scores": [
+        1,
+        2
+      ]
+    },
+    "completion": {
+      "technical": [
+        "runtime_terminated_normally",
+        "output_schema_valid",
+        "no_unhandled_tool_state_or_approval_error"
+      ],
+      "business": [
+        "technical_completion",
+        "root_cause_or_explicit_insufficient_evidence",
+        "critical_evidence_traceable"
+      ]
+    },
+    "evidence": [
+      "citation_validity",
+      "citation_support",
+      "unsupported_claim_rate",
+      "critical_evidence_recall",
+      "support_and_contradiction_handling"
+    ],
+    "tools": [
+      "success_rate",
+      "invalid_argument_rate",
+      "duplicate_call_rate",
+      "no_information_gain_rate",
+      "mean_call_count",
+      "failure_recovery_rate",
+      "critical_tool_recall"
+    ],
+    "stability": {
+      "runs_per_case_per_system": 3,
+      "metrics": [
+        "pass_at_1",
+        "all_three_pass",
+        "root_cause_consistency",
+        "intervention_free_rate"
+      ]
+    },
+    "confidence_interval": {
+      "method": "wilson",
+      "confidence": 0.95
+    },
+    "judge": {
+      "enabled_only_for_semantic_boundaries": true,
+      "blind_system_name": true,
+      "randomize_system_output_order": true,
+      "low_confidence_requires_review": true,
+      "human_review_claim_prohibited_without_actual_review": true
+    }
+  },
+  "systems": [
+    {
+      "system": "DIRECT_LLM",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 65,
+        "total": 66,
+        "proportion": 0.9848,
+        "lower": 0.919,
+        "upper": 0.9973
+      },
+      "businessCompletion": {
+        "successes": 64,
+        "total": 66,
+        "proportion": 0.9697,
+        "lower": 0.8961,
+        "upper": 0.9917
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 48,
+          "total": 66,
+          "proportion": 0.7273,
+          "lower": 0.6096,
+          "upper": 0.82
+        },
+        "score1Or2Lenient": {
+          "successes": 54,
+          "total": 66,
+          "proportion": 0.8182,
+          "lower": 0.7085,
+          "upper": 0.8928
+        },
+        "meanScore": 1.5455,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 245,
+          "total": 245,
+          "proportion": 1,
+          "lower": 0.9846,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.6569,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 65,
+        "meanCriticalEvidenceRecall": 0.9798,
+        "supportAndContradictionHandled": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "allThreeTechnical": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "terminalStateConsistency": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "rootScoreConsistency": {
+          "successes": 18,
+          "total": 22,
+          "proportion": 0.8182,
+          "lower": 0.6148,
+          "upper": 0.9269
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 7829.5,
+        "durationMsP95": 15510.8,
+        "durationMsTotal": 604690.7,
+        "durationAvailableTrials": 66,
+        "modelCallsTotal": 66,
+        "modelCallsMean": 1,
+        "toolCallsTotal": 0,
+        "toolCallsMean": 0,
+        "schemaRepairsOrRetriesTotal": 0,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 54618,
+          "outputTokens": 65534,
+          "totalTokens": 120152,
+          "estimatedUsd": 0.110537,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 54618,
+          "outputTokens": 65534,
+          "totalTokens": 120152,
+          "estimatedUsd": 0.055268,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "FINALIZED": 65,
+        "FAILED": 1
+      },
+      "errors": {
+        "Expected ',' or '}' after property value in JSON at position 1118 (line 1 column 1119)": 1
+      }
+    },
+    {
+      "system": "CURRENT_AGENT",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 53,
+        "total": 66,
+        "proportion": 0.803,
+        "lower": 0.6916,
+        "upper": 0.8811
+      },
+      "businessCompletion": {
+        "successes": 15,
+        "total": 66,
+        "proportion": 0.2273,
+        "lower": 0.1429,
+        "upper": 0.3417
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 16,
+          "total": 66,
+          "proportion": 0.2424,
+          "lower": 0.1551,
+          "upper": 0.3581
+        },
+        "score1Or2Lenient": {
+          "successes": 22,
+          "total": 66,
+          "proportion": 0.3333,
+          "lower": 0.2316,
+          "upper": 0.4534
+        },
+        "meanScore": 0.5758,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 71,
+          "total": 71,
+          "proportion": 1,
+          "lower": 0.9487,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.2197,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 15,
+        "meanCriticalEvidenceRecall": 0.5328,
+        "supportAndContradictionHandled": {
+          "successes": 36,
+          "total": 66,
+          "proportion": 0.5455,
+          "lower": 0.4262,
+          "upper": 0.6598
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 18,
+          "total": 22,
+          "proportion": 0.8182,
+          "lower": 0.6148,
+          "upper": 0.9269
+        },
+        "allThreeTechnical": {
+          "successes": 11,
+          "total": 22,
+          "proportion": 0.5,
+          "lower": 0.3072,
+          "upper": 0.6928
+        },
+        "terminalStateConsistency": {
+          "successes": 6,
+          "total": 22,
+          "proportion": 0.2727,
+          "lower": 0.1315,
+          "upper": 0.4815
+        },
+        "rootScoreConsistency": {
+          "successes": 13,
+          "total": 22,
+          "proportion": 0.5909,
+          "lower": 0.3873,
+          "upper": 0.7674
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 131237.9,
+        "durationMsP95": 317066.4,
+        "durationMsTotal": 8510602.3,
+        "durationAvailableTrials": 53,
+        "modelCallsTotal": 627,
+        "modelCallsMean": 9.5,
+        "toolCallsTotal": 323,
+        "toolCallsMean": 4.8939,
+        "schemaRepairsOrRetriesTotal": 74,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 1869788,
+          "outputTokens": 971457,
+          "totalTokens": 2841245,
+          "estimatedUsd": 2.10503,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 1869788,
+          "outputTokens": 971457,
+          "totalTokens": 2841245,
+          "estimatedUsd": 1.052515,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 38,
+        "FAILED": 13,
+        "FINALIZED": 15
+      },
+      "errors": {
+        "PLANNER_SCHEMA_ERROR": 9,
+        "RUNTIME_ERROR": 4
+      }
+    },
+    {
+      "system": "IMPROVED_AGENT",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 43,
+        "total": 66,
+        "proportion": 0.6515,
+        "lower": 0.5311,
+        "upper": 0.7552
+      },
+      "businessCompletion": {
+        "successes": 12,
+        "total": 66,
+        "proportion": 0.1818,
+        "lower": 0.1072,
+        "upper": 0.2915
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 9,
+          "total": 66,
+          "proportion": 0.1364,
+          "lower": 0.0734,
+          "upper": 0.2393
+        },
+        "score1Or2Lenient": {
+          "successes": 20,
+          "total": 66,
+          "proportion": 0.303,
+          "lower": 0.2055,
+          "upper": 0.4222
+        },
+        "meanScore": 0.4394,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 73,
+          "total": 73,
+          "proportion": 1,
+          "lower": 0.95,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.2424,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 17,
+        "meanCriticalEvidenceRecall": 0.3889,
+        "supportAndContradictionHandled": {
+          "successes": 29,
+          "total": 66,
+          "proportion": 0.4394,
+          "lower": 0.3263,
+          "upper": 0.5592
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 19,
+          "total": 22,
+          "proportion": 0.8636,
+          "lower": 0.6667,
+          "upper": 0.9525
+        },
+        "allThreeTechnical": {
+          "successes": 2,
+          "total": 22,
+          "proportion": 0.0909,
+          "lower": 0.0253,
+          "upper": 0.2781
+        },
+        "terminalStateConsistency": {
+          "successes": 1,
+          "total": 22,
+          "proportion": 0.0455,
+          "lower": 0.0081,
+          "upper": 0.218
+        },
+        "rootScoreConsistency": {
+          "successes": 7,
+          "total": 22,
+          "proportion": 0.3182,
+          "lower": 0.1636,
+          "upper": 0.5268
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 153698.4,
+        "durationMsP95": 422561.9,
+        "durationMsTotal": 7981106.1,
+        "durationAvailableTrials": 43,
+        "modelCallsTotal": 477,
+        "modelCallsMean": 7.2273,
+        "toolCallsTotal": 226,
+        "toolCallsMean": 3.4242,
+        "schemaRepairsOrRetriesTotal": 64,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 1700755,
+          "outputTokens": 929373,
+          "totalTokens": 2630128,
+          "estimatedUsd": 1.975105,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 1700755,
+          "outputTokens": 929373,
+          "totalTokens": 2630128,
+          "estimatedUsd": 0.987552,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 26,
+        "FINALIZED": 17,
+        "FAILED": 23
+      },
+      "errors": {
+        "PLANNER_SCHEMA_ERROR": 1,
+        "RUNTIME_ERROR": 22
+      }
+    },
+    {
+      "system": "HARNESS_V2",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 62,
+        "total": 66,
+        "proportion": 0.9394,
+        "lower": 0.8543,
+        "upper": 0.9762
+      },
+      "businessCompletion": {
+        "successes": 24,
+        "total": 66,
+        "proportion": 0.3636,
+        "lower": 0.2581,
+        "upper": 0.4842
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 19,
+          "total": 66,
+          "proportion": 0.2879,
+          "lower": 0.1927,
+          "upper": 0.4064
+        },
+        "score1Or2Lenient": {
+          "successes": 31,
+          "total": 66,
+          "proportion": 0.4697,
+          "lower": 0.3543,
+          "upper": 0.5884
+        },
+        "meanScore": 0.7576,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; v2 identities hidden and run order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 144,
+          "total": 144,
+          "proportion": 1,
+          "lower": 0.974,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.3889,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 29,
+        "meanCriticalEvidenceRecall": 0.6894,
+        "supportAndContradictionHandled": {
+          "successes": 42,
+          "total": 66,
+          "proportion": 0.6364,
+          "lower": 0.5158,
+          "upper": 0.7419
+        }
+      },
+      "tools": {
+        "calls": 329,
+        "success": {
+          "successes": 329,
+          "total": 329,
+          "proportion": 1,
+          "lower": 0.9885,
+          "upper": 1
+        },
+        "empty": {
+          "successes": 179,
+          "total": 329,
+          "proportion": 0.5441,
+          "lower": 0.4901,
+          "upper": 0.5971
+        },
+        "meanCallsPerTrial": 4.9848,
+        "disclosure": "EMPTY is a valid no-information result, not a transport failure."
+      },
+      "stability": {
+        "passAt1Technical": {
+          "successes": 19,
+          "total": 22,
+          "proportion": 0.8636,
+          "lower": 0.6667,
+          "upper": 0.9525
+        },
+        "allThreeTechnical": {
+          "successes": 19,
+          "total": 22,
+          "proportion": 0.8636,
+          "lower": 0.6667,
+          "upper": 0.9525
+        },
+        "terminalStateConsistency": {
+          "successes": 11,
+          "total": 22,
+          "proportion": 0.5,
+          "lower": 0.3072,
+          "upper": 0.6928
+        },
+        "rootScoreConsistency": {
+          "successes": 13,
+          "total": 22,
+          "proportion": 0.5909,
+          "lower": 0.3873,
+          "upper": 0.7674
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        }
+      },
+      "performance": {
+        "durationMsP50": 184551.9,
+        "durationMsP95": 326948.4,
+        "durationMsTotal": 12407033.4,
+        "durationAvailableTrials": 62,
+        "modelCallsTotal": 697,
+        "modelCallsMean": 10.5606,
+        "toolCallsTotal": 329,
+        "toolCallsMean": 4.9848,
+        "schemaRepairsOrRetriesTotal": 110,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 2603923,
+          "outputTokens": 1431315,
+          "totalTokens": 4035238,
+          "estimatedUsd": 3.035062,
+          "assumption": "All input tokens priced as cache misses; failed-trial token telemetry may be incomplete."
+        },
+        "offPeakCost": {
+          "inputTokens": 2603923,
+          "outputTokens": 1431315,
+          "totalTokens": 4035238,
+          "estimatedUsd": 1.517531,
+          "assumption": "All input tokens priced as cache misses; failed-trial token telemetry may be incomplete."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 33,
+        "FINALIZED": 29,
+        "FAILED": 4
+      },
+      "errors": {
+        "PROVIDER_MALFORMED_RESPONSE": 3,
+        "PARTIAL token usage requires some, but not all, token counts.": 1
+      }
+    },
+    {
+      "system": "HARNESS_V3",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 62,
+        "total": 66,
+        "proportion": 0.9394,
+        "lower": 0.8543,
+        "upper": 0.9762
+      },
+      "businessCompletion": {
+        "successes": 31,
+        "total": 66,
+        "proportion": 0.4697,
+        "lower": 0.3543,
+        "upper": 0.5884
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 24,
+          "total": 66,
+          "proportion": 0.3636,
+          "lower": 0.2581,
+          "upper": 0.4842
+        },
+        "score1Or2Lenient": {
+          "successes": 37,
+          "total": 66,
+          "proportion": 0.5606,
+          "lower": 0.4408,
+          "upper": 0.6737
+        },
+        "meanScore": 0.9242,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; v3 identity hidden and run order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 201,
+          "total": 201,
+          "proportion": 1,
+          "lower": 0.9812,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.5619,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 44,
+        "meanCriticalEvidenceRecall": 0.7525,
+        "supportAndContradictionHandled": {
+          "successes": 55,
+          "total": 66,
+          "proportion": 0.8333,
+          "lower": 0.7257,
+          "upper": 0.9043
+        }
+      },
+      "tools": {
+        "calls": 204,
+        "success": {
+          "successes": 204,
+          "total": 204,
+          "proportion": 1,
+          "lower": 0.9815,
+          "upper": 1
+        },
+        "empty": {
+          "successes": 35,
+          "total": 204,
+          "proportion": 0.1716,
+          "lower": 0.126,
+          "upper": 0.2293
+        },
+        "meanCallsPerTrial": 3.0909,
+        "disclosure": "EMPTY is a valid no-information result, not a transport failure."
+      },
+      "stability": {
+        "passAt1Technical": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "allThreeTechnical": {
+          "successes": 19,
+          "total": 22,
+          "proportion": 0.8636,
+          "lower": 0.6667,
+          "upper": 0.9525
+        },
+        "terminalStateConsistency": {
+          "successes": 12,
+          "total": 22,
+          "proportion": 0.5455,
+          "lower": 0.3466,
+          "upper": 0.7308
+        },
+        "rootScoreConsistency": {
+          "successes": 9,
+          "total": 22,
+          "proportion": 0.4091,
+          "lower": 0.2326,
+          "upper": 0.6127
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        }
+      },
+      "performance": {
+        "durationMsP50": 153962.2,
+        "durationMsP95": 299390.9,
+        "durationMsTotal": 10502755,
+        "durationAvailableTrials": 62,
+        "modelCallsTotal": 606,
+        "modelCallsMean": 9.1818,
+        "toolCallsTotal": 204,
+        "toolCallsMean": 3.0909,
+        "schemaRepairsOrRetriesTotal": 97,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 2794449,
+          "outputTokens": 1167570,
+          "totalTokens": 3962019,
+          "estimatedUsd": 2.77075,
+          "assumption": "All input tokens priced as cache misses; actual billing may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 2794449,
+          "outputTokens": 1167570,
+          "totalTokens": 3962019,
+          "estimatedUsd": 1.385375,
+          "assumption": "All input tokens priced as cache misses; actual billing may differ."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 18,
+        "FINALIZED": 44,
+        "FAILED": 4
+      },
+      "errors": {
+        "PROVIDER_MALFORMED_RESPONSE": 3,
+        "PROVIDER_FAILURE": 1
+      }
+    }
+  ],
+  "slices": {
+    "category": {
+      "configuration": {
+        "DIRECT_LLM": {
+          "trials": 12,
+          "technical": {
+            "successes": 11,
+            "total": 12,
+            "proportion": 0.9167,
+            "lower": 0.6461,
+            "upper": 0.9851
+          },
+          "score2": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "meanScore": 1.3333
+        },
+        "CURRENT_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 7,
+            "total": 12,
+            "proportion": 0.5833,
+            "lower": 0.3195,
+            "upper": 0.8067
+          },
+          "score2": {
+            "successes": 2,
+            "total": 12,
+            "proportion": 0.1667,
+            "lower": 0.047,
+            "upper": 0.448
+          },
+          "meanScore": 0.3333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "score2": {
+            "successes": 1,
+            "total": 12,
+            "proportion": 0.0833,
+            "lower": 0.0149,
+            "upper": 0.3539
+          },
+          "meanScore": 0.3333
+        },
+        "HARNESS_V2": {
+          "trials": 12,
+          "technical": {
+            "successes": 11,
+            "total": 12,
+            "proportion": 0.9167,
+            "lower": 0.6461,
+            "upper": 0.9851
+          },
+          "score2": {
+            "successes": 4,
+            "total": 12,
+            "proportion": 0.3333,
+            "lower": 0.1381,
+            "upper": 0.6094
+          },
+          "meanScore": 1
+        },
+        "HARNESS_V3": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 7,
+            "total": 12,
+            "proportion": 0.5833,
+            "lower": 0.3195,
+            "upper": 0.8067
+          },
+          "meanScore": 1.3333
+        }
+      },
+      "insufficient_evidence": {
+        "DIRECT_LLM": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 9,
+            "total": 12,
+            "proportion": 0.75,
+            "lower": 0.4677,
+            "upper": 0.9111
+          },
+          "meanScore": 1.5833
+        },
+        "IMPROVED_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "score2": {
+            "successes": 4,
+            "total": 12,
+            "proportion": 0.3333,
+            "lower": 0.1381,
+            "upper": 0.6094
+          },
+          "meanScore": 0.8333
+        },
+        "HARNESS_V2": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 7,
+            "total": 12,
+            "proportion": 0.5833,
+            "lower": 0.3195,
+            "upper": 0.8067
+          },
+          "meanScore": 1.1667
+        },
+        "HARNESS_V3": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 4,
+            "total": 12,
+            "proportion": 0.3333,
+            "lower": 0.1381,
+            "upper": 0.6094
+          },
+          "meanScore": 0.6667
+        }
+      },
+      "release_regression": {
+        "DIRECT_LLM": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 6,
+            "total": 15,
+            "proportion": 0.4,
+            "lower": 0.1982,
+            "upper": 0.6425
+          },
+          "meanScore": 1.1333
+        },
+        "CURRENT_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 12,
+            "total": 15,
+            "proportion": 0.8,
+            "lower": 0.5481,
+            "upper": 0.9295
+          },
+          "score2": {
+            "successes": 0,
+            "total": 15,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2039
+          },
+          "meanScore": 0.1333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 10,
+            "total": 15,
+            "proportion": 0.6667,
+            "lower": 0.4171,
+            "upper": 0.8482
+          },
+          "score2": {
+            "successes": 1,
+            "total": 15,
+            "proportion": 0.0667,
+            "lower": 0.0119,
+            "upper": 0.2982
+          },
+          "meanScore": 0.4
+        },
+        "HARNESS_V2": {
+          "trials": 15,
+          "technical": {
+            "successes": 14,
+            "total": 15,
+            "proportion": 0.9333,
+            "lower": 0.7018,
+            "upper": 0.9881
+          },
+          "score2": {
+            "successes": 0,
+            "total": 15,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2039
+          },
+          "meanScore": 0.2
+        },
+        "HARNESS_V3": {
+          "trials": 15,
+          "technical": {
+            "successes": 12,
+            "total": 15,
+            "proportion": 0.8,
+            "lower": 0.5481,
+            "upper": 0.9295
+          },
+          "score2": {
+            "successes": 4,
+            "total": 15,
+            "proportion": 0.2667,
+            "lower": 0.109,
+            "upper": 0.5195
+          },
+          "meanScore": 0.9333
+        }
+      },
+      "unknown": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 8,
+            "total": 9,
+            "proportion": 0.8889,
+            "lower": 0.565,
+            "upper": 0.9801
+          },
+          "score2": {
+            "successes": 0,
+            "total": 9,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2991
+          },
+          "meanScore": 0.1111
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        },
+        "HARNESS_V2": {
+          "trials": 9,
+          "technical": {
+            "successes": 7,
+            "total": 9,
+            "proportion": 0.7778,
+            "lower": 0.4526,
+            "upper": 0.9368
+          },
+          "score2": {
+            "successes": 0,
+            "total": 9,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2991
+          },
+          "meanScore": 0.3333
+        },
+        "HARNESS_V3": {
+          "trials": 9,
+          "technical": {
+            "successes": 8,
+            "total": 9,
+            "proportion": 0.8889,
+            "lower": 0.565,
+            "upper": 0.9801
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.5556
+        }
+      },
+      "upstream_dependency": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 7,
+            "total": 9,
+            "proportion": 0.7778,
+            "lower": 0.4526,
+            "upper": 0.9368
+          },
+          "meanScore": 1.6667
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 4,
+            "total": 9,
+            "proportion": 0.4444,
+            "lower": 0.1888,
+            "upper": 0.7333
+          },
+          "meanScore": 0.8889
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        },
+        "HARNESS_V2": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 5,
+            "total": 9,
+            "proportion": 0.5556,
+            "lower": 0.2667,
+            "upper": 0.8112
+          },
+          "meanScore": 1.2222
+        },
+        "HARNESS_V3": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 5,
+            "total": 9,
+            "proportion": 0.5556,
+            "lower": 0.2667,
+            "upper": 0.8112
+          },
+          "meanScore": 1.1111
+        }
+      },
+      "user_feedback": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "meanScore": 1.3333
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 8,
+            "total": 9,
+            "proportion": 0.8889,
+            "lower": 0.565,
+            "upper": 0.9801
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.4444
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 5,
+            "total": 9,
+            "proportion": 0.5556,
+            "lower": 0.2667,
+            "upper": 0.8112
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        },
+        "HARNESS_V2": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 3,
+            "total": 9,
+            "proportion": 0.3333,
+            "lower": 0.1206,
+            "upper": 0.6458
+          },
+          "meanScore": 0.7778
+        },
+        "HARNESS_V3": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 3,
+            "total": 9,
+            "proportion": 0.3333,
+            "lower": 0.1206,
+            "upper": 0.6458
+          },
+          "meanScore": 0.8889
+        }
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "DIRECT_LLM": {
+          "trials": 18,
+          "technical": {
+            "successes": 18,
+            "total": 18,
+            "proportion": 1,
+            "lower": 0.8241,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 8,
+            "total": 18,
+            "proportion": 0.4444,
+            "lower": 0.2456,
+            "upper": 0.6628
+          },
+          "meanScore": 0.8889
+        },
+        "CURRENT_AGENT": {
+          "trials": 18,
+          "technical": {
+            "successes": 14,
+            "total": 18,
+            "proportion": 0.7778,
+            "lower": 0.5479,
+            "upper": 0.91
+          },
+          "score2": {
+            "successes": 0,
+            "total": 18,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.1759
+          },
+          "meanScore": 0.0556
+        },
+        "IMPROVED_AGENT": {
+          "trials": 18,
+          "technical": {
+            "successes": 12,
+            "total": 18,
+            "proportion": 0.6667,
+            "lower": 0.4375,
+            "upper": 0.8372
+          },
+          "score2": {
+            "successes": 0,
+            "total": 18,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.1759
+          },
+          "meanScore": 0.1667
+        },
+        "HARNESS_V2": {
+          "trials": 18,
+          "technical": {
+            "successes": 17,
+            "total": 18,
+            "proportion": 0.9444,
+            "lower": 0.7424,
+            "upper": 0.9901
+          },
+          "score2": {
+            "successes": 1,
+            "total": 18,
+            "proportion": 0.0556,
+            "lower": 0.0099,
+            "upper": 0.2576
+          },
+          "meanScore": 0.2778
+        },
+        "HARNESS_V3": {
+          "trials": 18,
+          "technical": {
+            "successes": 15,
+            "total": 18,
+            "proportion": 0.8333,
+            "lower": 0.6078,
+            "upper": 0.9416
+          },
+          "score2": {
+            "successes": 4,
+            "total": 18,
+            "proportion": 0.2222,
+            "lower": 0.09,
+            "upper": 0.4521
+          },
+          "meanScore": 0.6111
+        }
+      },
+      "HARD": {
+        "DIRECT_LLM": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 13,
+            "total": 15,
+            "proportion": 0.8667,
+            "lower": 0.6212,
+            "upper": 0.9626
+          },
+          "score2": {
+            "successes": 4,
+            "total": 15,
+            "proportion": 0.2667,
+            "lower": 0.109,
+            "upper": 0.5195
+          },
+          "meanScore": 0.7333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 9,
+            "total": 15,
+            "proportion": 0.6,
+            "lower": 0.3575,
+            "upper": 0.8018
+          },
+          "score2": {
+            "successes": 2,
+            "total": 15,
+            "proportion": 0.1333,
+            "lower": 0.0374,
+            "upper": 0.3788
+          },
+          "meanScore": 0.5333
+        },
+        "HARNESS_V2": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 7,
+            "total": 15,
+            "proportion": 0.4667,
+            "lower": 0.2481,
+            "upper": 0.6988
+          },
+          "meanScore": 1.3333
+        },
+        "HARNESS_V3": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 5,
+            "total": 15,
+            "proportion": 0.3333,
+            "lower": 0.1518,
+            "upper": 0.5829
+          },
+          "meanScore": 1
+        }
+      },
+      "MEDIUM": {
+        "DIRECT_LLM": {
+          "trials": 33,
+          "technical": {
+            "successes": 32,
+            "total": 33,
+            "proportion": 0.9697,
+            "lower": 0.8468,
+            "upper": 0.9946
+          },
+          "score2": {
+            "successes": 25,
+            "total": 33,
+            "proportion": 0.7576,
+            "lower": 0.5898,
+            "upper": 0.8717
+          },
+          "meanScore": 1.697
+        },
+        "CURRENT_AGENT": {
+          "trials": 33,
+          "technical": {
+            "successes": 26,
+            "total": 33,
+            "proportion": 0.7879,
+            "lower": 0.6225,
+            "upper": 0.8932
+          },
+          "score2": {
+            "successes": 12,
+            "total": 33,
+            "proportion": 0.3636,
+            "lower": 0.2219,
+            "upper": 0.5338
+          },
+          "meanScore": 0.7879
+        },
+        "IMPROVED_AGENT": {
+          "trials": 33,
+          "technical": {
+            "successes": 22,
+            "total": 33,
+            "proportion": 0.6667,
+            "lower": 0.4961,
+            "upper": 0.8025
+          },
+          "score2": {
+            "successes": 7,
+            "total": 33,
+            "proportion": 0.2121,
+            "lower": 0.1068,
+            "upper": 0.3775
+          },
+          "meanScore": 0.5455
+        },
+        "HARNESS_V2": {
+          "trials": 33,
+          "technical": {
+            "successes": 30,
+            "total": 33,
+            "proportion": 0.9091,
+            "lower": 0.7643,
+            "upper": 0.9686
+          },
+          "score2": {
+            "successes": 11,
+            "total": 33,
+            "proportion": 0.3333,
+            "lower": 0.1975,
+            "upper": 0.5039
+          },
+          "meanScore": 0.7576
+        },
+        "HARNESS_V3": {
+          "trials": 33,
+          "technical": {
+            "successes": 32,
+            "total": 33,
+            "proportion": 0.9697,
+            "lower": 0.8468,
+            "upper": 0.9946
+          },
+          "score2": {
+            "successes": 15,
+            "total": 33,
+            "proportion": 0.4545,
+            "lower": 0.2984,
+            "upper": 0.6201
+          },
+          "meanScore": 1.0606
+        }
+      }
+    }
+  },
+  "judge": {
+    "type": "NON_INDEPENDENT_SAME_MODEL",
+    "cases": 22,
+    "failedCases": 0,
+    "status": "COMPLETE",
+    "scoredOutputs": 66,
+    "notApplicableOutputs": 0,
+    "reviewQueueRows": 13,
+    "rawResults": "judge/blind-judge-v3.jsonl"
+  },
+  "typicalTrace": {
+    "system": "HARNESS_V3",
+    "caseId": "CASE-205",
+    "runIndex": 1,
+    "diagnosis": "Desktop 6.5.0 发布中的 chunked_upload_v2/UploadScheduler 变更是上传成功率下降的根因。",
+    "rootCauseScore": "2",
+    "actions": [
+      {
+        "sequence": 1,
+        "decisionType": "CREATE_HYPOTHESES",
+        "rationale": "初始化调查：围绕曝光相关模式提出竞争假设，区分发布变更、后端共因与细分群体三个方向。"
+      },
+      {
+        "sequence": 2,
+        "decisionType": "CALL_TOOL",
+        "rationale": "Segment upload success rate by app_version during the breach window to check whether the drop is isolated to 6.5.0 Desktop (supports release root cause) or appears across versions (supports independent backend incident). This first step directly discriminates the top competing hypotheses before spending budget on other dimensions."
+      },
+      {
+        "sequence": 3,
+        "decisionType": "ASSESS_EVIDENCE",
+        "rationale": "评估 segment_metric 按 app_version 维度的结果：仅 6.5.0 成功率 0.72 且曝光 0.5，6.4.3 保持 0.97，说明异常与 6.5.0 发布版本强相关，支持发布变更假设，反证后端故障假设，但未涉及用户细分维度。"
+      },
+      {
+        "sequence": 4,
+        "decisionType": "CALL_TOOL",
+        "rationale": "Leading hypothesis (release root cause) is SUPPORTED/MEDIUM but lacks mechanism evidence. User feedback in the incident window can confirm whether failures align with chunked_upload_v2/UploadScheduler and help discriminate the user-segment hypothesis. This will fill the feedback/mechanism gap and is not redundant with existing app_version segmentation."
+      },
+      {
+        "sequence": 5,
+        "decisionType": "ASSESS_EVIDENCE",
+        "rationale": "处理待评估的用户反馈证据，并关联所有未拒绝的假设。"
+      },
+      {
+        "sequence": 6,
+        "decisionType": "FINALIZE",
+        "rationale": "现有证据已支持发布根因：异常仅影响 6.5.0 Desktop，同窗口 6.4.3 无异常；替代的服务端故障假设已被反证，细分假设无当前事件支持且无可用工具进一步判别。按收敛规则不再低价值调用工具，FINALIZE 并建议回滚。"
+      }
+    ],
+    "tools": [
+      {
+        "toolName": "segment_metric",
+        "resultStatus": "SUCCESS",
+        "evidenceIds": [
+          "EV-111"
+        ]
+      },
+      {
+        "toolName": "search_user_feedback",
+        "resultStatus": "SUCCESS",
+        "evidenceIds": [
+          "EV-113"
+        ]
+      }
+    ]
+  },
+  "latestEvaluationCompletedAt": "2026-09-02T03:45:27.781Z",
+  "limitations": [
+    "Small governed Dev set; no holdout split and Wilson intervals remain wide.",
+    "Six cases are repository-native and sixteen are synthetic; results cannot be generalized to enterprise production incidents.",
+    "Root-cause semantic scores use the same model family as a blind judge and are not independent or human-reviewed.",
+    "The deterministic scorer and LLM judge measure different properties; both raw outputs are retained.",
+    "Costs are estimates using published token rates and assume input cache misses; they are not invoices.",
+    "Harness v2 is a Dev experiment on the same governed cases, not a Holdout or production accuracy claim.",
+    "The v2 blind judge uses the same model family and is not independent human review.",
+    "Failed trials can have incomplete duration and token telemetry; cost and latency denominators are disclosed.",
+    "Harness v3 is a Dev experiment on the same governed cases, not a Holdout or production accuracy claim.",
+    "The v3 blind judge uses the same model family and is not independent human review."
+  ],
+  "artifacts": {
+    "methodology": "docs/evaluation/methodology.md",
+    "reproduce": "docs/evaluation/reproduce.md",
+    "report": "docs/evaluation/releaseguard-harness-v3-ai-pm-report.zh-CN.md",
+    "reviewQueue": "evaluation/results/v3/review_queue.csv",
+    "rawDirectory": "evaluation/results/v3/raw/",
+    "github": "https://github.com/Eason4real/releaseguard-ai/tree/main/evaluation",
+    "technicalAppendix": "docs/evaluation/releaseguard-harness-v3-technical-appendix.zh-CN.md"
+  },
+  "harnessV2": {
+    "status": "EXPERIMENTAL_DEV_NOT_HOLDOUT",
+    "manifestIdentity": {
+      "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+      "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+      "modelConfiguration": {
+        "provider": "deepseek",
+        "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+        "baseUrl": "https://api.deepseek.com/chat/completions",
+        "model": "deepseek-v4-flash",
+        "temperature": 0.1,
+        "topP": "PROVIDER_DEFAULT",
+        "maxOutputTokens": 5000,
+        "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+        "maxModelCalls": 20,
+        "toolBudget": 10,
+        "maxIterations": 16,
+        "timeoutMs": 75000,
+        "schemaRepairMax": 2,
+        "transportRetry": 2,
+        "fixtureQueryHints": true,
+        "concurrency": 1,
+        "credentialPresent": true
+      }
+    },
+    "comparisonAgainst": "IMPROVED_AGENT_V1",
+    "deltas": {
+      "technicalCompletion": 0.2879,
+      "businessCompletion": 0.1818,
+      "strictRootCause": 0.1515,
+      "lenientRootCause": 0.1667,
+      "criticalEvidenceRecall": 0.3005,
+      "emptyToolRate": -0.0444
+    },
+    "excludedAttempts": [
+      "v2/misconfigured-attempt-1: transportRetry=0 and fixtureQueryHints=false",
+      "v2/quota-exhausted-attempt-2: provider quota failures; valid CASE-201..203 prefix resumed into formal run 2"
+    ],
+    "sideEffects": [
+      "Transport retry can increase wall time and billing ambiguity for lost responses.",
+      "Fixture query-shape hints disclose metric and dimension names; production parity requires schema metadata.",
+      "Resume logic adds checkpoint provenance and operational complexity.",
+      "Approval, AgentLoop, evidence grounding, and external-write boundaries were not relaxed."
+    ]
+  },
+  "harnessV3": {
+    "status": "EXPERIMENTAL_DEV_NOT_HOLDOUT",
+    "comparisonAgainst": "HARNESS_V2",
+    "manifestIdentity": {
+      "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+      "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+      "modelConfiguration": {
+        "provider": "deepseek",
+        "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+        "baseUrl": "https://api.deepseek.com/chat/completions",
+        "model": "deepseek-v4-flash",
+        "temperature": 0.1,
+        "topP": "PROVIDER_DEFAULT",
+        "maxOutputTokens": 5000,
+        "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+        "maxModelCalls": 20,
+        "toolBudget": 10,
+        "maxIterations": 16,
+        "timeoutMs": 75000,
+        "schemaRepairMax": 2,
+        "transportRetry": 2,
+        "fixtureQueryHints": true,
+        "harnessVersion": "V3",
+        "sourceIdentity": "sha256:740963da291a0c9172d53cc3e465e5a30486d71091ae4b50d34d7131b5da70a3",
+        "concurrency": 1,
+        "credentialPresent": true
+      }
+    },
+    "sourceContentSha256": "sha256:740963da291a0c9172d53cc3e465e5a30486d71091ae4b50d34d7131b5da70a3",
+    "deltas": {
+      "technicalCompletion": 0,
+      "businessCompletion": 0.1061,
+      "strictRootCause": 0.0757,
+      "lenientRootCause": 0.0909,
+      "criticalEvidenceRecall": 0.0631,
+      "emptyToolRate": -0.3725,
+      "terminalConsistency": 0.0455,
+      "p95DurationMs": -27557.5
+    },
+    "changes": [
+      "Actionable capability contracts with availability, required arguments, query shapes, and argument sources.",
+      "Canonical tool arguments and explicit EMPTY reason classes.",
+      "Cumulative and consecutive no-information budgets exposed to the planner.",
+      "Evidence-readiness, convergence, and unsupported-query prompt rules."
+    ],
+    "sideEffects": [
+      "Richer capability metadata increases prompt size and depends on production schema/catalog parity.",
+      "More conservative evidence gates can increase INCONCLUSIVE outcomes when fixtures lack discriminating observations.",
+      "AgentLoop, approval, grounding, and external-write boundaries were not relaxed."
+    ]
+  }
+}

@@ -121,7 +121,7 @@ export async function handleInvestigatePost(
     const retrievers = await retrieverFactory();
     const aggregate = await runAgentLoop(store, {
       runId,
-      planner: new LLMInvestigationPlanner(config),
+      planner: new LLMInvestigationPlanner(config, { maxDecisionRepairAttempts: 2 }),
       analytics,
       trigger: "INITIAL",
       feedbackRetriever: retrievers.feedbackRetriever,

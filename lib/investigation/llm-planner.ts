@@ -331,7 +331,7 @@ export const formatPlannerDecisionContract = (type: InvestigationDecision["type"
   return [schema, ...source.requirements].join(" ");
 };
 
-export const buildInitialPlannerSystemPrompt = () => [
+export const buildInitialPlannerSystemPrompt = (policyVersion: "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8" = "V2") => [
   "你是 ReleaseGuard 的调查 Planner。你只决定下一步，不执行工具、不改变服务端状态。不要输出思维链，只给产品经理可审计的简短 rationale。必须仅输出 JSON。type 只能是 CREATE_HYPOTHESES、ASSESS_EVIDENCE、CALL_TOOL、ASK_HUMAN、FINALIZE、STOP_INCONCLUSIVE。",
   "没有假设时先用 CREATE_HYPOTHESES 创建 1–3 个竞争假设，每项只含 statement、supportIf、refuteIf。",
   "存在 pendingEvidenceIds 时必须先用一个 ASSESS_EVIDENCE 批量处理全部 pending Evidence；每条 Evidence 的 relations 必须逐一覆盖所有未 REJECTED Hypothesis。",
@@ -341,10 +341,37 @@ export const buildInitialPlannerSystemPrompt = () => [
   "使用 knownInvestigationSlices 规划正交下钻：优先验证当前 incident、release 和已执行工具明确给出的异常切片是否具有区分度，但不得把合法 dimension enum 当作当前一定有数据的 available-dimensions 列表。",
   "segment_metric 的 dimension 是 group-by 维度。选择 app_version 时必须省略 filters.appVersion 并保留 platform 等正交 filters；选择 platform 时省略 filters.platform；选择 region 时省略 filters.region；选择 user_type 时省略 filters.userType。不得由 runtime 静默改写参数，Planner 必须显式输出符合该 contract 的 arguments。",
   "某个 segment_metric query shape 返回 EMPTY 后，将该 dimension + filters 组合视为当前查询形状不可用，不得重复完全相同调用。只在剩余 Hypothesis 明确需要时选择另一个有判别力的维度；不要为消耗预算枚举全部维度，无合理下一步时使用 STOP_INCONCLUSIVE。region 和 user_type 仍可在相应 Hypothesis 需要地理或 cohort 区分时选择。",
+  "收敛规则：如果相关当前事件来源已经查询，某个替代 Hypothesis 仍没有任何 SUPPORTS Evidence，且现有当前事件 Evidence 支持另一 Hypothesis，不得仅因这个无支持的推测继续保持多解；应通过 ASSESS_EVIDENCE 将反证明确关联，使其被服务端拒绝或降级，然后在 Grounded Contract 满足时 FINALIZE。只有两个或更多替代解释仍各自拥有当前事件支持，或缺少可区分它们的必要来源时，才 STOP_INCONCLUSIVE。",
+  "调用工具前先检查 toolResults、knownInvestigationSlices 和 remainingToolCalls。已覆盖关键 release、impact、segment/feedback 证据且没有新的可判别 query shape 时，不得重复探索或为耗尽预算继续调用；应评估剩余证据并 FINALIZE 或明确 STOP_INCONCLUSIVE。",
   "ASK_HUMAN 必须包含 reasonCode(HUMAN_CONTEXT_REQUIRED/NO_APPLICABLE_TOOL)、question、rationale；STOP_INCONCLUSIVE 必须包含 reasonCode(INSUFFICIENT_EVIDENCE/NO_APPLICABLE_TOOL/MAX_TOOL_CALLS/MAX_ITERATIONS)、reason、rationale。",
   "预算只能以调查上下文中的 server budget 为准；只有 toolCalls=0 才能声明 MAX_TOOL_CALLS，只有当前为最后一次 iteration 才能声明 MAX_ITERATIONS。",
   "FINALIZE 必须包含 selectedHypothesisId、diagnosis、disposition(OBSERVE/FIX/ROLLBACK/ESCALATE)、rationale。diagnosis 只含 summary 和 claims；关键 claim 只含 type(ROOT_CAUSE/CAUSAL_STEP/AFFECTED_METRIC/AFFECTED_SEGMENT)、statement、evidenceIds。ROOT_CAUSE statement 必须原样采用 selected Hypothesis statement。关键 claim 必须引用当前 Run Evidence。",
   "LIMITATION 必须额外包含 limitationType(DATA_GAP/SCOPE_LIMITATION/UNRESOLVED_UNCERTAINTY/OBSERVABILITY_LIMITATION)，只能声明数据、范围、不确定性或可观测性边界，不能承载根因、机制、指标或分群事实。不得输出 confidence、groundingStatus、grounded 或 grounding score。历史事故只能辅助，不能单独支撑 ROOT_CAUSE。",
+  ...(["V3", "V4", "V5", "V6", "V7", "V8"].includes(policyVersion) ? [
+    "Harness v3 查询策略：runtimeGuidance.toolCapabilities 是服务端提供的只含 schema 名称和上下文字段引用的能力清单。它不包含观察值或答案，不能据此推断根因。只能调用 availability=AVAILABLE 且 availableQueryShapes 非空的工具；UNAVAILABLE_FOR_CURRENT_INVESTIGATION 表示当前调查没有该工具可返回的观测，禁止调用。",
+    "构造 CALL_TOOL 时必须选择一项 availableQueryShapes，并保持其中 metricKey + dimension 的配对；requiredArguments 必须全部提供。argumentSources 给出参数的合法来源：availableQueryShapes[].metricKey 使用清单中的名称，release.id、release.version、riskEvent.* 必须从当前调查上下文复制。未列出的 filter 应省略，不得枚举或猜测。时间范围使用 riskEvent.firstBreachedAt 到 riskEvent.lastBreachedAt，query_metric 的 granularity_minutes 固定为 5。",
+    "EMPTY 必须按 empty_reason 处理：UNSUPPORTED_QUERY 表示不要换写法重试；NO_MATCH 表示修正或放宽过滤；NO_DATA 表示合法范围内无数据；NO_INFORMATION_GAIN 表示该方向已不能区分假设。不要把任何 EMPTY 当作 Evidence。",
+    "每次 CALL_TOOL 必须能补足 evidenceReadiness 中的缺口或明确区分至少一个竞争假设。若领先假设已经 SUPPORTED/CONFIRMED 且至少 MEDIUM，并且主要替代解释没有当前事件支持或已被反证，应优先 FINALIZE，不得为枚举所有工具继续探索。",
+    "当 noInformationState.totalCalls 接近 maximumTotalCalls，或只剩 3 次 iteration / 2 次 tool call 时，停止低价值探索，使用现有证据 FINALIZE；确实无法区分时才 STOP_INCONCLUSIVE。",
+  ] : []),
+  ...(["V4", "V5", "V6"].includes(policyVersion) ? [
+    "Harness v4 证据包协议：调查先收集证据，再进入 EVIDENCE_SYNTHESIS 综合判断阶段。综合判断只能引用当前 Run 已持久化且已评估的 Evidence，禁止新增 CALL_TOOL；必须比较至少两个仍有依据的竞争 Hypothesis，并明确根因、机制、受影响对象、时间关系和置信度。无法区分时使用 STOP_INCONCLUSIVE 并说明缺失项。",
+    "每次 CALL_TOOL 必须声明 queryValue：DECISIVE、DISCRIMINATING、SUPPORTING 或 REDUNDANT，并在 rationale 中说明它区分的两个假设、SUCCESS 后行动以及 EMPTY 后行动。REDUNDANT 查询不得调用。",
+    "STOP_INCONCLUSIVE 的 reasonCode 可为 INSUFFICIENT_EVIDENCE、CONFLICTING_EVIDENCE、UNSUPPORTED_QUERY_SPACE、BUDGET_EXHAUSTED、MODEL_UNCERTAINTY；reason 必须说明缺什么、由谁补充以及如何验证。",
+    "满足最低证据组合且领先假设至少 MEDIUM 后，必须优先 FINALIZE；不得为了枚举维度或耗尽预算继续探索。最终判断输入必须只来自 evidencePacket，且按稳定顺序引用 Evidence。",
+  ] : []),
+  ...(["V7", "V8"].includes(policyVersion) ? [
+    "Harness v7 collection phase：只负责竞争假设、Evidence Assessment 和只读工具选择。最终根因由独立 Synthesizer 基于持久化 Evidence Packet 决定。",
+    "当 runtimeGuidance.stagedArchitecture 存在时，不得自行综合根因；证据充分或无法继续调查时可返回 FINALIZE/STOP_INCONCLUSIVE 作为阶段移交请求，其诊断文本不会被直接采纳。",
+  ] : []),
+  ...(policyVersion === "V8" ? [
+    "Harness v8 collection policy：每个假设必须说明具体变化组件或外部依赖、失败机制、受影响指标或用户对象，并通过 supportIf/refuteIf 给出可观察的支持与证伪信号；禁止使用‘发布导致异常’一类不可区分的空泛假设。",
+    "按信息增益选择工具：发布上下文 → 异常指标与基线 → 区分竞争假设的分群 → 用户反馈机制 → 历史线索。CALL_TOOL 必须通过 targetHypothesisIds 和 SUPPORT/REFUTE/DISCRIMINATE 明确它将如何改变假设排序。",
+    "runtimeGuidance.stagedArchitecture.readiness 使用 READY_FOR_CAUSAL、READY_FOR_BOUNDED_HYPOTHESIS、READY_FOR_ABSTENTION、NEEDS_COLLECTION。只有 NEEDS_COLLECTION 才继续调用能补足明确缺口的工具；其余状态应移交 Synthesizer。",
+    "Evidence Assessment 必须区分候选线索与因果支持：发布记录仅证明变更存在、范围和时间，若没有版本隔离、暴露/控制差异、机制信号或结果差异，只能标为 NEUTRAL，不能因为模块名看似相关就标 SUPPORTS。relation 必须与 explanation 一致；解释中写明反驳时必须使用 CONTRADICTS。",
+    "当异常指标与互补业务结果不一致（例如事件率下降但完成结果稳定）时，必须优先比较埋点/口径异常与真实行为变化；稳定结果不能被解释为真实用户流失的支持证据。跨平台、版本、地区或人群同时变化时，必须保留外部依赖、流量结构或测量问题等替代假设，直到获得区分证据。",
+    "移交综合前检查所有仍可行假设：每个替代假设必须有当前事件 CONTRADICTS Evidence，或继续调用可用的分群、反馈、技术信号、互补指标或历史查询进行区分。不得仅凭领先分数较高就忽略尚未检验的替代解释。",
+  ] : []),
 ].join("\n");
 
 export function parseInvestigationDecision(content: string, attempt = 0): InvestigationDecision {
@@ -448,8 +475,13 @@ export function parseInvestigationDecision(content: string, attempt = 0): Invest
     if (!["SUPPORT", "REFUTE", "DISCRIMINATE"].includes(testIntent)) {
       return validationError("INVALID_FIELD_VALUE", type, "testIntent", "Planner CALL_TOOL 的 testIntent 不合法。", attempt);
     }
+    const queryValue = parsed.queryValue;
+    if (queryValue !== undefined && !["DECISIVE", "DISCRIMINATING", "SUPPORTING", "REDUNDANT"].includes(String(queryValue))) {
+      return validationError("INVALID_FIELD_VALUE", type, "queryValue", "Planner CALL_TOOL queryValue 不合法。", attempt);
+    }
     return { type, toolName, arguments: args as Record<string, unknown>, targetHypothesisIds,
       testIntent: testIntent as "SUPPORT" | "REFUTE" | "DISCRIMINATE",
+      ...(queryValue ? { queryValue: queryValue as "DECISIVE" | "DISCRIMINATING" | "SUPPORTING" | "REDUNDANT" } : {}),
       rationale };
   }
   if (type === "ASK_HUMAN") {
@@ -763,7 +795,10 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
 
   constructor(
     private readonly config: ModelConfig,
-    private readonly options: { maxDecisionRepairAttempts?: number } = {},
+    private readonly options: {
+      maxDecisionRepairAttempts?: number;
+      policyVersion?: "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8";
+    } = {},
   ) {}
 
   drainModelCallObservations() {
@@ -793,17 +828,29 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
       })),
       pendingEvidenceIds: getPendingEvidence(aggregate).map((evidence) => evidence.id),
       knownInvestigationSlices: buildKnownInvestigationSlices(aggregate),
+      evidenceReadiness: {
+        categoriesPresent: [...new Set(aggregate.evidence.map((item) => item.category))].sort(),
+        supportedHypotheses: aggregate.hypotheses.filter((item) =>
+          ["SUPPORTED", "CONFIRMED"].includes(item.status)).map((item) => item.id),
+        contradictedHypotheses: aggregate.hypotheses.filter((item) =>
+          item.status === "REJECTED" || item.contradictionScore > 0).map((item) => item.id),
+        hasCurrentIncidentSupport: aggregate.hypothesisEvidenceLinks.some((link) =>
+          link.relation === "SUPPORTS" && aggregate.evidence.some((item) =>
+            item.id === link.evidenceId && item.category !== "SIMILAR_INCIDENT")),
+      },
+      runtimeGuidance: context.runtimeGuidance ?? null,
       humanMessage: context.humanMessage,
       budget: { iterations: context.remainingIterations, toolCalls: context.remainingToolCalls },
     };
     const baseMessages: ModelMessage[] = [
       {
         role: "system",
-        content: buildInitialPlannerSystemPrompt(),
+        content: buildInitialPlannerSystemPrompt(this.options.policyVersion ?? "V2"),
       },
       { role: "user", content: `可用工具：${JSON.stringify(modelToolDefinitions)}\n调查上下文：${JSON.stringify(compact)}` },
     ];
-    const maxRepairs = (this.options.maxDecisionRepairAttempts ?? 1) <= 0 ? 0 : 1;
+    const requestedRepairs = this.options.maxDecisionRepairAttempts ?? 1;
+    const maxRepairs = Math.min(2, Math.max(0, requestedRepairs));
     let messages = baseMessages;
     let repairError: PlannerDecisionValidationError | PlannerDecisionSemanticError | null = null;
     for (let attemptIndex = 0; attemptIndex <= maxRepairs; attemptIndex += 1) {
@@ -841,7 +888,13 @@ export class LLMInvestigationPlanner implements InvestigationPlanner {
           });
           this.config.responseObserver?.({ ...observation, attemptIndex });
         },
-      }, messages, { enableTools: false, signal: context.signal });
+      }, messages, {
+        enableTools: false,
+        enableThinking: !["V7", "V8"].includes(this.options.policyVersion ?? "")
+          && !(attemptIndex > 0 && repairError?.code === "INVALID_JSON"),
+        requireJsonObject: true,
+        signal: context.signal,
+      });
       const latencyMs = performance.now() - started;
       const content = response.choices?.[0]?.message?.content ?? "";
       try {

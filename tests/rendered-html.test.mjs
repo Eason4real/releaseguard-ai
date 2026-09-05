@@ -35,6 +35,8 @@ test("renders development preview metadata", async () => {
   assert.match(html, /风险调查/);
   assert.match(html, /最佳实践/);
   assert.match(html, /href=["']\/best-practice["']/);
+  assert.match(html, /评测报告/);
+  assert.match(html, /href=["']\/benchmark["']/);
   assert.match(html, /第一次体验？/);
   assert.match(html, /3 分钟完成一次发布风险调查/);
   assert.match(html, /href=["']\/guided-experience["']/);
@@ -51,6 +53,23 @@ test("renders development preview metadata", async () => {
   assert.match(html, /演示环境就绪/);
   assert.doesNotMatch(html, /LLM/);
   assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
+});
+
+test("renders the generated benchmark viewer without hard-coded result claims", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("benchmark-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/benchmark", { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /正在载入可审计评测结果/);
+  assert.match(html, /页面只读取生成的 summary\.json/);
+  assert.doesNotMatch(html, /真实企业生产数据.*22 个公开事故/);
+  assert.doesNotMatch(html, /API Key|Fine-grained access token/);
 });
 
 test("renders the business-facing best practice scenario", async () => {

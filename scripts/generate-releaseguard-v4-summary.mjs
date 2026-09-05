@@ -1,0 +1,17 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+const root = new URL("../", import.meta.url);
+const read = async (path) => JSON.parse(await readFile(new URL(path, root), "utf8"));
+const reports = await Promise.all([1, 2, 3].map((i) => read(`evaluation/results/v4/raw/harness-v4-run-${i}.json`)));
+if (reports.some((r) => r.reportStatus !== "COMPLETE" || r.cases?.length !== 22)) throw new Error("V4_TRIAL_COVERAGE_INVALID");
+const judge = (await readFile(new URL("evaluation/results/v4/judge/blind-judge-v4.jsonl", root), "utf8")).split(/\r?\n/).filter(Boolean).map(JSON.parse);
+if (judge.length !== 22 || judge.some((r) => r.error)) throw new Error("V4_JUDGE_NOT_COMPLETE");
+const cases = reports.flatMap((r) => r.cases);
+const calls = cases.flatMap((c) => c.telemetry?.toolTrajectory ?? []);
+const technical = cases.filter((c) => c.execution?.status === "PASS").length;
+const empty = calls.filter((c) => c.resultStatus === "EMPTY").length;
+const summary = { schemaVersion: "releaseguard-v4-summary-v1", evaluationVersion: "0.4.0-harness-v4", generatedAt: new Date().toISOString(), system: "HARNESS_V4", trials: cases.length, cases: 22, technicalCompletion: { successes: technical, total: cases.length, proportion: technical / cases.length }, tools: { calls: calls.length, empty, emptyRate: calls.length ? empty / calls.length : null }, judge: { requests: judge.length, status: "COMPLETE", rawResults: "judge/blind-judge-v4.jsonl" }, provenance: { datasetHash: reports[0].manifest.datasetHash, sourceCommit: reports[0].manifest.sourceCommit, sourceIdentity: reports[0].manifest.modelConfiguration?.sourceIdentity, devOnly: true } };
+await mkdir(new URL("evaluation/results/v4/", root), { recursive: true });
+await writeFile(new URL("evaluation/results/v4/summary.json", root), JSON.stringify(summary, null, 2));
+await mkdir(new URL("public/evaluation/", root), { recursive: true });
+await writeFile(new URL("public/evaluation/summary-v4.json", root), JSON.stringify(summary, null, 2));
+console.log(JSON.stringify(summary, null, 2));

@@ -1,0 +1,3660 @@
+{
+  "schemaVersion": "investigation-live-benchmark-report-v1",
+  "reportStatus": "INCOMPLETE",
+  "label": "Live LLM Benchmark",
+  "manifest": {
+    "runId": "HARNESS-V7-RUN-1",
+    "datasetId": "INVESTIGATION-BENCHMARK-DEV",
+    "datasetVersion": "0.2.0",
+    "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "evaluationContractVersion": "phase1a-v2",
+    "telemetrySchemaVersion": "benchmark-observability-v3",
+    "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+    "executionProvider": "LIVE_LLM_PROVIDER",
+    "runtimeMode": "LIVE_LLM",
+    "enabledTools": [
+      "get_release",
+      "query_metric",
+      "segment_metric",
+      "search_user_feedback",
+      "search_similar_incidents"
+    ],
+    "modelConfiguration": {
+      "provider": "deepseek",
+      "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+      "baseUrl": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.1,
+      "topP": "PROVIDER_DEFAULT",
+      "maxOutputTokens": 5000,
+      "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+      "maxModelCalls": 20,
+      "toolBudget": 10,
+      "maxIterations": 16,
+      "timeoutMs": 75000,
+      "schemaRepairMax": 2,
+      "transportRetry": 2,
+      "fixtureQueryHints": true,
+      "harnessVersion": "V7",
+      "sourceIdentity": "sha256:bee1c4e209befbfb4315405fc0660853d8b564018ced0bdd688fc4604e2388d3",
+      "concurrency": 1,
+      "credentialPresent": true
+    },
+    "startedAt": "2026-09-02T10:57:29.329Z",
+    "completedAt": null,
+    "totalCases": 22,
+    "processedCases": 8,
+    "completedCases": 0,
+    "failedCases": 7,
+    "inconclusiveCases": 1
+  },
+  "cases": [
+    {
+      "caseId": "CASE-201",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. Create competing explanations for Android 9.2.0 checkout completion drop, focusing on release change and possible external factors."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Fetch release context to confirm changed modules and feature flags, which is required to assess whether the app-side code change hypothesis is plausible versus external or data-artifact alternatives."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending evidence (release change) against all active hypotheses to establish baseline relations before further investigation."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segment checkout_completion_rate by app_version (with platform=Android filter) to verify whether the drop is isolated to 9.2.0 or affects other versions. This discriminates the release-specific bug hypothesis (HYP-48322402) from external/backend (HYP-e20bde18) and data artifact (HYP-70944136) hypotheses."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending segment_metric evidence against all active hypotheses to update support and contradiction scores."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Planner 没有返回可解析的 JSON object。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-201"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-030"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "checkout_completion_rate",
+              "start_time": "2031-01-01T10:00:00.000Z",
+              "end_time": "2031-01-01T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "dimension": "app_version",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-031"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-030",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-031",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-030",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The release change evidence confirms that CheckoutConfirmation and ReceiptScreen modules were changed in this release, which is consistent with the hypothesis that the feature flag introduced a bug in the checkout flow."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-030",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The release change evidence does not directly address whether the cause is external backend/dependency, so it is neutral for this hypothesis."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-030",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The release change evidence does not indicate whether the drop is a data artifact or segment-specific anomaly, so it is neutral for this hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The segment_metric breakdown shows checkout completion rate for app_version 9.2.0 is 0.61 versus 0.94 for 9.1.4, isolating the drop to the newly released version, consistent with a regression introduced by the release."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The version-specific drop does not distinguish between an app-side code bug and an external backend/dependency issue affecting only this version."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "The drop is isolated to the new version 9.2.0 with a large sample size (1320) and a clear contrast to 9.1.4, indicating a real product regression rather than a data artifact or sampling anomaly."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The checkout_confirmation_v2 feature flag introduced a bug in the CheckoutConfirmation module that breaks the checkout flow for Android 9.2.0 users.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "A backend or dependency issue specific to Android 9.2.0 (e.g., API change, payment gateway) caused checkout failures, unrelated to the release code changes.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The drop is a data artifact or segment-specific anomaly (e.g., bot traffic, sampling issue) not a real product regression.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "f137026b06782abca343b551f41e9db88682dcf446e3a858e475ce958e2e4e5b"
+      },
+      "scoring": {
+        "caseId": "CASE-201",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-201",
+            "rootCause": "The Android 9.2.0 release regressed checkout confirmation behavior."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-202",
+      "category": "release_regression",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. The incident shows a sharp drop in search_completion_rate on Web after release web-31.4 with search_transport_v3 flag. Need competing hypotheses to guide evidence collection."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to confirm the release details and changed modules, which is required to assess the release-related hypothesis versus external factor."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending release-change evidence against all active hypotheses to establish its relations before further tool calls."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Query the current incident metric to confirm the drop timing and magnitude, which discriminates between release-related (HYP-2) and external/behavioral (HYP-3, HYP-4) causes."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Processing the pending metric evidence to relate it to all active hypotheses."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-202"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-050"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "search_completion_rate",
+              "start_time": "2031-01-02T10:00:00.000Z",
+              "end_time": "2031-01-02T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-051"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-050",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-051",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-050",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The release web-31.4 with search_transport_v3 flag is a current release change that aligns with the hypothesis of a transport regression."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-050",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Release change alone does not confirm or refute an external cause; it is neutral."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-050",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "Release change does not directly address user behavior or traffic mix; neutral."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The metric drop in search_completion_rate on Web starting at 10:00 aligns with the release timing of web-31.4 at 09:00, supporting a release-induced regression."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop on Web alone does not confirm or refute an external cause; it is neutral."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-051",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop on Web alone does not indicate whether it is due to user behavior or traffic mix; neutral."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The search_transport_v3 feature flag in release web-31.4 introduced a regression in the search transport layer, causing search sessions to be abandoned.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "An external factor (e.g., backend outage or network issue) caused the increase in abandoned search sessions, independent of the release.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "A change in user behavior or traffic mix (e.g., new user segment) led to lower search completion, not a technical defect.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "acdb0b022536f594cda1b143d656ccc2cbea97b2274030f18056ee6b076d1844"
+      },
+      "scoring": {
+        "caseId": "CASE-202",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-202",
+            "rootCause": "The web release regressed search request timeout handling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-203",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. The incident is a crash-free session rate drop in the staged iOS 12.0.0 cohort. The release changed DeepLinkRouter. Create competing hypotheses: a code defect in the router, a rollout/configuration issue, and an external factor affecting only this cohort."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to understand the DeepLinkRouter change and rollout configuration; this is a required evidence category and will help discriminate between the code-defect hypothesis and the rollout-configuration hypothesis."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending release-change evidence against all active hypotheses to establish baseline relations before further investigation."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segment crash-free session rate by app_version within iOS to determine if the drop is isolated to 12.0.0 (supporting code-change or rollout hypotheses) or affects other versions (supporting external factor hypothesis)."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending segment_metric evidence against all active hypotheses to establish current-incident support."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-203"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-070"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "crash_free_session_rate",
+              "start_time": "2031-01-03T10:00:00.000Z",
+              "end_time": "2031-01-03T11:00:00.000Z",
+              "filters": {
+                "platform": "iOS"
+              },
+              "dimension": "app_version",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-071"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-070",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-071",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-070",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "Release change evidence only confirms the release exists and changed DeepLinkRouter; it does not yet link to crashes."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-070",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Release change evidence confirms staged rollout at 20% but does not indicate rollout misconfiguration causing crashes."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-070",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "Release change evidence does not address external factors; it only documents the release and changed module."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The segment_metric evidence shows crash-free session rate drop only for app_version 12.0.0 (0.89) while 11.9.2 remains at baseline (0.995), consistent with the defect being in the new release."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The evidence isolates the drop to version 12.0.0 but does not distinguish between a code defect and a rollout configuration issue."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "The drop is specific to version 12.0.0 while the prior version 11.9.2 on the same platform is unaffected, making an external factor affecting only the staged cohort less likely."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "A defect introduced in DeepLinkRouter in release 12.0.0 causes crashes in the staged iOS cohort, reducing crash-free session rate.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The staged rollout configuration (20% of iOS users) is flawed, causing a subset of iOS 12.0.0 users to experience crashes unrelated to the code change.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "An external factor (e.g., OS update, third-party SDK) affecting only the iOS 12.0.0 staged cohort causes the crash-free session drop, independent of the release change.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "ac6868ef058c49c1ba453993b7d53234dbc52a18c3dc1c5d6a85073103635820"
+      },
+      "scoring": {
+        "caseId": "CASE-203",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-203",
+            "rootCause": "The staged iOS 12.0.0 release introduced a crash regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-204",
+      "category": "release_regression",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 1,
+        "plannerValidationEvents": [
+          {
+            "iteration": 2,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "CALL_TOOL_DISCRIMINATION_REQUIRES_MULTIPLE_TARGETS",
+            "validationPath": "targetHypothesisIds",
+            "validationSubcode": null,
+            "responseHash": "12d7c9fcb601e52cb2bff1e00c711b11a09bd60d8960de6bc2b62d42f1b7c202",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "12d7c9fcb601e52cb2bff1e00c711b11a09bd60d8960de6bc2b62d42f1b7c202",
+                "responseLength": 327,
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 1
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 1
+                }
+              }
+            }
+          },
+          {
+            "iteration": 2,
+            "attemptIndex": 1,
+            "outcome": "REPAIRED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "CALL_TOOL_DISCRIMINATION_REQUIRES_MULTIPLE_TARGETS",
+            "validationPath": "targetHypothesisIds",
+            "validationSubcode": null,
+            "responseHash": "356829af665b362ac4b3661e12e694f575819c1627a94424515a4fd0b22a5459",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "356829af665b362ac4b3661e12e694f575819c1627a94424515a4fd0b22a5459",
+                "responseLength": 386,
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              }
+            }
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. Need competing hypotheses comparing REL-204 and REL-904."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Fetching REL-904 release context to compare against REL-204 and determine which aligns with the failure."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending evidence from get_release(REL-904) against both hypotheses. It confirms REL-904 exists and changed PurchaseResponseAdapter, which is neutral for REL-204 and weakly supports REL-904 as a candidate but does not yet tie it to the Web purchase failure."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Query the current incident metric to confirm the drop timing and magnitude on Web, providing current-impact evidence to discriminate between REL-204 and REL-904."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Process pending query_metric evidence against both hypotheses to establish temporal correlation with the failure window."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-904"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-090"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "purchase_success_rate",
+              "start_time": "2031-01-04T10:00:00.000Z",
+              "end_time": "2031-01-04T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-092"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-090",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-092",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-090",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "Evidence describes REL-904, not REL-204; it neither supports nor contradicts REL-204's involvement."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-090",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "SUPPORTS",
+            "explanation": "Confirms REL-904 exists and changed PurchaseResponseAdapter, a component plausibly related to purchase flow, but does not yet link it to the Web failure."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-092",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "Metric timeline shows drop starting at 08:30, after REL-204 release at 09:00? Actually drop at 08:30 predates REL-204 release at 09:00, contradicting REL-204 as cause."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-092",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "SUPPORTS",
+            "explanation": "Metric drop at 08:30 aligns with REL-904 release at 08:20, supporting REL-904 as the cause."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-204 (web-44.2, ReceiptTheme refresh) caused the purchase_success_rate drop on Web.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "REL-904 (another release) caused the purchase_success_rate drop on Web.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 8,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "c63c79ac33ca96f22653903a59227492bff9502f63d64e8cd2c8a1cee87ce410"
+      },
+      "scoring": {
+        "caseId": "CASE-204",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-204",
+            "rootCause": "The earlier purchase response adapter release introduced an incompatible response format."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-205",
+      "category": "release_regression",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. The incident shows a drop in desktop upload success rate after release 6.5.0 with chunked_upload_v2 flag and UploadScheduler changes. Create competing hypotheses to guide evidence collection."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to understand the feature flag and rollout details; this is a required evidence category and will help discriminate between the code regression hypothesis and external/infrastructure alternatives."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the single pending RELEASE_CHANGE evidence against all active hypotheses to establish its relations before further investigation."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need current incident impact evidence to confirm the failure pattern and discriminate between release-caused regression (HYP-384c5179) and external factors (HYP-2a6a5104). Querying the metric with baseline will show whether the drop is sustained and isolated to the release window."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending query_metric evidence against all active hypotheses to update support and contradiction scores."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-205"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-110"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "document_upload_success_rate",
+              "start_time": "2031-01-05T10:00:00.000Z",
+              "end_time": "2031-01-05T11:00:00.000Z",
+              "filters": {
+                "platform": "Desktop",
+                "appVersion": "6.5.0"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-112"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-110",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-112",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-110",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The release change evidence confirms that release 6.5.0 with the chunked_upload_v2 flag and UploadScheduler changes is the context of the incident, which is consistent with the hypothesis that this change caused the regression."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-110",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The release change evidence does not directly address whether the failures are due to infrastructure/dependency issues affecting a subset of users; it only confirms the release context."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-110",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The release change evidence does not provide information about external factors; it only confirms the release details, so it neither supports nor contradicts the external cause hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-112",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The metric shows failure rates increasing with rollout percentage (10%:0.05, 25%:0.13, 50%:0.28), directly correlating with the staged rollout of the chunked_upload_v2 feature, supporting the regression hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-112",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "CONTRADICTS",
+            "explanation": "The failure rate scales uniformly with rollout percentage across the entire desktop 6.5.0 population, showing no concentration in a specific region or user segment, contradicting the subset infrastructure/dependency hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-112",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "The failure rate increases proportionally with the rollout percentage of release 6.5.0, indicating the failures are tied to the release exposure rather than an external factor coinciding with the release window."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The chunked_upload_v2 feature flag in release 6.5.0 introduced a regression in the desktop upload scheduler causing upload failures.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The staged rollout of release 6.5.0 exposed an infrastructure or dependency issue affecting only a subset of desktop users, unrelated to the code changes.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The upload failure spike is caused by an external factor (e.g., network or service outage) coinciding with the release window, not by the release itself.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "55fb63ec7ffa6f9cb9f439306e84b73c4c73843d2f5ac1e92795d40fba3193bd"
+      },
+      "scoring": {
+        "caseId": "CASE-205",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-205",
+            "rootCause": "The desktop 6.5.0 release regressed chunked upload scheduling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-206",
+      "category": "configuration",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-206",
+        "predictedRootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) The ExperimentBinding change in REL-206 caused NEW users to be misassigned to a different recommendation experiment, leading to lower engagement; (2) The recommendation_ranker_v4 feature flag in release REL-206 degraded recommendation quality for NEW users, causing reduced engagement.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "tokenUsage": {
+          "inputTokens": 23893,
+          "outputTokens": 1604,
+          "totalTokens": 25497,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 13053.592352000007
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "STOP_INCONCLUSIVE"
+        ],
+        "plannerStopDecision": {
+          "iteration": 6,
+          "reasonCode": "INSUFFICIENT_EVIDENCE",
+          "reason": "Two hypotheses (HYP-4d55dfa7 and HYP-93778b78) are both supported by the same evidence, and no evidence distinguishes between them.",
+          "rationale": "The evidence packet shows both hypotheses are supported by the same release change and segment metric evidence, with no discriminating evidence to determine whether the drop was caused by experiment misassignment or ranker degradation. External factor hypothesis is rejected. Without additional evidence to differentiate the two supported hypotheses, a reliable root cause cannot be selected."
+        },
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. Create competing hypotheses for the drop in recommendation engagement among NEW users after the staged release of svc-22.1 with recommendation_ranker_v4 flag."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to confirm the release details and feature flags, which is a required evidence category and will help discriminate between release-related and external-factor hypotheses."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending release-change evidence against all active hypotheses to establish baseline relations before further investigation."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segment by user_type to verify the drop is isolated to NEW users (exposed cohort) versus affecting other cohorts, which discriminates the release-related hypotheses from the external-factor hypothesis."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending segment_metric evidence against all active hypotheses."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "STOP_INCONCLUSIVE",
+            "publicRationale": "The evidence packet shows both hypotheses are supported by the same release change and segment metric evidence, with no discriminating evidence to determine whether the drop was caused by experiment misassignment or ranker degradation. External factor hypothesis is rejected. Without additional evidence to differentiate the two supported hypotheses, a reliable root cause cannot be selected."
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-206"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-130"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "recommendation_engagement_rate",
+              "start_time": "2031-01-06T10:00:00.000Z",
+              "end_time": "2031-01-06T11:00:00.000Z",
+              "dimension": "user_type"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-131"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-130",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-131",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "Release REL-206 introduced recommendation_ranker_v4 and changed ExperimentBinding, which is consistent with the hypothesis that the release degraded recommendation quality for NEW users."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The release change alone does not confirm or refute an external factor; it only establishes temporal correlation."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "SUPPORTS",
+            "explanation": "The ExperimentBinding change in REL-206 is consistent with the hypothesis that NEW users were misassigned to a different experiment."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-131",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The segment_metric breakdown shows NEW-exposed users have a much lower engagement rate (0.31) than NEW-control users (0.67), indicating the drop is isolated to the exposed cohort, consistent with the release degrading recommendation quality for NEW users."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-131",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "CONTRADICTS",
+            "explanation": "The drop is isolated to the NEW-exposed cohort while NEW-control users remain at baseline, contradicting an external factor that would affect all NEW users similarly."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-131",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "SUPPORTS",
+            "explanation": "The exposed cohort (NEW-exposed) shows a significantly lower engagement rate than the control cohort (NEW-control), consistent with the hypothesis that NEW users were misassigned to a different experiment via the ExperimentBinding change."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The recommendation_ranker_v4 feature flag in release REL-206 degraded recommendation quality for NEW users, causing reduced engagement.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The drop in recommendation engagement for NEW users is due to an external factor (e.g., seasonal change, market event) coinciding with the release, not the release itself.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The ExperimentBinding change in REL-206 caused NEW users to be misassigned to a different recommendation experiment, leading to lower engagement.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "INSUFFICIENT_EVIDENCE",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "8804b3505b831ee2aa66905b75a6004bf7aaff9f0c0de95cf7c8a71b1035c596"
+      },
+      "scoring": {
+        "caseId": "CASE-206",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-206",
+            "rootCause": "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) The ExperimentBinding change in REL-206 caused NEW users to be misassigned to a different recommendation experiment, leading to lower engagement; (2) The recommendation_ranker_v4 feature flag in release REL-206 degraded recommendation quality for NEW users, causing reduced engagement."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "RECOMMENDATION_SYSTEM",
+              "FEATURE_FLAG_ROLLOUT",
+              "EXPERIMENT_ASSIGNMENT",
+              "NEW_USERS",
+              "EVIDENCE_INSUFFICIENT",
+              "ALTERNATIVES_UNRESOLVED"
+            ],
+            "missingRequiredConcepts": [
+              "incorrect-assignment"
+            ],
+            "forbiddenAssertions": [
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 6,
+          "toolCalls": 2,
+          "tokenUsage": {
+            "inputTokens": 23893,
+            "outputTokens": 1604,
+            "totalTokens": 25497,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 13053.592352000007
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-207",
+      "category": "configuration",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. The incident is a sudden drop in catalog_result_depth for RETURNING users after release catalog-8.3 with feature flag catalog_result_cap_v2. Create competing hypotheses: a cap on result depth introduced by the flag, a regression in query policy, and an external cause."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Fetch release details to confirm feature flag and module changes, which will support or refute the release-related hypotheses."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending Evidence (release change) against all active hypotheses to establish its support/contradiction relations before further tool calls."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need current incident impact evidence to confirm the depth drop is real and tied to the release window; this will support release-related hypotheses and help refute external cause if the drop is isolated to this release."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending query_metric evidence against all active hypotheses to update support and contradiction scores."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-207"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-150"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "catalog_result_depth",
+              "start_time": "2031-01-07T10:00:00.000Z",
+              "end_time": "2031-01-07T11:00:00.000Z",
+              "filters": {
+                "userType": "RETURNING"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-151"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-150",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-151",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-150",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The release includes feature flag catalog_result_cap_v2, which plausibly caps lower-ranked results, supporting the hypothesis that this flag caused the depth reduction."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-150",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "SUPPORTS",
+            "explanation": "The release changed the QueryPolicy module, which could contain a regression dropping lower-ranked results, supporting this hypothesis."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-150",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The release change alone does not indicate an external factor; it neither supports nor refutes the external-cause hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-151",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The metric shows a 75% drop in catalog_result_depth for returning users during the window after the release, consistent with the cap reducing lower-ranked results."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-151",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "SUPPORTS",
+            "explanation": "The observed drop in result depth aligns with a QueryPolicy regression that could drop lower-ranked results for returning users."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-151",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop alone does not indicate whether the cause is external or release-related; it neither supports nor refutes the external-factor hypothesis."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The catalog_result_cap_v2 feature flag introduced a cap on lower-ranked catalog results, reducing result depth for returning users.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "A regression in the QueryPolicy module of release catalog-8.3 caused lower-ranked results to be dropped for returning users.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "An external factor (e.g., data source issue or upstream change) caused the loss of lower-ranked catalog results, independent of the release.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "8dc3a6f1ba718735842accdee304d85a2f79f7a7f5669d27c5949a0a6e5ddbe3"
+      },
+      "scoring": {
+        "caseId": "CASE-207",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-207",
+            "rootCause": "The catalog result-cap configuration truncated returning-user results."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-208",
+      "category": "configuration",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_MALFORMED_RESPONSE",
+        "errorCategory": "PLANNER_SCHEMA_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "Initial investigation: no hypotheses exist. The incident shows Android opt-in rate drop after a staged config-14.0 release with rollout rules. Need competing hypotheses to explain the decline."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to understand rollout rules and feature flags; this is a required evidence category and will help discriminate between release-caused and platform-specific hypotheses."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the single pending release-change evidence against all active hypotheses to establish its support or contradiction before further tool calls."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Query the Android opt-in rate over the breach window to confirm the drop is real and sustained, discriminating the measurement-artifact hypothesis from the release and platform hypotheses."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending query_metric evidence against all active hypotheses. The exposure percentage vs opt-in rate correlation supports the release-caused hypothesis and refutes the platform-specific and artifact hypotheses."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "Diagnosis claim limitationType 缺失。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-208"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-170"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "notification_opt_in_rate",
+              "start_time": "2031-01-08T10:00:00.000Z",
+              "end_time": "2031-01-08T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-171"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-170",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-171",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-170",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The release evidence confirms config-14.0 exists with a rollout rule change, which is a necessary condition for the release-caused hypothesis."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-170",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The release evidence does not directly address whether the decline is Android-specific independent of the release."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-170",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The release evidence does not speak to whether the decline is transient or a measurement artifact."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-171",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The metric shows opt-in rate declining with exposure percentage (10%->0.68, 30%->0.56, 60%->0.42), directly correlating with the config-14.0 rollout, supporting the release-caused hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-171",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "CONTRADICTS",
+            "explanation": "The decline is tied to exposure percentage rather than being uniformly Android-wide, contradicting a platform-specific issue independent of the release."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-171",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "The monotonic decline with exposure percentage indicates a real, dose-dependent effect rather than a transient anomaly or measurement artifact."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 3,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "HIGH",
+              "supportScore": 7,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The opt-in decline is caused by the config-14.0 release's rollout rules changing the notification prompt sequence, reducing opt-in on Android.",
+            "status": "SUPPORTED",
+            "confidence": "HIGH",
+            "supportScore": 7,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The opt-in decline is caused by a platform-specific issue on Android unrelated to the config-14.0 release, such as OS-level changes or user behavior shift.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The opt-in decline is a temporary anomaly or measurement artifact, not a real product issue.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "a5d46ef1bed15eb31c800c39af8f5daddbde8e6f77531b30b65ce271ed406787"
+      },
+      "scoring": {
+        "caseId": "CASE-208",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-208",
+            "rootCause": "The notification prompt percentage-rollout configuration reduced opt-ins."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    }
+  ],
+  "aggregate": {
+    "totalCases": 8,
+    "completedCases": 0,
+    "failedCases": 7,
+    "inconclusiveCases": 1,
+    "rootCauseTop1Accuracy": 0,
+    "rootCauseExactMatchAccuracy": 0,
+    "rootCauseSemanticAccuracy": 0,
+    "automaticallyEvaluatedCases": 1,
+    "correctCases": 0,
+    "incorrectCases": 1,
+    "reviewRequiredCases": 0,
+    "runtimeFailedCases": 7,
+    "autoEvaluationCoverage": 0.125,
+    "autoEvaluableAccuracy": 0,
+    "meanEvidencePrecision": 0,
+    "meanUnsupportedClaimRate": null,
+    "groundingEvaluableCases": 0,
+    "groundingUnavailableCases": 8,
+    "medianModelCalls": 0,
+    "medianToolCalls": 0,
+    "totalModelCalls": 6,
+    "totalToolCalls": 2,
+    "plannerValidationFailures": 0,
+    "plannerDecisionRepairAttempts": 1,
+    "plannerDecisionRepairSuccesses": 1,
+    "plannerDecisionRepairRate": 1,
+    "plannerFirstAttemptSuccessRate": 0.975609756097561,
+    "plannerFinalSuccessRate": 1,
+    "errorTaxonomyCounts": {
+      "PLANNER_SCHEMA_ERROR": 7,
+      "INVALID_PLANNER_DECISION": 0,
+      "RUNTIME_ERROR": 0
+    },
+    "groundedContractMismatches": 0,
+    "tokenUsage": {
+      "inputTokens": 23893,
+      "outputTokens": 1604,
+      "totalTokens": 25497,
+      "completeness": "PARTIAL"
+    },
+    "totalDurationMs": 13053.592352000007,
+    "estimatedOrActualCost": null
+  },
+  "breakdown": {
+    "category": {
+      "configuration": {
+        "totalCases": 3,
+        "completedCases": 0,
+        "failedCases": 2,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 2,
+        "autoEvaluationCoverage": 0.3333333333333333,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 3,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 6,
+        "totalToolCalls": 2,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 2,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 23893,
+          "outputTokens": 1604,
+          "totalTokens": 25497,
+          "completeness": "PARTIAL"
+        },
+        "totalDurationMs": 13053.592352000007,
+        "estimatedOrActualCost": null
+      },
+      "release_regression": {
+        "totalCases": 5,
+        "completedCases": 0,
+        "failedCases": 5,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 5,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 5,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.96,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 5,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "totalCases": 3,
+        "completedCases": 0,
+        "failedCases": 2,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 2,
+        "autoEvaluationCoverage": 0.3333333333333333,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 3,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 6,
+        "totalToolCalls": 2,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 2,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 23893,
+          "outputTokens": 1604,
+          "totalTokens": 25497,
+          "completeness": "PARTIAL"
+        },
+        "totalDurationMs": 13053.592352000007,
+        "estimatedOrActualCost": null
+      },
+      "HARD": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 1,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 1,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.8,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 1,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "MEDIUM": {
+        "totalCases": 4,
+        "completedCases": 0,
+        "failedCases": 4,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 4,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 4,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 4,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      }
+    }
+  },
+  "semanticHash": "0c3791038b31da09b6cd30995c4c7df44417aeb2d3dfb0acd0aad7dec1087d34"
+}

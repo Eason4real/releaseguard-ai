@@ -23,6 +23,8 @@ export type ModelConfig = {
   model: string;
   apiKey: string;
   requestTimeoutMs?: number;
+  transportMaxRetries?: number;
+  transportRetryBaseDelayMs?: number;
   transport?: typeof fetch;
   responseObserver?: (response: ModelResponseObservation) => void;
 };
@@ -30,6 +32,7 @@ export type ModelConfig = {
 export type ModelResponseObservation = {
   model: string;
   attemptIndex?: number;
+  transportAttemptIndex?: number;
   latencyMs: number;
   status: "SUCCESS" | "ERROR" | "TIMEOUT" | "CANCELLED";
   usage: {
@@ -38,6 +41,38 @@ export type ModelResponseObservation = {
     totalTokens: number | null;
   } | null;
 };
+
+export class ModelTransportError extends Error {
+  readonly name = "ModelTransportError";
+  constructor(
+    message: string,
+    readonly statusCode: number | null,
+    readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
+
+const retryableHttpStatus = (status: number) => status === 408 || status === 409
+  || status === 429 || status >= 500;
+
+const boundedTransportRetries = (value: number | undefined) =>
+  Math.min(2, Math.max(0, Math.trunc(value ?? 0)));
+
+const retryDelayMs = (baseDelayMs: number | undefined, retryIndex: number) =>
+  Math.min(4_000, Math.max(0, Math.trunc(baseDelayMs ?? 500)) * (2 ** retryIndex));
+
+const waitForRetry = (delayMs: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal.aborted) {
+    reject(new DOMException("aborted", "AbortError"));
+    return;
+  }
+  const timeout = setTimeout(resolve, delayMs);
+  signal.addEventListener("abort", () => {
+    clearTimeout(timeout);
+    reject(new DOMException("aborted", "AbortError"));
+  }, { once: true });
+});
 
 export type ModelFinalization = {
   selectedHypothesisId: string;
@@ -77,13 +112,14 @@ export function resolveModelEndpoint(baseUrl: string) {
 export async function callModel(
   config: ModelConfig,
   messages: ModelMessage[],
-  options: { enableTools?: boolean; enableThinking?: boolean; signal?: AbortSignal } = {},
+  options: {
+    enableTools?: boolean;
+    enableThinking?: boolean;
+    requireJsonObject?: boolean;
+    signal?: AbortSignal;
+  } = {},
 ) {
-  const startedAt = performance.now();
-  let observationSent = false;
   const observe = (observation: ModelResponseObservation) => {
-    if (observationSent) return;
-    observationSent = true;
     try {
       config.responseObserver?.(observation);
     } catch {
@@ -100,7 +136,6 @@ export async function callModel(
   const cancelFromCaller = () => abort("CANCELLED");
   if (options.signal?.aborted) cancelFromCaller();
   else options.signal?.addEventListener("abort", cancelFromCaller, { once: true });
-  const timeout = setTimeout(() => abort("TIMEOUT"), config.requestTimeoutMs ?? 75_000);
   const redactCredential = (value: string) => config.apiKey
     ? value.replaceAll(config.apiKey, "[redacted]")
     : value;
@@ -110,62 +145,89 @@ export async function callModel(
     temperature: 0.1,
     max_tokens: 5000,
   };
+  if (options.requireJsonObject && config.provider.toLowerCase() === "deepseek") {
+    body.response_format = { type: "json_object" };
+  }
   if (options.enableTools !== false) {
     body.tools = modelToolDefinitions;
     body.tool_choice = "auto";
   }
-  if (config.provider.toLowerCase() === "deepseek" && options.enableThinking !== false) {
-    body.thinking = { type: "enabled" };
-    body.reasoning_effort = "high";
+  if (config.provider.toLowerCase() === "deepseek") {
+    body.thinking = { type: options.enableThinking === false ? "disabled" : "enabled" };
+    if (options.enableThinking !== false) body.reasoning_effort = "high";
   }
   try {
-    const response = await (config.transport ?? fetch)(resolveModelEndpoint(config.baseUrl), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      observe({ model: config.model, latencyMs: performance.now() - startedAt, status: "ERROR", usage: null });
-      throw new Error(
-        `${config.provider} ${response.status}: ${redactCredential(detail).slice(0, 240)}`,
-      );
+    const maxRetries = boundedTransportRetries(config.transportMaxRetries);
+    for (let transportAttemptIndex = 0; transportAttemptIndex <= maxRetries; transportAttemptIndex += 1) {
+      const attemptStartedAt = performance.now();
+      const timeout = setTimeout(() => abort("TIMEOUT"), config.requestTimeoutMs ?? 75_000);
+      try {
+        const response = await (config.transport ?? fetch)(resolveModelEndpoint(config.baseUrl), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const detail = await response.text();
+          const retryable = retryableHttpStatus(response.status);
+          observe({ model: config.model, transportAttemptIndex, latencyMs: performance.now() - attemptStartedAt, status: "ERROR", usage: null });
+          throw new ModelTransportError(
+            `${config.provider} ${response.status}: ${redactCredential(detail).slice(0, 240)}`,
+            response.status,
+            retryable,
+          );
+        }
+        const payload = (await response.json()) as {
+          choices?: Array<{ message?: ModelMessage }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+          model?: string;
+        };
+        observe({
+          model: payload.model ?? config.model,
+          transportAttemptIndex,
+          latencyMs: performance.now() - attemptStartedAt,
+          status: "SUCCESS",
+          usage: payload.usage ? {
+            promptTokens: payload.usage.prompt_tokens ?? null,
+            completionTokens: payload.usage.completion_tokens ?? null,
+            totalTokens: payload.usage.total_tokens ?? null,
+          } : null,
+        });
+        return payload;
+      } catch (error) {
+        const retryable = error instanceof ModelTransportError
+          ? error.retryable
+          : error instanceof TypeError;
+        if (!(error instanceof ModelTransportError)) {
+          observe({
+            model: config.model,
+            transportAttemptIndex,
+            latencyMs: performance.now() - attemptStartedAt,
+            status: abortStatus ?? "ERROR",
+            usage: null,
+          });
+        }
+        if (transportAttemptIndex >= maxRetries || !retryable || controller.signal.aborted) throw error;
+        await waitForRetry(retryDelayMs(config.transportRetryBaseDelayMs, transportAttemptIndex), controller.signal);
+      } finally {
+        clearTimeout(timeout);
+      }
     }
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: ModelMessage }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-      model?: string;
-    };
-    observe({
-      model: payload.model ?? config.model,
-      latencyMs: performance.now() - startedAt,
-      status: "SUCCESS",
-      usage: payload.usage ? {
-        promptTokens: payload.usage.prompt_tokens ?? null,
-        completionTokens: payload.usage.completion_tokens ?? null,
-        totalTokens: payload.usage.total_tokens ?? null,
-      } : null,
-    });
-    return payload;
+    throw new Error("MODEL_TRANSPORT_RETRY_STATE_INVALID");
   } catch (error) {
-    observe({
-      model: config.model,
-      latencyMs: performance.now() - startedAt,
-      status: abortStatus ?? "ERROR",
-      usage: null,
-    });
     if (error instanceof Error && config.apiKey && error.message.includes(config.apiKey)) {
-      const sanitized = new Error(redactCredential(error.message));
-      sanitized.name = error.name;
+      const sanitized = error instanceof ModelTransportError
+        ? new ModelTransportError(redactCredential(error.message), error.statusCode, error.retryable)
+        : new Error(redactCredential(error.message));
+      if (!(sanitized instanceof ModelTransportError)) sanitized.name = error.name;
       throw sanitized;
     }
     throw error;
   } finally {
-    clearTimeout(timeout);
     options.signal?.removeEventListener("abort", cancelFromCaller);
   }
 }

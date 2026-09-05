@@ -1,0 +1,44 @@
+{
+  "schema_version": "releaseguard-harness-v3-experiment-v1",
+  "status": "EXPERIMENTAL_DEV_NOT_HOLDOUT",
+  "inherits": ["model.json", "improved-agent.json", "harness-v2.json"],
+  "north_star_metric": "business_completion_rate",
+  "changes": {
+    "harness_version": "V3",
+    "tool_argument_normalization": true,
+    "empty_reason_taxonomy": [
+      "NO_DATA",
+      "UNSUPPORTED_QUERY",
+      "NO_MATCH",
+      "NO_INFORMATION_GAIN"
+    ],
+    "schema_only_tool_capability_guidance": true,
+    "cumulative_no_information_budget": 4,
+    "consecutive_no_information_budget": 4,
+    "evidence_readiness_summary": true,
+    "planner_convergence_policy": "V3",
+    "source_content_identity_in_manifest": true
+  },
+  "unchanged_boundaries": {
+    "model": "deepseek-v4-flash",
+    "max_model_calls": 20,
+    "max_tool_calls": 10,
+    "max_iterations": 16,
+    "dataset_cases": 22,
+    "runs": 3,
+    "agent_loop": "single_agent",
+    "grounding_relaxed": false,
+    "approval_relaxed": false,
+    "external_write_relaxed": false
+  },
+  "targets_not_claims": {
+    "technical_completion_min": 0.95,
+    "business_completion_min": 0.55,
+    "strict_root_cause_min": 0.45,
+    "lenient_root_cause_min": 0.60,
+    "critical_evidence_recall_min": 0.80,
+    "empty_tool_rate_max": 0.35,
+    "terminal_state_consistency_min": 0.70,
+    "citation_validity": 1.0
+  }
+}

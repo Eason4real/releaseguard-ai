@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "releaseguard-v8-offline-smoke-evaluator-manifest-v1",
+  "boundary": "EVALUATOR_ONLY_NOT_READ_BY_SYNTHESIZER",
+  "samples": [
+    {
+      "sampleId": "SMOKE-72EAE6A6D5D4",
+      "caseId": "CASE-201",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-A4157EBDD7CA",
+      "caseId": "CASE-202",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-64E7CA010BEB",
+      "caseId": "CASE-203",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-D80BA40A5F6D",
+      "caseId": "CASE-204",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-23E8F1EA8ECF",
+      "caseId": "CASE-205",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-555451DE4FDB",
+      "caseId": "CASE-206",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-B547CC4AEBC8",
+      "caseId": "CASE-207",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-FE1DC5AE18B2",
+      "caseId": "CASE-208",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-350824CDCE5F",
+      "caseId": "CASE-209",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-01532B57E906",
+      "caseId": "CASE-210",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-B7A83498DC06",
+      "caseId": "CASE-213",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-DC2D99563FC6",
+      "caseId": "CASE-214",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-7A55897A1F02",
+      "caseId": "CASE-215",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-7F6C3FFB1F65",
+      "caseId": "CASE-217",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-37D367934F5F",
+      "caseId": "CASE-218",
+      "sourceRunIndex": 1
+    },
+    {
+      "sampleId": "SMOKE-F12FDF8058E6",
+      "caseId": "CASE-219",
+      "sourceRunIndex": 2
+    },
+    {
+      "sampleId": "SMOKE-EB842B535CB0",
+      "caseId": "CASE-221",
+      "sourceRunIndex": 1
+    }
+  ]
+}

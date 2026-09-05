@@ -1,0 +1,12 @@
+{
+  "schema_version": "releaseguard-improved-agent-v1",
+  "base_model_config": "model.json",
+  "changes": {
+    "deepseek_json_object_mode": true,
+    "schema_repairs": 2,
+    "model_call_budget_unchanged": 20,
+    "tool_call_budget_unchanged": 10,
+    "max_iterations_unchanged": 16,
+    "convergence_policy": "Reject or downgrade unsupported speculative alternatives after relevant current-event sources have been queried; do not continue no-information exploration."
+  }
+}

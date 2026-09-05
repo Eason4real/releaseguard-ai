@@ -1,0 +1,1552 @@
+{
+  "schemaVersion": "releaseguard-v8-offline-smoke-score-v2",
+  "seriesId": "contract-v2",
+  "boundary": "SCORING_RUN_AFTER_MODEL_OUTPUTS; EVALUATOR_MANIFEST_AND_GOLD_NOT_MODEL_VISIBLE",
+  "aggregate": {
+    "expectedCases": 17,
+    "cases": 17,
+    "technicalSuccess": 17,
+    "technicalSuccessRate": 1,
+    "strictCorrect": 0,
+    "strictRootCauseRate": 0,
+    "automaticReviewRequired": 12,
+    "criticalEvidenceCitationHits": 14,
+    "criticalEvidenceCitationRate": 0.8235294117647058,
+    "toolCalls": 0,
+    "modelCalls": 20
+  },
+  "retainedAttempts": {
+    "total": 17,
+    "failed": 0
+  },
+  "cases": [
+    {
+      "sampleId": "SMOKE-72EAE6A6D5D4",
+      "caseId": "CASE-201",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-201",
+        "predictedRootCause": "The checkout_confirmation_v2 feature flag introduced a regression in the CheckoutConfirmation module causing checkout completion to drop for Android 9.2.0.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-030",
+          "EV-031"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The checkout_confirmation_v2 feature flag introduced a regression in the CheckoutConfirmation module causing checkout completion to drop for Android 9.2.0.",
+            "evidenceIds": [
+              "EV-030",
+              "EV-031"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "checkout_completion_rate dropped to 0.61 for Android 9.2.0 compared to 0.94 for 9.1.4.",
+            "evidenceIds": [
+              "EV-031"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "The drop is isolated to app_version 9.2.0 on Android; prior version 9.1.4 remains at baseline.",
+            "evidenceIds": [
+              "EV-031"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "No direct evidence links the checkout_confirmation_v2 feature flag to the regression; the flag is not listed in release change evidence.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 2,
+        "toolCallCount": 0,
+        "durationMs": 4733
+      },
+      "scoring": {
+        "caseId": "CASE-201",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-201",
+            "rootCause": "The Android 9.2.0 release regressed checkout confirmation behavior."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The checkout_confirmation_v2 feature flag introduced a regression in the CheckoutConfirmation module causing checkout completion to drop for Android 9.2.0."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "FEATURE_FLAG_ROLLOUT",
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 2,
+          "toolCalls": 0,
+          "durationMs": 4733
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-A4157EBDD7CA",
+      "caseId": "CASE-202",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-202",
+        "predictedRootCause": "The web-31.4 release's search_transport_v3 change caused an increase in abandoned search sessions on Web.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-050",
+          "EV-051"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The web-31.4 release's search_transport_v3 change caused an increase in abandoned search sessions on Web.",
+            "evidenceIds": [
+              "EV-050",
+              "EV-051"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "search_completion_rate dropped from ~0.91 to ~0.68 on Web during the incident window.",
+            "evidenceIds": [
+              "EV-051"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "The release web-31.4 included SearchTransport and RequestBudget changes, which are the candidate mechanism for the observed metric drop.",
+            "evidenceIds": [
+              "EV-050"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline for search_completion_rate is unavailable, limiting direct comparison to pre-release levels.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2445
+      },
+      "scoring": {
+        "caseId": "CASE-202",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-202",
+            "rootCause": "The web release regressed search request timeout handling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The web-31.4 release's search_transport_v3 change caused an increase in abandoned search sessions on Web."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2445
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-64E7CA010BEB",
+      "caseId": "CASE-203",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-203",
+        "predictedRootCause": "A regression introduced in iOS 12.0.0 (DeepLinkRouter changes) causes crashes in the staged cohort.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-070",
+          "EV-071"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "A regression introduced in iOS 12.0.0 (DeepLinkRouter changes) causes crashes in the staged cohort.",
+            "evidenceIds": [
+              "EV-070",
+              "EV-071"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "crash_free_session_rate dropped to 0.89 for app_version 12.0.0, compared to 0.995 for 11.9.2.",
+            "evidenceIds": [
+              "EV-071"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "The affected segment is iOS users on app_version 12.0.0 within the staged rollout.",
+            "evidenceIds": [
+              "EV-071"
+            ]
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2040
+      },
+      "scoring": {
+        "caseId": "CASE-203",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-203",
+            "rootCause": "The staged iOS 12.0.0 release introduced a crash regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "A regression introduced in iOS 12.0.0 (DeepLinkRouter changes) causes crashes in the staged cohort."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2040
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-D80BA40A5F6D",
+      "caseId": "CASE-204",
+      "decisionType": "STOP_INCONCLUSIVE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-204",
+        "predictedRootCause": "Insufficient evidence: Both hypotheses are equally supported by the same metric evidence; EV-092's timeline shows the drop at 08:30 predates REL-204's release at 09:00, contradicting HYPOTHESIS-001, while supporting HYPOTHESIS-002, but EV-090 only confirms REL-904's existence without linking it to the failure. No release-change evidence for REL-204 or REL-904 timing is available to resolve the competition.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1568
+      },
+      "scoring": {
+        "caseId": "CASE-204",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-204",
+            "rootCause": "The earlier purchase response adapter release introduced an incompatible response format."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence: Both hypotheses are equally supported by the same metric evidence; EV-092's timeline shows the drop at 08:30 predates REL-204's release at 09:00, contradicting HYPOTHESIS-001, while supporting HYPOTHESIS-002, but EV-090 only confirms REL-904's existence without linking it to the failure. No release-change evidence for REL-204 or REL-904 timing is available to resolve the competition."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1568
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-23E8F1EA8ECF",
+      "caseId": "CASE-205",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-205",
+        "predictedRootCause": "The chunked_upload_v2 feature flag in release 6.5.0 introduced a regression in the desktop upload scheduler causing upload failures.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-112",
+          "EV-110"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The chunked_upload_v2 feature flag in release 6.5.0 introduced a regression in the desktop upload scheduler causing upload failures.",
+            "evidenceIds": [
+              "EV-112",
+              "EV-110"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "document_upload_success_rate failure rate increased from 5% at 10% rollout to 28% at 50% rollout.",
+            "evidenceIds": [
+              "EV-112"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "Failure rate monotonically increases with rollout percentage, indicating release-driven exposure rather than a transient or segment-specific issue.",
+            "evidenceIds": [
+              "EV-112"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline failure rate is unavailable, limiting absolute impact assessment.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2170
+      },
+      "scoring": {
+        "caseId": "CASE-205",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-205",
+            "rootCause": "The desktop 6.5.0 release regressed chunked upload scheduling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The chunked_upload_v2 feature flag in release 6.5.0 introduced a regression in the desktop upload scheduler causing upload failures."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "FEATURE_FLAG_ROLLOUT",
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2170
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-555451DE4FDB",
+      "caseId": "CASE-206",
+      "decisionType": "STOP_INCONCLUSIVE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-206",
+        "predictedRootCause": "Insufficient evidence: HYPOTHESIS-001 and HYPOTHESIS-003 are both supported by the same evidence (EV-130, EV-131) and remain unresolved competitors; no evidence distinguishes a ranking regression from an experiment binding issue.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1090
+      },
+      "scoring": {
+        "caseId": "CASE-206",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-206",
+            "rootCause": "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence: HYPOTHESIS-001 and HYPOTHESIS-003 are both supported by the same evidence (EV-130, EV-131) and remain unresolved competitors; no evidence distinguishes a ranking regression from an experiment binding issue."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "EXPERIMENT_ASSIGNMENT",
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "missingRequiredConcepts": [
+              "recommendation-domain",
+              "affected-new-users",
+              "incorrect-assignment"
+            ],
+            "forbiddenAssertions": [
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1090
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-B547CC4AEBC8",
+      "caseId": "CASE-207",
+      "decisionType": "STOP_INCONCLUSIVE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-207",
+        "predictedRootCause": "Insufficient evidence: Two competing hypotheses (HYPOTHESIS-001 and HYPOTHESIS-002) are equally supported by the same evidence; no evidence distinguishes between the cap flag and the query policy change as the root cause.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1388
+      },
+      "scoring": {
+        "caseId": "CASE-207",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-207",
+            "rootCause": "The catalog result-cap configuration truncated returning-user results."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence: Two competing hypotheses (HYPOTHESIS-001 and HYPOTHESIS-002) are equally supported by the same evidence; no evidence distinguishes between the cap flag and the query policy change as the root cause."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1388
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-FE1DC5AE18B2",
+      "caseId": "CASE-208",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-208",
+        "predictedRootCause": "The opt-in rate decline is caused by the staged rollout of config-14.0's RolloutRules change, where the 60% exposure percentage determines which users see the new notification prompt sequence, and the affected Android segment correlates with rollout exposure rather than app version.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-171",
+          "EV-170"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The opt-in rate decline is caused by the staged rollout of config-14.0's RolloutRules change, where the 60% exposure percentage determines which users see the new notification prompt sequence, and the affected Android segment correlates with rollout exposure rather than app version.",
+            "evidenceIds": [
+              "EV-171",
+              "EV-170"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "notification_opt_in_rate declined monotonically with rollout exposure percentage (10%→0.68, 30%→0.56, 60%→0.42).",
+            "evidenceIds": [
+              "EV-171"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline and sample size data are unavailable, limiting quantification of the decline's magnitude and statistical significance.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 2,
+        "toolCallCount": 0,
+        "durationMs": 4501
+      },
+      "scoring": {
+        "caseId": "CASE-208",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-208",
+            "rootCause": "The notification prompt percentage-rollout configuration reduced opt-ins."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The opt-in rate decline is caused by the staged rollout of config-14.0's RolloutRules change, where the 60% exposure percentage determines which users see the new notification prompt sequence, and the affected Android segment correlates with rollout exposure rather than app version."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "CHECKOUT_RELEASE",
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 2,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 2,
+          "toolCalls": 0,
+          "durationMs": 4501
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-350824CDCE5F",
+      "caseId": "CASE-209",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-209",
+        "predictedRootCause": "The targeted eligibility rule rollout (eligibility_rules_au_new) is responsible for the drop in checkout_eligibility_rate among new Android users.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-190",
+          "EV-191"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The targeted eligibility rule rollout (eligibility_rules_au_new) is responsible for the drop in checkout_eligibility_rate among new Android users.",
+            "evidenceIds": [
+              "EV-190",
+              "EV-191"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "checkout_eligibility_rate dropped to 0.48 for the affected cohort.",
+            "evidenceIds": [
+              "EV-191"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "The drop is isolated to new Android users in AU, while new users in US and returning users in AU remain near baseline.",
+            "evidenceIds": [
+              "EV-191"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "The targeted rule rollout affected only AU new users, consistent with the segment pattern.",
+            "evidenceIds": [
+              "EV-191"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "No direct evidence confirms the rule was active or its exact mechanism; the conclusion relies on cohort alignment.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2689
+      },
+      "scoring": {
+        "caseId": "CASE-209",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-209",
+            "rootCause": "The targeted eligibility-rule rollout excluded Australian new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The targeted eligibility rule rollout (eligibility_rules_au_new) is responsible for the drop in checkout_eligibility_rate among new Android users."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "CHECKOUT_RELEASE"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 4,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2689
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-01532B57E906",
+      "caseId": "CASE-210",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-210",
+        "predictedRootCause": "A backend or third-party payment service outage in the US caused synchronized payment failures across all app versions and platforms.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-210"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "A backend or third-party payment service outage in the US caused synchronized payment failures across all app versions and platforms.",
+            "evidenceIds": [
+              "EV-210"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "payment_success_rate dropped uniformly to approximately 0.46 across all platforms.",
+            "evidenceIds": [
+              "EV-210"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "All platforms (Android, iOS, Web) in the US were affected.",
+            "evidenceIds": [
+              "EV-210"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "No direct evidence of the backend or third-party outage was captured; the conclusion is inferred from the cross-platform metric pattern.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1908
+      },
+      "scoring": {
+        "caseId": "CASE-210",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-210",
+            "rootCause": "A regional payment-provider outage caused the cross-platform failures."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "A backend or third-party payment service outage in the US caused synchronized payment failures across all app versions and platforms."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 1,
+          "citedCount": 1,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1908
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-B7A83498DC06",
+      "caseId": "CASE-213",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-213",
+        "predictedRootCause": "The activation_event_rate decline on Web is caused by a platform-wide technical issue (e.g., script error, performance regression) affecting all Web users equally.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-270",
+          "EV-272"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The activation_event_rate decline on Web is caused by a platform-wide technical issue (e.g., script error, performance regression) affecting all Web users equally.",
+            "evidenceIds": [
+              "EV-270",
+              "EV-272"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "activation_event_rate is low at 0.52 while completedAccountRate remains high at 0.9, indicating a disconnect between activation events and actual account completions.",
+            "evidenceIds": [
+              "EV-270"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "The decline is uniform across regions AU (0.53) and US (0.52), consistent with a platform-wide issue rather than a localized segment problem.",
+            "evidenceIds": [
+              "EV-272"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline and sample size data are unavailable, limiting the ability to quantify the magnitude of the decline or assess statistical significance.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2229
+      },
+      "scoring": {
+        "caseId": "CASE-213",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-213",
+            "rootCause": "The activation metric is under-reporting successful account completions."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The activation_event_rate decline on Web is caused by a platform-wide technical issue (e.g., script error, performance regression) affecting all Web users equally."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2229
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-DC2D99563FC6",
+      "caseId": "CASE-214",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-214",
+        "predictedRootCause": "The web-52.0 release's OrderPageImages change introduced a rendering regression that increased order page render latency on Web, while order outcomes and feedback disagree because the latency is not yet user-perceived or order-affecting.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-290",
+          "EV-292"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The web-52.0 release's OrderPageImages change introduced a rendering regression that increased order page render latency on Web, while order outcomes and feedback disagree because the latency is not yet user-perceived or order-affecting.",
+            "evidenceIds": [
+              "EV-290",
+              "EV-292"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "Order page render latency is elevated on Web for web-52.0.",
+            "evidenceIds": [
+              "EV-290"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "The release change to OrderPageImages is consistent with the rendering regression mechanism.",
+            "evidenceIds": [
+              "EV-292"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline and sample size data are unavailable for the latency metric, limiting quantitative comparison.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1959
+      },
+      "scoring": {
+        "caseId": "CASE-214",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-214",
+            "rootCause": "The degraded metric reflects slower page rendering, not failed order processing."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The web-52.0 release's OrderPageImages change introduced a rendering regression that increased order page render latency on Web, while order outcomes and feedback disagree because the latency is not yet user-perceived or order-affecting."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1959
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-7A55897A1F02",
+      "caseId": "CASE-215",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-215",
+        "predictedRootCause": "Recommendation users are genuinely disengaging on Web after the web-sdk-7.0 release.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-311"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "Recommendation users are genuinely disengaging on Web after the web-sdk-7.0 release.",
+            "evidenceIds": [
+              "EV-311"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "recommendation_click_event_rate dropped to 0.18 from a baseline of 0.72, indicating a real decline in user engagement with recommendations.",
+            "evidenceIds": [
+              "EV-311"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "Stable recommendation destination visits (0.71 vs baseline 0.72) alongside the click rate drop indicate the signal reflects genuine user behavior change rather than incomplete or inaccurate event collection.",
+            "evidenceIds": [
+              "EV-311"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline for recommendation_click_event_rate was unavailable in the evidence packet, limiting direct comparison; however, the provided baseline value of 0.72 was used from the metric facts.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 3077
+      },
+      "scoring": {
+        "caseId": "CASE-215",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-215",
+            "rootCause": "The analytics SDK rollout stopped recording recommendation click events correctly."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Recommendation users are genuinely disengaging on Web after the web-sdk-7.0 release."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "RECOMMENDATION_SYSTEM"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 1,
+          "citedCount": 1,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 3077
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-7F6C3FFB1F65",
+      "caseId": "CASE-217",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-217",
+        "predictedRootCause": "The drop in support resolution rate is a transient anomaly due to a temporary surge in support tickets or data artifact, not a sustained product problem.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-350",
+          "EV-351"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "The drop in support resolution rate is a transient anomaly due to a temporary surge in support tickets or data artifact, not a sustained product problem.",
+            "evidenceIds": [
+              "EV-350",
+              "EV-351"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "support_resolution_rate dropped to 0.5 in one bucket with a small sample size of 18, while surrounding buckets remained near baseline (0.87-0.89).",
+            "evidenceIds": [
+              "EV-350"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline and sample size details were unavailable, limiting full statistical validation.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 2,
+        "toolCallCount": 0,
+        "durationMs": 3791
+      },
+      "scoring": {
+        "caseId": "CASE-217",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-217",
+            "rootCause": "The alert is a transient low-sample fluctuation rather than a sustained regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "The drop in support resolution rate is a transient anomaly due to a temporary surge in support tickets or data artifact, not a sustained product problem."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 2,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 2,
+          "toolCalls": 0,
+          "durationMs": 3791
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-37D367934F5F",
+      "caseId": "CASE-218",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-218",
+        "predictedRootCause": "Release 20.0.1's SettingsIcons change introduced a regression that reduced browse-to-cart conversion for new AU Android users.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-370",
+          "EV-372"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "Release 20.0.1's SettingsIcons change introduced a regression that reduced browse-to-cart conversion for new AU Android users.",
+            "evidenceIds": [
+              "EV-370",
+              "EV-372"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "Browse-to-cart rate dropped from baseline 0.41 to 0.28 during the incident window for new AU Android users on version 20.0.1.",
+            "evidenceIds": [
+              "EV-370"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "The release change to SettingsIcons in version 20.0.1 is a necessary condition for the observed conversion regression, as confirmed by release change evidence.",
+            "evidenceIds": [
+              "EV-372"
+            ]
+          },
+          {
+            "type": "LIMITATION",
+            "limitationType": "DATA_GAP",
+            "statement": "Baseline and sample size for the browse-to-cart metric were unavailable, limiting precision of the impact magnitude.",
+            "evidenceIds": []
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2197
+      },
+      "scoring": {
+        "caseId": "CASE-218",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-218",
+            "rootCause": "The conversion change is expected behavior from a promotion-driven low-intent traffic mix."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Release 20.0.1's SettingsIcons change introduced a regression that reduced browse-to-cart conversion for new AU Android users."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2197
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-F12FDF8058E6",
+      "caseId": "CASE-219",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-219",
+        "predictedRootCause": "Release 21.0.0 introduced a defect in CheckoutClient that reduced payment completion rate in AU.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-390",
+          "EV-391"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "Release 21.0.0 introduced a defect in CheckoutClient that reduced payment completion rate in AU.",
+            "evidenceIds": [
+              "EV-390",
+              "EV-391"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "Payment completion rate was affected, with Android at 0.64 versus iOS at 0.71.",
+            "evidenceIds": [
+              "EV-391"
+            ]
+          },
+          {
+            "type": "AFFECTED_SEGMENT",
+            "statement": "The Android platform segment was affected.",
+            "evidenceIds": [
+              "EV-391"
+            ]
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 1891
+      },
+      "scoring": {
+        "caseId": "CASE-219",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-219",
+            "rootCause": "Available evidence cannot distinguish the checkout release from payment-provider instability."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Release 21.0.0 introduced a defect in CheckoutClient that reduced payment completion rate in AU."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [
+              "release-alternative",
+              "provider-alternative",
+              "alternatives-unresolved"
+            ],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode CAUSAL conflicts with expected ABSTAIN."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 2,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 1891
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "sampleId": "SMOKE-EB842B535CB0",
+      "caseId": "CASE-221",
+      "decisionType": "FINALIZE",
+      "error": null,
+      "normalizedPrediction": {
+        "caseId": "CASE-221",
+        "predictedRootCause": "Release 22.4.0's coupon_retry_v3 flag change in CouponClient caused the coupon redemption rate drop on Android.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-430",
+          "EV-434"
+        ],
+        "diagnosisClaims": [
+          {
+            "type": "ROOT_CAUSE",
+            "statement": "Release 22.4.0's coupon_retry_v3 flag change in CouponClient caused the coupon redemption rate drop on Android.",
+            "evidenceIds": [
+              "EV-430",
+              "EV-434"
+            ]
+          },
+          {
+            "type": "AFFECTED_METRIC",
+            "statement": "coupon_view_rate remained near baseline (0.92 vs 0.93) while coupon_redemption_rate dropped, indicating the issue is specific to the redemption flow.",
+            "evidenceIds": [
+              "EV-434"
+            ]
+          },
+          {
+            "type": "CAUSAL_STEP",
+            "statement": "The release change modified CouponClient and enabled coupon_retry_v3, which is consistent with the hypothesis that this change caused the Android coupon redemption rate drop.",
+            "evidenceIds": [
+              "EV-430"
+            ]
+          }
+        ],
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "durationMs": 2188
+      },
+      "scoring": {
+        "caseId": "CASE-221",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-221",
+            "rootCause": "Current evidence is insufficient to confirm the historical retry mechanism."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Release 22.4.0's coupon_retry_v3 flag change in CouponClient caused the coupon redemption rate drop on Android."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode CAUSAL conflicts with expected ABSTAIN."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 3,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 1,
+          "toolCalls": 0,
+          "durationMs": 2188
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    }
+  ]
+}

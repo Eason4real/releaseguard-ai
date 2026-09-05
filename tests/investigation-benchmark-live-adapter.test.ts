@@ -176,6 +176,83 @@ test("OpenAI-compatible client redacts a credential echoed by provider or transp
   }
 });
 
+test("OpenAI-compatible client retries only bounded transient transport failures", async () => {
+  let calls = 0;
+  const observations: Array<{ status: string; transportAttemptIndex?: number }> = [];
+  const payload = await callModel({
+    provider: "openai-compatible",
+    baseUrl: "https://example.test/v1",
+    apiKey: SECRET,
+    model: "stub-model",
+    transportMaxRetries: 2,
+    transportRetryBaseDelayMs: 0,
+    responseObserver: (item) => observations.push(item),
+    transport: async () => {
+      calls += 1;
+      if (calls === 1) return new Response("temporary outage", { status: 503 });
+      return response({ type: "STOP_INCONCLUSIVE", rationale: "Recovered." });
+    },
+  }, [{ role: "user", content: "PREFLIGHT_TEST_ONLY" }], { enableTools: false });
+  assert.equal(calls, 2);
+  assert.equal(payload.choices?.[0]?.message?.content?.includes("Recovered"), true);
+  assert.deepEqual(observations.map((item) => [item.status, item.transportAttemptIndex]), [
+    ["ERROR", 0],
+    ["SUCCESS", 1],
+  ]);
+});
+
+test("OpenAI-compatible client never retries authentication failures", async () => {
+  let calls = 0;
+  await assert.rejects(callModel({
+    provider: "openai-compatible",
+    baseUrl: "https://example.test/v1",
+    apiKey: SECRET,
+    model: "stub-model",
+    transportMaxRetries: 2,
+    transportRetryBaseDelayMs: 0,
+    transport: async () => {
+      calls += 1;
+      return new Response("unauthorized", { status: 401 });
+    },
+  }, [{ role: "user", content: "PREFLIGHT_TEST_ONLY" }], { enableTools: false }));
+  assert.equal(calls, 1);
+});
+
+test("DeepSeek Planner requests JSON object mode when structured output is required", async () => {
+  let requestBody: Record<string, unknown> | null = null;
+  const transport: typeof fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return response({ type: "STOP_INCONCLUSIVE", rationale: "Test-only structured response." });
+  };
+  await callModel({
+    provider: "deepseek",
+    baseUrl: "https://example.test/v1",
+    apiKey: SECRET,
+    model: "stub-model",
+    transport,
+  }, [{ role: "user", content: "Return a JSON decision." }], {
+    requireJsonObject: true,
+    enableTools: false,
+  });
+  assert.ok(requestBody);
+  assert.deepEqual((requestBody as Record<string, unknown>).response_format, { type: "json_object" });
+});
+
+test("DeepSeek repair explicitly disables thinking instead of relying on omission", async () => {
+  let requestBody: Record<string, unknown> | null = null;
+  await callModel({
+    provider: "deepseek", baseUrl: "https://example.test/v1", apiKey: SECRET, model: "stub-model",
+    transport: async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return response({ type: "STOP_INCONCLUSIVE", rationale: "Test-only response." });
+    },
+  }, [{ role: "user", content: "Return JSON." }], {
+    requireJsonObject: true, enableTools: false, enableThinking: false,
+  });
+  assert.deepEqual((requestBody as Record<string, unknown> | null)?.thinking, { type: "disabled" });
+  assert.equal(Object.hasOwn(requestBody ?? {}, "reasoning_effort"), false);
+});
+
 test("Live configuration is explicit and provider-agnostic without deterministic fallback", () => {
   const transport: typeof fetch = async () => response({});
   const valid = config(transport);
@@ -197,6 +274,32 @@ test("Live configuration is explicit and provider-agnostic without deterministic
       && error.code === "LIVE_PROVIDER_INVALID",
   );
   assert.doesNotThrow(() => createLiveLLMHarnessProviderFactory({ ...valid, provider: "deepseek" }));
+  const v2 = createLiveLLMHarnessProviderFactory({
+    ...valid,
+    provider: "deepseek",
+    transportMaxRetries: 2,
+    transportRetryBaseDelayMs: 500,
+    fixtureQueryHints: true,
+  });
+  assert.notEqual(typeof v2.executionMetadata.modelConfiguration, "string");
+  if (typeof v2.executionMetadata.modelConfiguration !== "string") {
+    assert.equal(v2.executionMetadata.modelConfiguration.transportRetry, 2);
+    assert.equal(v2.executionMetadata.modelConfiguration.fixtureQueryHints, true);
+    assert.equal(v2.executionMetadata.modelConfiguration.harnessVersion, "V2");
+  }
+  const v3 = createLiveLLMHarnessProviderFactory({
+    ...valid,
+    provider: "deepseek",
+    fixtureQueryHints: true,
+    harnessVersion: "V3",
+    sourceIdentity: "sha256:test-v3-source",
+  });
+  assert.notEqual(typeof v3.executionMetadata.modelConfiguration, "string");
+  if (typeof v3.executionMetadata.modelConfiguration !== "string") {
+    assert.equal(v3.executionMetadata.modelConfiguration.harnessVersion, "V3");
+    assert.equal(v3.executionMetadata.modelConfiguration.sourceIdentity,
+      "sha256:test-v3-source");
+  }
   assert.doesNotThrow(() => createLiveLLMHarnessProviderFactory({
     ...valid,
     provider: "openai-compatible",
@@ -283,7 +386,7 @@ test("Live provider redacts secrets and classifies provider failures with zero t
     },
     {
       expected: "PROVIDER_MALFORMED_RESPONSE",
-      calls: 2,
+      calls: 3,
       transport: (count) => async () => {
         count.value += 1;
         return Response.json({ choices: [] });
@@ -318,7 +421,7 @@ test("Live provider classifies exhausted planner schema repair separately", asyn
   assert.equal(outcome.error, "PROVIDER_MALFORMED_RESPONSE");
   assert.equal(outcome.errorCategory, "PLANNER_SCHEMA_ERROR");
   assert.equal(outcome.terminalInvestigationState, "FAILED");
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 test("Live CLI requires explicit opt-in and is absent from default test, eval, and build scripts", async () => {

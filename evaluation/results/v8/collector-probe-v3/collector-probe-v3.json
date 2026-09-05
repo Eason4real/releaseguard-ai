@@ -1,0 +1,3024 @@
+{
+  "schemaVersion": "investigation-live-benchmark-report-v1",
+  "reportStatus": "COMPLETE",
+  "label": "Live LLM Benchmark",
+  "manifest": {
+    "runId": "HARNESS-V8-COLLECTOR-PROBE-V3",
+    "datasetId": "INVESTIGATION-BENCHMARK-DEV",
+    "datasetVersion": "0.2.0",
+    "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "evaluationContractVersion": "phase1a-v2",
+    "telemetrySchemaVersion": "benchmark-observability-v3",
+    "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+    "executionProvider": "LIVE_LLM_PROVIDER",
+    "runtimeMode": "LIVE_LLM",
+    "enabledTools": [
+      "get_release",
+      "query_metric",
+      "segment_metric",
+      "search_user_feedback",
+      "search_similar_incidents"
+    ],
+    "modelConfiguration": {
+      "provider": "deepseek",
+      "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+      "baseUrl": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.1,
+      "topP": "PROVIDER_DEFAULT",
+      "maxOutputTokens": 5000,
+      "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+      "maxModelCalls": 20,
+      "toolBudget": 10,
+      "maxIterations": 16,
+      "timeoutMs": 75000,
+      "schemaRepairMax": 2,
+      "transportRetry": 2,
+      "fixtureQueryHints": false,
+      "harnessVersion": "V8",
+      "sourceIdentity": "sha256:459d841079f4cd016d78904fe07f8552311eccb4df1e2c1238161e28710f2d15",
+      "concurrency": 1,
+      "credentialPresent": true
+    },
+    "startedAt": "2026-09-04T09:56:23.252Z",
+    "completedAt": "2026-09-04T09:57:42.175Z",
+    "totalCases": 5,
+    "processedCases": 5,
+    "completedCases": 2,
+    "failedCases": 0,
+    "inconclusiveCases": 3,
+    "caseSelection": [
+      "CASE-204",
+      "CASE-206",
+      "CASE-213",
+      "CASE-218",
+      "CASE-221"
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "CASE-204",
+      "category": "release_regression",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "FINALIZED",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-204",
+        "predictedRootCause": "REL-204's receipt_theme_refresh feature flag or ReceiptTheme module change introduced a client-side failure on Web that breaks the purchase completion flow, causing the drop in purchase_success_rate.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-092",
+          "EV-092"
+        ],
+        "diagnosisClaims": [
+          {
+            "claimId": "DCL-81aa0b0d-7ef9-4a5d-8b15-2c87a005a355",
+            "type": "ROOT_CAUSE",
+            "statement": "REL-204's receipt_theme_refresh feature flag or ReceiptTheme module change introduced a client-side failure on Web that breaks the purchase completion flow, causing the drop in purchase_success_rate.",
+            "citedEvidenceIds": [
+              "EV-092"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-3afa256a-6348-4336-8249-6ea1c77d4566",
+            "type": "AFFECTED_METRIC",
+            "statement": "purchase_success_rate dropped from 0.96 to 0.55 on Web during the incident window.",
+            "citedEvidenceIds": [
+              "EV-092"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-84fe59a9-c96c-46d1-be20-0155d7663284",
+            "type": "LIMITATION",
+            "statement": "No segment-level or complementary business metric evidence is available to fully rule out measurement artifacts or confirm broad user impact.",
+            "citedEvidenceIds": [],
+            "groundingStatus": "GROUNDED"
+          }
+        ],
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "tokenUsage": {
+          "inputTokens": 33313,
+          "outputTokens": 2284,
+          "totalTokens": 35597,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 18015.464137
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "FINALIZE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 1,
+        "plannerValidationEvents": [
+          {
+            "iteration": 2,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "CALL_TOOL_DISCRIMINATION_REQUIRES_MULTIPLE_TARGETS",
+            "validationPath": "targetHypothesisIds",
+            "validationSubcode": null,
+            "responseHash": "142510da72b81449bac8173af58ae428820c32259b3314c7ee5839eef5747bea",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "142510da72b81449bac8173af58ae428820c32259b3314c7ee5839eef5747bea",
+                "responseLength": 355,
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 1
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 1
+                }
+              }
+            }
+          },
+          {
+            "iteration": 2,
+            "attemptIndex": 1,
+            "outcome": "REPAIRED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "CALL_TOOL",
+            "validationCode": "CALL_TOOL_DISCRIMINATION_REQUIRES_MULTIPLE_TARGETS",
+            "validationPath": "targetHypothesisIds",
+            "validationSubcode": null,
+            "responseHash": "8c55c632cecf561fae39c88a1de445ce97a8e779253bd3d803c8ddac7b17307e",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "8c55c632cecf561fae39c88a1de445ce97a8e779253bd3d803c8ddac7b17307e",
+                "responseLength": 478,
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "arguments",
+                  "rationale",
+                  "targetHypothesisIds",
+                  "testIntent",
+                  "toolName",
+                  "type"
+                ],
+                "decisionType": "CALL_TOOL",
+                "shape": {
+                  "argumentsFieldType": "object",
+                  "argumentKeys": [
+                    "release_id"
+                  ],
+                  "targetHypothesisIdsCount": 2
+                }
+              }
+            }
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "The incident shows a sharp drop in purchase_success_rate on Web after REL-204 (web-44.2) full rollout. REL-904 is mentioned in the question but not yet loaded. Need competing hypotheses that are distinguishable and testable."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context for REL-904 to compare with REL-204 and assess whether it aligns with the incident window and purchase flow, thereby discriminating between the two release-related hypotheses."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending Evidence EV-8283dcab (REL-904 release record) against all active hypotheses. This release record only confirms REL-904 exists, changed PurchaseResponseAdapter, and released at 08:20Z, which is before the incident window. It does not establish a causal link to the purchase_success_rate drop, so it should be NEUTRAL for all hypotheses."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need current-impact evidence to discriminate between REL-204 frontend vs REL-904 backend vs measurement artifact. Query purchase_success_rate on Web during incident window to confirm drop and establish baseline."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending query_metric evidence against all active hypotheses to establish current-incident support and refine hypothesis ranking."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "FINALIZE",
+            "publicRationale": "The only supported hypothesis is REL-204's frontend change; REL-904's backend change and the measurement-artifact hypothesis lack supporting evidence and remain neutral. The metric drop is on Web and version web-44.2, aligning with REL-204."
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-904"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-090"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "purchase_success_rate",
+              "start_time": "2031-01-04T10:00:00.000Z",
+              "end_time": "2031-01-04T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-092"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-090",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-092",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-090",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "REL-904 is a separate backend release; its existence does not support or refute the claim that REL-204's frontend change caused the drop."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-090",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "REL-904 changed PurchaseResponseAdapter and released at 08:20Z, which is before the incident window, but this record alone does not confirm a causal link to the purchase_success_rate drop; it only shows a change existed."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-090",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "REL-904's release record does not provide information about measurement artifacts or traffic structure, so it neither supports nor refutes the measurement-artifact hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-092",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The metric timeline shows purchase_success_rate dropping from 0.96 at 08:15 to 0.55 at 08:30 and 0.54 at 09:15, with the incident window 10:00-11:00Z. The drop is on Web platform, consistent with REL-204's Web release. However, the timeline values are at 08:15, 08:30, 09:15, which are before the incident window; this may indicate a timing mismatch. Still, the observed drop on Web supports a Web-related regression, aligning with REL-204's frontend change."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-092",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop is on Web platform, but REL-904 is a backend release (api-18.7) that could affect Web indirectly. The timeline does not isolate version or backend symptoms, so it neither supports nor refutes the backend hypothesis."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-092",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop alone does not indicate whether it is a real regression or a measurement artifact; complementary metrics or segment analysis are needed to distinguish. Thus neutral."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-204's receipt_theme_refresh feature flag or ReceiptTheme module change introduced a client-side failure on Web that breaks the purchase completion flow, causing the drop in purchase_success_rate.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "REL-904 (another release, details unknown) introduced a backend or dependency change that degrades purchase success rate on Web, independent of REL-204's frontend changes.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The purchase_success_rate drop is caused by a measurement or traffic-structure artifact (e.g., bot traffic, instrumentation change, or segment mix shift) rather than a real product regression.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [
+          {
+            "attempt": 1,
+            "diagnosisId": "DIAGNOSIS-001",
+            "selectedHypothesisId": "HYPOTHESIS-001",
+            "validationResult": "ACCEPTED",
+            "rejectionReason": null
+          }
+        ],
+        "finalizeAttempts": [
+          {
+            "iteration": 6,
+            "validationResult": "ACCEPTED",
+            "rejectionReason": null
+          }
+        ],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "WAITING_APPROVAL",
+        "modelCallCount": 7,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "e1076c70835320618117cb79aaabb268aa1ef10416ce6d9bbca41f4a7338a89b"
+      },
+      "scoring": {
+        "caseId": "CASE-204",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-204",
+            "rootCause": "The earlier purchase response adapter release introduced an incompatible response format."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "REL-204's receipt_theme_refresh feature flag or ReceiptTheme module change introduced a client-side failure on Web that breaks the purchase completion flow, causing the drop in purchase_success_rate."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "FEATURE_FLAG_ROLLOUT",
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 1,
+          "relevantCount": 1,
+          "citedCount": 1,
+          "duplicateEvidenceIds": [
+            "EV-092"
+          ],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 2,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 7,
+          "toolCalls": 2,
+          "tokenUsage": {
+            "inputTokens": 33313,
+            "outputTokens": 2284,
+            "totalTokens": 35597,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 18015.464137
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-206",
+      "category": "configuration",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 1,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-206",
+        "predictedRootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) An external dependency or infrastructure issue (e.g., recommendation service latency or data feed failure) degraded the recommendation experience for NEW users during the incident window; (2) The engagement drop is due to a change in traffic composition or measurement issue in the NEW user segment, not a real product behavior change; (3) The recommendation_ranker_v4 flag in release REL-206 introduced a ranking bug that degraded recommendation quality for NEW users, causing lower engagement.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 6,
+        "toolCallCount": 1,
+        "tokenUsage": {
+          "inputTokens": 30542,
+          "outputTokens": 1496,
+          "totalTokens": 32038,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 11907.085944999999
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "STOP_INCONCLUSIVE"
+        ],
+        "plannerStopDecision": {
+          "iteration": 4,
+          "reasonCode": "INSUFFICIENT_EVIDENCE",
+          "reason": "证据收集阶段的结构化响应未通过有界校验；保留已收集 Evidence，需人工复核或重试。",
+          "rationale": "服务端拒绝未经验证的下一步，安全停止调查。"
+        },
+        "schemaRepairCount": 2,
+        "plannerValidationEvents": [
+          {
+            "iteration": 4,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": "ASSESS_EVIDENCE",
+            "validationCode": "INVALID_FIELD_VALUE",
+            "validationPath": "assessments",
+            "validationSubcode": null,
+            "responseHash": "3d0d54d7b60e43b0535449135e7e71162ebb2079ab252a5f1fdcb31ac4241bf9",
+            "responseStructure": null
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 1,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "ASSESS_EVIDENCE",
+            "validationCode": "ASSESSMENT_CONTEXT_REQUIRED",
+            "validationPath": "assessments",
+            "validationSubcode": null,
+            "responseHash": "4050f9cfc6e6ba5aa73219f046e67fd9376a55e0b08702ed81f30d49c36fa739",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "4050f9cfc6e6ba5aa73219f046e67fd9376a55e0b08702ed81f30d49c36fa739",
+                "responseLength": 953,
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "iteration": 4,
+            "attemptIndex": 2,
+            "outcome": "REPAIR_FAILED",
+            "validationKind": "SEMANTIC",
+            "decisionType": "ASSESS_EVIDENCE",
+            "validationCode": "ASSESSMENT_CONTEXT_REQUIRED",
+            "validationPath": "assessments",
+            "validationSubcode": null,
+            "responseHash": "4050f9cfc6e6ba5aa73219f046e67fd9376a55e0b08702ed81f30d49c36fa739",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "4050f9cfc6e6ba5aa73219f046e67fd9376a55e0b08702ed81f30d49c36fa739",
+                "responseLength": 953,
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "No hypotheses exist yet. Create competing hypotheses for the drop in recommendation engagement among NEW users in the exposed cohort (svc-22.1, 25% rollout)."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need to confirm the release context and the flag's exposure to establish whether the drop is isolated to the exposed cohort. get_release provides factual release details without causal claims."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the release change evidence against all active hypotheses. The release record only confirms the existence, scope, and timing of the change; it does not by itself establish a causal link to the engagement drop. Therefore, it should be NEUTRAL for all hypotheses."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "STOP_INCONCLUSIVE",
+            "publicRationale": "服务端拒绝未经验证的下一步，安全停止调查。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-206"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-130"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-130",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "Release record confirms the flag and module change but provides no evidence of a ranking bug or quality degradation; causal link requires further impact and feedback evidence."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Release record does not indicate traffic composition or measurement issues; it only documents the change scope and timing."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-130",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "Release record does not provide evidence about external dependencies or infrastructure issues; it only confirms the release details."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The recommendation_ranker_v4 flag in release REL-206 introduced a ranking bug that degraded recommendation quality for NEW users, causing lower engagement.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The engagement drop is due to a change in traffic composition or measurement issue in the NEW user segment, not a real product behavior change.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "An external dependency or infrastructure issue (e.g., recommendation service latency or data feed failure) degraded the recommendation experience for NEW users during the incident window.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "INSUFFICIENT_EVIDENCE",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 1,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "35e05f88638542a19a2a63aa7e2cf955d966fc992bc75d1022dd0e57d0beba14"
+      },
+      "scoring": {
+        "caseId": "CASE-206",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-206",
+            "rootCause": "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) An external dependency or infrastructure issue (e.g., recommendation service latency or data feed failure) degraded the recommendation experience for NEW users during the incident window; (2) The engagement drop is due to a change in traffic composition or measurement issue in the NEW user segment, not a real product behavior change; (3) The recommendation_ranker_v4 flag in release REL-206 introduced a ranking bug that degraded recommendation quality for NEW users, causing lower engagement."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "RECOMMENDATION_SYSTEM",
+              "NEW_USERS",
+              "EVIDENCE_INSUFFICIENT",
+              "ALTERNATIVES_UNRESOLVED"
+            ],
+            "missingRequiredConcepts": [
+              "experiment-rollout-mechanism",
+              "incorrect-assignment"
+            ],
+            "forbiddenAssertions": [
+              "EVIDENCE_INSUFFICIENT"
+            ],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 6,
+          "toolCalls": 1,
+          "tokenUsage": {
+            "inputTokens": 30542,
+            "outputTokens": 1496,
+            "totalTokens": 32038,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 11907.085944999999
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-213",
+      "category": "user_feedback",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 4,
+        "toolCallCount": 1,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-213",
+        "predictedRootCause": "Leading hypothesis (not yet confirmed as the sole root cause): The activation_event_rate decline is caused by a measurement or instrumentation issue in the activation event tracking on Web, leading to undercounting of events without a real change in user activation behavior.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 4,
+        "toolCallCount": 1,
+        "tokenUsage": {
+          "inputTokens": 15236,
+          "outputTokens": 1122,
+          "totalTokens": 16358,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 9582.624472000003
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "STOP_INCONCLUSIVE"
+        ],
+        "plannerStopDecision": {
+          "iteration": 4,
+          "reasonCode": "INSUFFICIENT_EVIDENCE",
+          "reason": "Readiness status is READY_FOR_BOUNDED_HYPOTHESIS, not READY_FOR_CAUSAL; only one SEGMENT_METRIC evidence exists, lacking complementary metrics or user feedback to confirm measurement issue as root cause.",
+          "rationale": "Evidence supports HYP-e622059b but is insufficient for causal finalization; bounded hypothesis state requires abstention."
+        },
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "The activation_event_rate dropped sharply on Web without a matching account outcome change. This suggests either a measurement/telemetry issue, a change in user behavior or traffic composition, or an external dependency failure. Since no release is correlated, we focus on these competing explanations."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segmenting by region will discriminate between measurement issue (uniform decline) and real behavior/external dependency (concentrated decline)."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the only pending segment_metric evidence against all three active hypotheses. The uniform decline across AU and US regions supports the measurement/instrumentation hypothesis and contradicts the real behavior change and external dependency hypotheses, which predict regional concentration."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "STOP_INCONCLUSIVE",
+            "publicRationale": "Evidence supports HYP-e622059b but is insufficient for causal finalization; bounded hypothesis state requires abstention."
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "activation_event_rate",
+              "start_time": "2031-01-13T10:00:00.000Z",
+              "end_time": "2031-01-13T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "dimension": "region"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-272"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-272",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-272",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "Uniform decline across AU and US regions is consistent with a measurement/instrumentation issue affecting all regions equally, as predicted by supportIf."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-272",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "CONTRADICTS",
+            "explanation": "The decline is uniform across AU and US, not concentrated in specific regions, contradicting the real behavior/traffic composition hypothesis that expects regional concentration."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-272",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "Uniform decline across regions contradicts the external dependency/platform issue hypothesis, which would likely show regional or platform-specific concentration."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The activation_event_rate decline is caused by a measurement or instrumentation issue in the activation event tracking on Web, leading to undercounting of events without a real change in user activation behavior.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The activation_event_rate decline is caused by a real change in user behavior or traffic composition on Web, such as an influx of low-intent users or a shift in regional usage, leading to fewer genuine activation events.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The activation_event_rate decline is caused by an external dependency failure or platform issue affecting the activation flow on Web, such as a third-party service outage or a browser-specific problem, preventing users from completing activation.",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "INSUFFICIENT_EVIDENCE",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 4,
+        "toolCallCount": 1,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "92393f23a5acc4c1e2541038fd74973a096e0908756e878733c3c95c898634b1"
+      },
+      "scoring": {
+        "caseId": "CASE-213",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-213",
+            "rootCause": "The activation metric is under-reporting successful account completions."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Leading hypothesis (not yet confirmed as the sole root cause): The activation_event_rate decline is caused by a measurement or instrumentation issue in the activation event tracking on Web, leading to undercounting of events without a real change in user activation behavior."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 4,
+          "toolCalls": 1,
+          "tokenUsage": {
+            "inputTokens": 15236,
+            "outputTokens": 1122,
+            "totalTokens": 16358,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 9582.624472000003
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-218",
+      "category": "unknown",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 10,
+        "toolCallCount": 5,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-218",
+        "predictedRootCause": "Leading hypothesis (not yet confirmed as the sole root cause): The conversion drop is a measurement artifact due to a tracking or instrumentation change in Android 20.0.1, not a real user behavior change.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 10,
+        "toolCallCount": 5,
+        "tokenUsage": {
+          "inputTokens": 56203,
+          "outputTokens": 2964,
+          "totalTokens": 59167,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 23197.144643
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "CALL_TOOL",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [
+          {
+            "eventType": "DUPLICATE_TOOL_CALL",
+            "iteration": 10,
+            "proposedToolName": "query_metric",
+            "sanitizedProposedArguments": {
+              "metric_key": "browse_to_cart_rate",
+              "start_time": "2031-01-18T10:00:00.000Z",
+              "end_time": "2031-01-18T11:00:00.000Z",
+              "filters": {
+                "region": "AU",
+                "userType": "NEW"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "proposedFingerprint": "abebe08f9bb76a634daffb330b4827e39493fa351d05c5d7a8245b864500deaf",
+            "duplicateOfToolCallId": "TOOL_CALL-001",
+            "duplicateOfFingerprint": "abebe08f9bb76a634daffb330b4827e39493fa351d05c5d7a8245b864500deaf",
+            "resolution": "REJECTED_AND_STOPPED_INCONCLUSIVE"
+          }
+        ],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "Release 20.0.1 changed SettingsIcons on Android, full rollout at 09:00, anomaly at 10:00-11:00 for AU NEW users. Need competing hypotheses with specific mechanisms and observable signals."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Confirm the current incident impact for the AU/NEW segment and establish a baseline for comparison. This evidence is needed to assess all hypotheses and determine whether the drop is real and isolated."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Processing the single pending Evidence from the query_metric tool result, which shows browse-to-cart rate dropped while request volume and error rate remained stable. This evidence is NEUTRAL for the release regression hypothesis because it does not isolate version or UI impact. It is NEUTRAL for the external dependency hypothesis because no external service data is present. It is NEUTRAL for the measurement artifact hypothesis because complementary metrics (cart adds/orders) are not yet available."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need release context to confirm the exact scope and timing of the Android 20.0.1 change, which is missing per evidenceReadiness. This will help discriminate between the release-specific UI regression hypothesis and the external dependency hypothesis."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending release evidence against all active hypotheses. The release record only confirms the change exists, scope, and timing; it does not isolate the drop to Android 20.0.1 or provide UI-related mechanism, so it is NEUTRAL for all."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Query browse_to_cart_rate filtered to Android 20.0.1 to test if the drop is version-specific. If the drop persists on this version, it supports the release regression hypothesis; if the drop disappears or is not isolated, it refutes it and supports the external dependency or measurement artifact hypotheses."
+          },
+          {
+            "sequence": 7,
+            "iterationId": "ITERATION-007",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Need to discriminate between release-specific UI regression and external dependency issue by checking if the drop is isolated to Android 20.0.1 or affects other platforms/versions. Since segment_metric is unavailable, query_metric with platform filter can compare Android vs other platforms."
+          },
+          {
+            "sequence": 8,
+            "iterationId": "ITERATION-008",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "User feedback can reveal whether the conversion drop is due to a real UI regression (supporting HYP-7467f65d) or a measurement artifact with no user complaints (supporting HYP-dc6f8680). This directly discriminates between the leading release-related hypothesis and the measurement artifact hypothesis."
+          },
+          {
+            "sequence": 9,
+            "iterationId": "ITERATION-009",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending user feedback evidence against all active hypotheses."
+          },
+          {
+            "sequence": 10,
+            "iterationId": "ITERATION-010",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Leading hypothesis (measurement artifact) lacks impact support; need to query complementary metrics (cart adds, orders) to discriminate between measurement artifact and real behavior change. Also need to test external dependency hypothesis by checking if drop is platform-specific."
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "browse_to_cart_rate",
+              "start_time": "2031-01-18T10:00:00.000Z",
+              "end_time": "2031-01-18T11:00:00.000Z",
+              "filters": {
+                "region": "AU",
+                "userType": "NEW"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-370"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "get_release",
+            "arguments": {
+              "release_id": "REL-218"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-372"
+            ],
+            "error": null
+          },
+          {
+            "order": 3,
+            "iteration": 6,
+            "toolCallId": "TOOL_CALL-003",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "browse_to_cart_rate",
+              "start_time": "2031-01-18T10:00:00.000Z",
+              "end_time": "2031-01-18T11:00:00.000Z",
+              "filters": {
+                "region": "AU",
+                "userType": "NEW",
+                "appVersion": "20.0.1"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 4,
+            "iteration": 7,
+            "toolCallId": "TOOL_CALL-004",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "browse_to_cart_rate",
+              "start_time": "2031-01-18T10:00:00.000Z",
+              "end_time": "2031-01-18T11:00:00.000Z",
+              "filters": {
+                "region": "AU",
+                "userType": "NEW",
+                "platform": "iOS"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 5,
+            "iteration": 8,
+            "toolCallId": "TOOL_CALL-005",
+            "toolName": "search_user_feedback",
+            "arguments": {
+              "query": "browse to cart issue",
+              "startTime": "2031-01-18T09:00:00.000Z",
+              "endTime": "2031-01-18T11:00:00.000Z",
+              "version": "20.0.1",
+              "region": "AU",
+              "userType": "NEW",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "matches"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-371"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-370",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-372",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "RELEASE_CHANGE",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only get_release tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-371",
+            "toolCallId": "TOOL_CALL-005",
+            "category": "USER_FEEDBACK",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only search_user_feedback tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-370",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "The metric drop is observed but not isolated to Android 20.0.1; no version comparison or UI-related signal is present."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-370",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Stable request volume and error rate do not confirm or refute an external dependency issue; no external service data is available."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-370",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The drop is real in the metric, but complementary metrics (cart adds, orders) are not yet queried to determine if it is a measurement artifact."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-372",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "NEUTRAL",
+            "explanation": "Release record confirms Android 20.0.1 changed SettingsIcons and was fully rolled out at 09:00, but does not isolate the conversion drop to this version or provide UI-related mechanism evidence."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-372",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Release record does not address external dependencies or backend services; it neither supports nor refutes an independent external issue."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-372",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "Release record shows a code change but no tracking/instrumentation change; complementary metrics are not yet queried to determine if the drop is a measurement artifact."
+          },
+          {
+            "iteration": 9,
+            "evidenceId": "EV-371",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "CONTRADICTS",
+            "explanation": "User feedback indicates promo pages and cart work normally, with no UI/icon complaints, contradicting the UI regression hypothesis."
+          },
+          {
+            "iteration": 9,
+            "evidenceId": "EV-371",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "Feedback does not address backend or external dependency issues; no relevant signal."
+          },
+          {
+            "iteration": 9,
+            "evidenceId": "EV-371",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "SUPPORTS",
+            "explanation": "Users report normal cart functionality and no friction, supporting the measurement artifact hypothesis."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 9,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "WEAKENED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 2
+            }
+          },
+          {
+            "iteration": 9,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 9,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 2,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "Android 20.0.1 SettingsIcons change introduced a UI regression that reduced browse-to-cart conversion for new AU users.",
+            "status": "WEAKENED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 2
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "A backend or external dependency issue (e.g., cart service latency) degraded conversion for new AU users independent of the release.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "The conversion drop is a measurement artifact due to a tracking or instrumentation change in Android 20.0.1, not a real user behavior change.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 2,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "DUPLICATE_TOOL_CALL",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 10,
+        "toolCallCount": 5,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "faf2b3c1924c643a786a2b3f95d789b3c87e4a1ebda6d62cc973ca11723eaa03"
+      },
+      "scoring": {
+        "caseId": "CASE-218",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-218",
+            "rootCause": "The conversion change is expected behavior from a promotion-driven low-intent traffic mix."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Leading hypothesis (not yet confirmed as the sole root cause): The conversion drop is a measurement artifact due to a tracking or instrumentation change in Android 20.0.1, not a real user behavior change."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "REVIEW_REQUIRED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "REVIEW_REQUIRED",
+            "decisionReason": "No reviewed semantic rubric is available for automatic equivalence scoring."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 10,
+          "toolCalls": 5,
+          "tokenUsage": {
+            "inputTokens": 56203,
+            "outputTokens": 2964,
+            "totalTokens": 59167,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 23197.144643
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-221",
+      "category": "insufficient_evidence",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "FINALIZED",
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-221",
+        "predictedRootCause": "REL-221 引入的 coupon_retry_v3 功能在 CouponClient 中存在重试逻辑缺陷，导致 Android 22.4.0 用户兑换请求失败或超时，从而 coupon_redemption_rate 下降。",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [
+          "EV-434",
+          "EV-431",
+          "EV-431",
+          "EV-431",
+          "EV-434"
+        ],
+        "diagnosisClaims": [
+          {
+            "claimId": "DCL-87b94037-b314-4f7b-8b65-d02757127cbb",
+            "type": "ROOT_CAUSE",
+            "statement": "REL-221 引入的 coupon_retry_v3 功能在 CouponClient 中存在重试逻辑缺陷，导致 Android 22.4.0 用户兑换请求失败或超时，从而 coupon_redemption_rate 下降。",
+            "citedEvidenceIds": [
+              "EV-434",
+              "EV-431"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-d1bd22f6-3d36-4fa7-806c-b139dc034747",
+            "type": "AFFECTED_METRIC",
+            "statement": "coupon_redemption_rate 在 Android 22.4.0 上下降至 0.57，低于 22.3.1 的 0.62。",
+            "citedEvidenceIds": [
+              "EV-431"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-eda216df-b110-4f74-b192-4abb289a1a61",
+            "type": "AFFECTED_SEGMENT",
+            "statement": "受影响分群为 Android 22.4.0 版本用户。",
+            "citedEvidenceIds": [
+              "EV-431"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-180aad45-8833-4857-b389-13e12a86b8fa",
+            "type": "CAUSAL_STEP",
+            "statement": "coupon_view_rate 保持稳定（0.92 vs 0.93），表明用户浏览行为未变，问题发生在兑换环节。",
+            "citedEvidenceIds": [
+              "EV-434"
+            ],
+            "groundingStatus": "GROUNDED"
+          },
+          {
+            "claimId": "DCL-a24bd607-8fc2-4b92-9988-d859fd2193fd",
+            "type": "LIMITATION",
+            "statement": "缺少用户反馈或客户端错误日志的直接证据，无法完全排除其他客户端问题。",
+            "citedEvidenceIds": [],
+            "groundingStatus": "GROUNDED"
+          }
+        ],
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "tokenUsage": {
+          "inputTokens": 28060,
+          "outputTokens": 2128,
+          "totalTokens": 30188,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 16166.297468000004
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "FINALIZE"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "当前无假设，需先建立可区分的竞争假设以解释 Android coupon_redemption_rate 骤降。"
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Query coupon_view_rate to discriminate: if view rate stable while redemption drops, supports client retry/external dependency hypotheses; if view rate also drops, supports measurement/behavior-change hypothesis."
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Processing the single pending Evidence EV-726117db from the coupon_view_rate query. The view rate is stable (0.92 vs 0.93 baseline) while redemption dropped, which supports the client retry defect hypothesis and the external dependency hypothesis, but contradicts the instrumentation/measurement hypothesis. This evidence does not discriminate between the two supported hypotheses yet."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segmenting coupon_redemption_rate by app_version on Android will discriminate between the release-specific defect hypothesis (HYP-50d8ef27) and the external dependency hypothesis (HYP-6e8603c0): if only 22.4.0 is affected, it supports the release defect; if all versions decline, it supports the external dependency."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Assess the pending segment_metric evidence against all active hypotheses to update their support."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "FINALIZE",
+            "publicRationale": "证据支持版本特定缺陷：coupon_view_rate 稳定而 redemption 下降，且 22.4.0 分群显著低于 22.3.1，排除了外部依赖和埋点问题。建议修复 coupon_retry_v3 重试逻辑。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "coupon_view_rate",
+              "start_time": "2031-01-21T10:00:00.000Z",
+              "end_time": "2031-01-21T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-434"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "coupon_redemption_rate",
+              "start_time": "2031-01-21T10:00:00.000Z",
+              "end_time": "2031-01-21T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "dimension": "app_version"
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-431"
+            ],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-434",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "PRODUCT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only query_metric tool returned a current investigation observation."
+          },
+          {
+            "evidenceId": "EV-431",
+            "toolCallId": "TOOL_CALL-002",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-434",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "coupon_view_rate is stable (0.92 vs 0.93 baseline) while coupon_redemption_rate dropped, matching the supportIf condition that view rate is stable while redemption declines, indicating a problem in the redemption flow rather than reduced user interest."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-434",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "SUPPORTS",
+            "explanation": "Stable view rate with declining redemption is also consistent with an external dependency failure affecting the redemption step, as users still view coupons but fail to redeem."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-434",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "If the drop were purely a measurement/instrumentation artifact, we would expect coupon_view_rate to also show a similar drop or anomaly; its stability suggests the redemption metric decline reflects a real behavioral change in the redemption funnel, not a systemic measurement issue."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-431",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The segment_metric breakdown shows coupon_redemption_rate for 22.4.0 (0.57) is lower than for 22.3.1 (0.62), indicating the drop is concentrated in the newly released version, consistent with the hypothesis that the defect in REL-221 affects 22.4.0 users."
+          },
+          {
+            "iteration": 5,
+            "evidenceId": "EV-431",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "CONTRADICTS",
+            "explanation": "If an external dependency failure were the cause, we would expect all Android versions to be affected similarly. The fact that 22.4.0 shows a lower redemption rate than 22.3.1 suggests the issue is version-specific rather than a broad external outage."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 8,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 5,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 4,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-221 引入的 coupon_retry_v3 功能在 CouponClient 中存在重试逻辑缺陷，导致 Android 22.4.0 用户兑换请求失败或超时，从而 coupon_redemption_rate 下降。",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 8,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "外部依赖（如支付/券码服务）在 2031-01-21 10:00-11:00 发生故障，导致 Android 用户整体兑换失败，与 REL-221 无关。",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 4,
+            "contradictionScore": 4
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "埋点或口径变更导致 coupon_redemption_rate 统计异常，实际用户行为未变。",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [
+          {
+            "attempt": 1,
+            "diagnosisId": "DIAGNOSIS-001",
+            "selectedHypothesisId": "HYPOTHESIS-001",
+            "validationResult": "ACCEPTED",
+            "rejectionReason": null
+          }
+        ],
+        "finalizeAttempts": [
+          {
+            "iteration": 6,
+            "validationResult": "ACCEPTED",
+            "rejectionReason": null
+          }
+        ],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "WAITING_APPROVAL",
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "4fe9358dad2d6ba2379c3e2f35843e3fa3d18afc78f760243e93486439c16b60"
+      },
+      "scoring": {
+        "caseId": "CASE-221",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-221",
+            "rootCause": "Current evidence is insufficient to confirm the historical retry mechanism."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "REL-221 引入的 coupon_retry_v3 功能在 CouponClient 中存在重试逻辑缺陷，导致 Android 22.4.0 用户兑换请求失败或超时，从而 coupon_redemption_rate 下降。"
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode CAUSAL conflicts with expected ABSTAIN."
+          }
+        },
+        "evidence": {
+          "precision": 0.5,
+          "relevantCount": 1,
+          "citedCount": 2,
+          "duplicateEvidenceIds": [
+            "EV-431",
+            "EV-434"
+          ],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": 0,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 4,
+          "status": "EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 6,
+          "toolCalls": 2,
+          "tokenUsage": {
+            "inputTokens": 28060,
+            "outputTokens": 2128,
+            "totalTokens": 30188,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 16166.297468000004
+        },
+        "runtimeFailed": false,
+        "overallStatus": "EVALUATED"
+      }
+    }
+  ],
+  "aggregate": {
+    "totalCases": 5,
+    "completedCases": 2,
+    "failedCases": 0,
+    "inconclusiveCases": 3,
+    "rootCauseTop1Accuracy": 0,
+    "rootCauseExactMatchAccuracy": 0,
+    "rootCauseSemanticAccuracy": 0,
+    "automaticallyEvaluatedCases": 2,
+    "correctCases": 0,
+    "incorrectCases": 2,
+    "reviewRequiredCases": 3,
+    "runtimeFailedCases": 0,
+    "autoEvaluationCoverage": 0.4,
+    "autoEvaluableAccuracy": 0,
+    "meanEvidencePrecision": 0.3,
+    "meanUnsupportedClaimRate": 0,
+    "groundingEvaluableCases": 2,
+    "groundingUnavailableCases": 3,
+    "medianModelCalls": 6,
+    "medianToolCalls": 2,
+    "totalModelCalls": 33,
+    "totalToolCalls": 11,
+    "plannerValidationFailures": 1,
+    "plannerDecisionRepairAttempts": 3,
+    "plannerDecisionRepairSuccesses": 1,
+    "plannerDecisionRepairRate": 0.3333333333333333,
+    "plannerFirstAttemptSuccessRate": 0.9354838709677419,
+    "plannerFinalSuccessRate": 0.967741935483871,
+    "errorTaxonomyCounts": {
+      "PLANNER_SCHEMA_ERROR": 0,
+      "INVALID_PLANNER_DECISION": 1,
+      "RUNTIME_ERROR": 0
+    },
+    "groundedContractMismatches": 0,
+    "tokenUsage": {
+      "inputTokens": 163354,
+      "outputTokens": 9994,
+      "totalTokens": 173348,
+      "completeness": "COMPLETE"
+    },
+    "totalDurationMs": 78868.61666500001,
+    "estimatedOrActualCost": null
+  },
+  "breakdown": {
+    "category": {
+      "configuration": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 0,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 1,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 6,
+        "medianToolCalls": 1,
+        "totalModelCalls": 6,
+        "totalToolCalls": 1,
+        "plannerValidationFailures": 1,
+        "plannerDecisionRepairAttempts": 2,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": 0,
+        "plannerFirstAttemptSuccessRate": 0.8,
+        "plannerFinalSuccessRate": 0.8,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 1,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 30542,
+          "outputTokens": 1496,
+          "totalTokens": 32038,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 11907.085944999999,
+        "estimatedOrActualCost": null
+      },
+      "insufficient_evidence": {
+        "totalCases": 1,
+        "completedCases": 1,
+        "failedCases": 0,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 1,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0.5,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableCases": 1,
+        "groundingUnavailableCases": 0,
+        "medianModelCalls": 6,
+        "medianToolCalls": 2,
+        "totalModelCalls": 6,
+        "totalToolCalls": 2,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 28060,
+          "outputTokens": 2128,
+          "totalTokens": 30188,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 16166.297468000004,
+        "estimatedOrActualCost": null
+      },
+      "release_regression": {
+        "totalCases": 1,
+        "completedCases": 1,
+        "failedCases": 0,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 1,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableCases": 1,
+        "groundingUnavailableCases": 0,
+        "medianModelCalls": 7,
+        "medianToolCalls": 2,
+        "totalModelCalls": 7,
+        "totalToolCalls": 2,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.8333333333333334,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 33313,
+          "outputTokens": 2284,
+          "totalTokens": 35597,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 18015.464137,
+        "estimatedOrActualCost": null
+      },
+      "unknown": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 0,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 10,
+        "medianToolCalls": 5,
+        "totalModelCalls": 10,
+        "totalToolCalls": 5,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 56203,
+          "outputTokens": 2964,
+          "totalTokens": 59167,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 23197.144643,
+        "estimatedOrActualCost": null
+      },
+      "user_feedback": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 0,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 4,
+        "medianToolCalls": 1,
+        "totalModelCalls": 4,
+        "totalToolCalls": 1,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 15236,
+          "outputTokens": 1122,
+          "totalTokens": 16358,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 9582.624472000003,
+        "estimatedOrActualCost": null
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "totalCases": 2,
+        "completedCases": 0,
+        "failedCases": 0,
+        "inconclusiveCases": 2,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0.5,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 2,
+        "medianModelCalls": 5,
+        "medianToolCalls": 1,
+        "totalModelCalls": 10,
+        "totalToolCalls": 2,
+        "plannerValidationFailures": 1,
+        "plannerDecisionRepairAttempts": 2,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": 0,
+        "plannerFirstAttemptSuccessRate": 0.8888888888888888,
+        "plannerFinalSuccessRate": 0.8888888888888888,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 1,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 45778,
+          "outputTokens": 2618,
+          "totalTokens": 48396,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 21489.710417000002,
+        "estimatedOrActualCost": null
+      },
+      "HARD": {
+        "totalCases": 2,
+        "completedCases": 2,
+        "failedCases": 0,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0.5,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0.75,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableCases": 2,
+        "groundingUnavailableCases": 0,
+        "medianModelCalls": 6.5,
+        "medianToolCalls": 2,
+        "totalModelCalls": 13,
+        "totalToolCalls": 4,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.9166666666666666,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 61373,
+          "outputTokens": 4412,
+          "totalTokens": 65785,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 34181.76160500001,
+        "estimatedOrActualCost": null
+      },
+      "MEDIUM": {
+        "totalCases": 1,
+        "completedCases": 0,
+        "failedCases": 0,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 1,
+        "runtimeFailedCases": 0,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 1,
+        "medianModelCalls": 10,
+        "medianToolCalls": 5,
+        "totalModelCalls": 10,
+        "totalToolCalls": 5,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 0
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 56203,
+          "outputTokens": 2964,
+          "totalTokens": 59167,
+          "completeness": "COMPLETE"
+        },
+        "totalDurationMs": 23197.144643,
+        "estimatedOrActualCost": null
+      }
+    }
+  },
+  "semanticHash": "6d2c41663709be28a2816618b51bc3268108fea23ff6f0ce13ab877a3bb3df03"
+}

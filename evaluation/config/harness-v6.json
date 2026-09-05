@@ -1,0 +1,11 @@
+{
+  "schema_version": "releaseguard-harness-v6-experiment-v1",
+  "status": "EXPERIMENTAL_DEV_NOT_HOLDOUT",
+  "inherits": ["harness-v3.json", "harness-v4.json", "harness-v5.json"],
+  "changes": {
+    "harness_version": "V6",
+    "deepseek_empty_json_repair": {"thinking":{"type":"disabled"}},
+    "provider_protocol_probe_verified": true
+  },
+  "unchanged_boundaries": {"model":"deepseek-v4-flash","max_model_calls":20,"max_tool_calls":10,"max_iterations":16,"dataset_cases":22,"runs":3,"grounding_relaxed":false,"approval_relaxed":false}
+}

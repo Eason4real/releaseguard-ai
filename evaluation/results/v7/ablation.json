@@ -1,0 +1,1390 @@
+{
+  "schemaVersion": "releaseguard-v7-offline-ablation-v1",
+  "mode": "FROZEN_V7_TRAJECTORIES_ONLY",
+  "goldAccess": "NONE",
+  "modelCalls": 0,
+  "toolCalls": 0,
+  "aggregate": {
+    "cases": 66,
+    "terminalFinalized": 1,
+    "terminalInconclusive": 65,
+    "gateWouldBeReady": 46,
+    "collectorSchemaFailures": 8,
+    "synthesizerFailures": 42,
+    "noEvidence": 1
+  },
+  "bottleneckCounts": {
+    "COLLECTOR_NO_EVIDENCE": 1,
+    "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT": 8,
+    "COLLECTOR_SCHEMA_FAILURE": 8,
+    "NO_TERMINAL_BLOCKER": 1,
+    "SYNTHESIZER_EXPLICIT_ABSTENTION": 7,
+    "SYNTHESIZER_FAILURE_OR_VALIDATION": 41
+  },
+  "cases": [
+    {
+      "runIndex": 1,
+      "caseId": "CASE-201",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 9,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-202",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-203",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-204",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-205",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-206",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-207",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-208",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 3,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-209",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-210",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-211",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 4,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-212",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-213",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 11,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-214",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-215",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-216",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 1,
+      "evidenceCount": 1,
+      "categories": [
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 1,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-217",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-218",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-219",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-220",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 4,
+      "evidenceCount": 0,
+      "categories": [],
+      "independentCurrentSources": 0,
+      "supportedHypotheses": 0,
+      "missingCategories": [
+        "RELEASE_CONTEXT",
+        "CURRENT_IMPACT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_NO_EVIDENCE"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-221",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 1,
+      "caseId": "CASE-222",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "SEGMENT_METRIC",
+        "SIMILAR_INCIDENT",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-201",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-202",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-203",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 9,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-204",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-205",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-206",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-207",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-208",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-209",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-210",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-211",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 5,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-212",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-213",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 9,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-214",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-215",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-216",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 3,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-217",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-218",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-219",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-220",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 9,
+      "toolCalls": 5,
+      "evidenceCount": 1,
+      "categories": [
+        "PRODUCT_METRIC"
+      ],
+      "independentCurrentSources": 1,
+      "supportedHypotheses": 0,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-221",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 2,
+      "caseId": "CASE-222",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-201",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_EXPLICIT_ABSTENTION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-202",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-203",
+      "terminal": "FINALIZED",
+      "modelCalls": 6,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": true,
+      "bottleneck": "NO_TERMINAL_BLOCKER"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-204",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-205",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-206",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-207",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-208",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-209",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-210",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-211",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 11,
+      "toolCalls": 5,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 3,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-212",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 6,
+      "toolCalls": 1,
+      "evidenceCount": 1,
+      "categories": [
+        "PRODUCT_METRIC"
+      ],
+      "independentCurrentSources": 1,
+      "supportedHypotheses": 0,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-213",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 13,
+      "toolCalls": 3,
+      "evidenceCount": 3,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 3,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-214",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-215",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-216",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 9,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": true,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_SCHEMA_FAILURE"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-217",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-218",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-219",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "RELEASE_CHANGE",
+        "SEGMENT_METRIC"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-220",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 8,
+      "toolCalls": 4,
+      "evidenceCount": 1,
+      "categories": [
+        "PRODUCT_METRIC"
+      ],
+      "independentCurrentSources": 1,
+      "supportedHypotheses": 0,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-221",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 7,
+      "toolCalls": 2,
+      "evidenceCount": 2,
+      "categories": [
+        "PRODUCT_METRIC",
+        "RELEASE_CHANGE"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 1,
+      "missingCategories": [],
+      "gateWouldBeReady": true,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": true,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "SYNTHESIZER_FAILURE_OR_VALIDATION"
+    },
+    {
+      "runIndex": 3,
+      "caseId": "CASE-222",
+      "terminal": "INCONCLUSIVE",
+      "modelCalls": 10,
+      "toolCalls": 4,
+      "evidenceCount": 3,
+      "categories": [
+        "SEGMENT_METRIC",
+        "SIMILAR_INCIDENT",
+        "USER_FEEDBACK"
+      ],
+      "independentCurrentSources": 2,
+      "supportedHypotheses": 2,
+      "missingCategories": [
+        "RELEASE_CONTEXT"
+      ],
+      "gateWouldBeReady": false,
+      "collectionSchemaFailure": false,
+      "synthesisSchemaFailure": false,
+      "hasDiagnosisAttempt": false,
+      "bottleneck": "COLLECTOR_OR_GATE_EVIDENCE_INSUFFICIENT"
+    }
+  ]
+}

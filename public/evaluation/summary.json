@@ -1,0 +1,1142 @@
+{
+  "schemaVersion": "releaseguard-evaluation-summary-v1",
+  "generatedAt": "2026-09-01T06:17:41.767Z",
+  "evaluationVersion": "0.2.0",
+  "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+  "improvedSourceDiffSha256": "ba4a80bf149e6f9dfc62def0fe194e60417cec241ce0ecd45ebf33c1eb467d38  -",
+  "dataset": {
+    "cases": 22,
+    "runsPerSystem": 3,
+    "trialsPerSystem": 66,
+    "hash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "frozenArtifactSha256": "dcc805265a0ba6f419b4edde4258848e183914b9a656939ff1b82ed33fdf5d27",
+    "sourceClassDistribution": {
+      "repository_native": 6,
+      "synthetic": 16
+    },
+    "incidentTypeDistribution": {
+      "configuration": 4,
+      "insufficient_evidence": 4,
+      "release_regression": 5,
+      "unknown": 3,
+      "upstream_dependency": 3,
+      "user_feedback": 3
+    },
+    "difficultyDistribution": {
+      "EASY": 6,
+      "HARD": 5,
+      "MEDIUM": 11
+    },
+    "claimBoundary": "22 governed offline reconstructed cases: 16 synthetic and 6 repository-native. They are not 22 independently sourced public postmortems and are not production enterprise data."
+  },
+  "model": {
+    "schema_version": "releaseguard-evaluation-model-v1",
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "temperature": 0.1,
+    "top_p": "provider_default",
+    "max_output_tokens": 5000,
+    "request_timeout_ms": 75000,
+    "transport_retries": 0,
+    "schema_repairs": 1,
+    "current_agent": {
+      "max_model_calls": 20,
+      "max_tool_calls": 10,
+      "max_iterations": 16
+    },
+    "concurrency": 1,
+    "pricing": {
+      "currency": "USD",
+      "unit_tokens": 1000000,
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "as_of": "2026-08-31",
+      "peak": {
+        "input_cache_miss": 0.44,
+        "output": 1.32
+      },
+      "off_peak": {
+        "input_cache_miss": 0.22,
+        "output": 0.66
+      },
+      "cache_hit_not_assumed": true
+    }
+  },
+  "scoring": {
+    "schema_version": "releaseguard-evaluation-scoring-v1",
+    "frozen_before_improvement": true,
+    "root_cause": {
+      "scale": {
+        "0": "Cause conflicts with Gold, only restates symptoms, or makes an unsupported attribution.",
+        "1": "Correct component or causal direction, but mechanism is incomplete or has a secondary error.",
+        "2": "Core cause, mechanism, and affected object agree with Gold.",
+        "N/A": "Evidence is objectively insufficient and the system correctly abstains."
+      },
+      "strict_correct_scores": [
+        2
+      ],
+      "lenient_hit_scores": [
+        1,
+        2
+      ]
+    },
+    "completion": {
+      "technical": [
+        "runtime_terminated_normally",
+        "output_schema_valid",
+        "no_unhandled_tool_state_or_approval_error"
+      ],
+      "business": [
+        "technical_completion",
+        "root_cause_or_explicit_insufficient_evidence",
+        "critical_evidence_traceable"
+      ]
+    },
+    "evidence": [
+      "citation_validity",
+      "citation_support",
+      "unsupported_claim_rate",
+      "critical_evidence_recall",
+      "support_and_contradiction_handling"
+    ],
+    "tools": [
+      "success_rate",
+      "invalid_argument_rate",
+      "duplicate_call_rate",
+      "no_information_gain_rate",
+      "mean_call_count",
+      "failure_recovery_rate",
+      "critical_tool_recall"
+    ],
+    "stability": {
+      "runs_per_case_per_system": 3,
+      "metrics": [
+        "pass_at_1",
+        "all_three_pass",
+        "root_cause_consistency",
+        "intervention_free_rate"
+      ]
+    },
+    "confidence_interval": {
+      "method": "wilson",
+      "confidence": 0.95
+    },
+    "judge": {
+      "enabled_only_for_semantic_boundaries": true,
+      "blind_system_name": true,
+      "randomize_system_output_order": true,
+      "low_confidence_requires_review": true,
+      "human_review_claim_prohibited_without_actual_review": true
+    }
+  },
+  "systems": [
+    {
+      "system": "DIRECT_LLM",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 65,
+        "total": 66,
+        "proportion": 0.9848,
+        "lower": 0.919,
+        "upper": 0.9973
+      },
+      "businessCompletion": {
+        "successes": 64,
+        "total": 66,
+        "proportion": 0.9697,
+        "lower": 0.8961,
+        "upper": 0.9917
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 48,
+          "total": 66,
+          "proportion": 0.7273,
+          "lower": 0.6096,
+          "upper": 0.82
+        },
+        "score1Or2Lenient": {
+          "successes": 54,
+          "total": 66,
+          "proportion": 0.8182,
+          "lower": 0.7085,
+          "upper": 0.8928
+        },
+        "meanScore": 1.5455,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 245,
+          "total": 245,
+          "proportion": 1,
+          "lower": 0.9846,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.6569,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 65,
+        "meanCriticalEvidenceRecall": 0.9798,
+        "supportAndContradictionHandled": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "allThreeTechnical": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "terminalStateConsistency": {
+          "successes": 21,
+          "total": 22,
+          "proportion": 0.9545,
+          "lower": 0.782,
+          "upper": 0.9919
+        },
+        "rootScoreConsistency": {
+          "successes": 18,
+          "total": 22,
+          "proportion": 0.8182,
+          "lower": 0.6148,
+          "upper": 0.9269
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 7829.5,
+        "durationMsP95": 15510.8,
+        "durationMsTotal": 604690.7,
+        "durationAvailableTrials": 66,
+        "modelCallsTotal": 66,
+        "modelCallsMean": 1,
+        "toolCallsTotal": 0,
+        "toolCallsMean": 0,
+        "schemaRepairsOrRetriesTotal": 0,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 54618,
+          "outputTokens": 65534,
+          "totalTokens": 120152,
+          "estimatedUsd": 0.110537,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 54618,
+          "outputTokens": 65534,
+          "totalTokens": 120152,
+          "estimatedUsd": 0.055268,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "FINALIZED": 65,
+        "FAILED": 1
+      },
+      "errors": {
+        "Expected ',' or '}' after property value in JSON at position 1118 (line 1 column 1119)": 1
+      }
+    },
+    {
+      "system": "CURRENT_AGENT",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 53,
+        "total": 66,
+        "proportion": 0.803,
+        "lower": 0.6916,
+        "upper": 0.8811
+      },
+      "businessCompletion": {
+        "successes": 15,
+        "total": 66,
+        "proportion": 0.2273,
+        "lower": 0.1429,
+        "upper": 0.3417
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 16,
+          "total": 66,
+          "proportion": 0.2424,
+          "lower": 0.1551,
+          "upper": 0.3581
+        },
+        "score1Or2Lenient": {
+          "successes": 22,
+          "total": 66,
+          "proportion": 0.3333,
+          "lower": 0.2316,
+          "upper": 0.4534
+        },
+        "meanScore": 0.5758,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 71,
+          "total": 71,
+          "proportion": 1,
+          "lower": 0.9487,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.2197,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 15,
+        "meanCriticalEvidenceRecall": 0.5328,
+        "supportAndContradictionHandled": {
+          "successes": 36,
+          "total": 66,
+          "proportion": 0.5455,
+          "lower": 0.4262,
+          "upper": 0.6598
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 18,
+          "total": 22,
+          "proportion": 0.8182,
+          "lower": 0.6148,
+          "upper": 0.9269
+        },
+        "allThreeTechnical": {
+          "successes": 11,
+          "total": 22,
+          "proportion": 0.5,
+          "lower": 0.3072,
+          "upper": 0.6928
+        },
+        "terminalStateConsistency": {
+          "successes": 6,
+          "total": 22,
+          "proportion": 0.2727,
+          "lower": 0.1315,
+          "upper": 0.4815
+        },
+        "rootScoreConsistency": {
+          "successes": 13,
+          "total": 22,
+          "proportion": 0.5909,
+          "lower": 0.3873,
+          "upper": 0.7674
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 131237.9,
+        "durationMsP95": 317066.4,
+        "durationMsTotal": 8510602.3,
+        "durationAvailableTrials": 53,
+        "modelCallsTotal": 627,
+        "modelCallsMean": 9.5,
+        "toolCallsTotal": 323,
+        "toolCallsMean": 4.8939,
+        "schemaRepairsOrRetriesTotal": 74,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 1869788,
+          "outputTokens": 971457,
+          "totalTokens": 2841245,
+          "estimatedUsd": 2.10503,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 1869788,
+          "outputTokens": 971457,
+          "totalTokens": 2841245,
+          "estimatedUsd": 1.052515,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 38,
+        "FAILED": 13,
+        "FINALIZED": 15
+      },
+      "errors": {
+        "PLANNER_SCHEMA_ERROR": 9,
+        "RUNTIME_ERROR": 4
+      }
+    },
+    {
+      "system": "IMPROVED_AGENT",
+      "trials": 66,
+      "cases": 22,
+      "technicalCompletion": {
+        "successes": 43,
+        "total": 66,
+        "proportion": 0.6515,
+        "lower": 0.5311,
+        "upper": 0.7552
+      },
+      "businessCompletion": {
+        "successes": 12,
+        "total": 66,
+        "proportion": 0.1818,
+        "lower": 0.1072,
+        "upper": 0.2915
+      },
+      "rootCause": {
+        "score2Strict": {
+          "successes": 9,
+          "total": 66,
+          "proportion": 0.1364,
+          "lower": 0.0734,
+          "upper": 0.2393
+        },
+        "score1Or2Lenient": {
+          "successes": 20,
+          "total": 66,
+          "proportion": 0.303,
+          "lower": 0.2055,
+          "upper": 0.4222
+        },
+        "meanScore": 0.4394,
+        "numericDenominator": 66,
+        "notApplicable": 0,
+        "judgeErrors": 0,
+        "judgeDisclosure": "Non-independent same-model blind LLM review; system identities hidden and output order deterministically randomized."
+      },
+      "evidence": {
+        "citationValidity": {
+          "successes": 73,
+          "total": 73,
+          "proportion": 1,
+          "lower": 0.95,
+          "upper": 1
+        },
+        "meanCitationSupport": 0.2424,
+        "meanUnsupportedClaimRate": 0,
+        "groundingEvaluableTrials": 17,
+        "meanCriticalEvidenceRecall": 0.3889,
+        "supportAndContradictionHandled": {
+          "successes": 29,
+          "total": 66,
+          "proportion": 0.4394,
+          "lower": 0.3263,
+          "upper": 0.5592
+        }
+      },
+      "tools": null,
+      "stability": {
+        "passAt1Technical": {
+          "successes": 19,
+          "total": 22,
+          "proportion": 0.8636,
+          "lower": 0.6667,
+          "upper": 0.9525
+        },
+        "allThreeTechnical": {
+          "successes": 2,
+          "total": 22,
+          "proportion": 0.0909,
+          "lower": 0.0253,
+          "upper": 0.2781
+        },
+        "terminalStateConsistency": {
+          "successes": 1,
+          "total": 22,
+          "proportion": 0.0455,
+          "lower": 0.0081,
+          "upper": 0.218
+        },
+        "rootScoreConsistency": {
+          "successes": 7,
+          "total": 22,
+          "proportion": 0.3182,
+          "lower": 0.1636,
+          "upper": 0.5268
+        },
+        "interventionFreeTrials": {
+          "successes": 66,
+          "total": 66,
+          "proportion": 1,
+          "lower": 0.945,
+          "upper": 1
+        },
+        "scopeNote": "Intervention-free means no mid-run human state/input modification in the offline harness; it is not an enterprise unattended-operation claim."
+      },
+      "performance": {
+        "durationMsP50": 153698.4,
+        "durationMsP95": 422561.9,
+        "durationMsTotal": 7981106.1,
+        "durationAvailableTrials": 43,
+        "modelCallsTotal": 477,
+        "modelCallsMean": 7.2273,
+        "toolCallsTotal": 226,
+        "toolCallsMean": 3.4242,
+        "schemaRepairsOrRetriesTotal": 64,
+        "timeoutRate": {
+          "successes": 0,
+          "total": 66,
+          "proportion": 0,
+          "lower": 0,
+          "upper": 0.055
+        },
+        "peakCost": {
+          "inputTokens": 1700755,
+          "outputTokens": 929373,
+          "totalTokens": 2630128,
+          "estimatedUsd": 1.975105,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        },
+        "offPeakCost": {
+          "inputTokens": 1700755,
+          "outputTokens": 929373,
+          "totalTokens": 2630128,
+          "estimatedUsd": 0.987552,
+          "assumption": "All input tokens priced as cache misses; actual billed amount may differ."
+        }
+      },
+      "terminalStates": {
+        "INCONCLUSIVE": 26,
+        "FINALIZED": 17,
+        "FAILED": 23
+      },
+      "errors": {
+        "PLANNER_SCHEMA_ERROR": 1,
+        "RUNTIME_ERROR": 22
+      }
+    }
+  ],
+  "slices": {
+    "category": {
+      "configuration": {
+        "DIRECT_LLM": {
+          "trials": 12,
+          "technical": {
+            "successes": 11,
+            "total": 12,
+            "proportion": 0.9167,
+            "lower": 0.6461,
+            "upper": 0.9851
+          },
+          "score2": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "meanScore": 1.3333
+        },
+        "CURRENT_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 7,
+            "total": 12,
+            "proportion": 0.5833,
+            "lower": 0.3195,
+            "upper": 0.8067
+          },
+          "score2": {
+            "successes": 2,
+            "total": 12,
+            "proportion": 0.1667,
+            "lower": 0.047,
+            "upper": 0.448
+          },
+          "meanScore": 0.3333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "score2": {
+            "successes": 1,
+            "total": 12,
+            "proportion": 0.0833,
+            "lower": 0.0149,
+            "upper": 0.3539
+          },
+          "meanScore": 0.3333
+        }
+      },
+      "insufficient_evidence": {
+        "DIRECT_LLM": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 12,
+            "total": 12,
+            "proportion": 1,
+            "lower": 0.7575,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 9,
+            "total": 12,
+            "proportion": 0.75,
+            "lower": 0.4677,
+            "upper": 0.9111
+          },
+          "meanScore": 1.5833
+        },
+        "IMPROVED_AGENT": {
+          "trials": 12,
+          "technical": {
+            "successes": 8,
+            "total": 12,
+            "proportion": 0.6667,
+            "lower": 0.3906,
+            "upper": 0.8619
+          },
+          "score2": {
+            "successes": 4,
+            "total": 12,
+            "proportion": 0.3333,
+            "lower": 0.1381,
+            "upper": 0.6094
+          },
+          "meanScore": 0.8333
+        }
+      },
+      "release_regression": {
+        "DIRECT_LLM": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 6,
+            "total": 15,
+            "proportion": 0.4,
+            "lower": 0.1982,
+            "upper": 0.6425
+          },
+          "meanScore": 1.1333
+        },
+        "CURRENT_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 12,
+            "total": 15,
+            "proportion": 0.8,
+            "lower": 0.5481,
+            "upper": 0.9295
+          },
+          "score2": {
+            "successes": 0,
+            "total": 15,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2039
+          },
+          "meanScore": 0.1333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 10,
+            "total": 15,
+            "proportion": 0.6667,
+            "lower": 0.4171,
+            "upper": 0.8482
+          },
+          "score2": {
+            "successes": 1,
+            "total": 15,
+            "proportion": 0.0667,
+            "lower": 0.0119,
+            "upper": 0.2982
+          },
+          "meanScore": 0.4
+        }
+      },
+      "unknown": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 8,
+            "total": 9,
+            "proportion": 0.8889,
+            "lower": 0.565,
+            "upper": 0.9801
+          },
+          "score2": {
+            "successes": 0,
+            "total": 9,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.2991
+          },
+          "meanScore": 0.1111
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        }
+      },
+      "upstream_dependency": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 7,
+            "total": 9,
+            "proportion": 0.7778,
+            "lower": 0.4526,
+            "upper": 0.9368
+          },
+          "meanScore": 1.6667
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 4,
+            "total": 9,
+            "proportion": 0.4444,
+            "lower": 0.1888,
+            "upper": 0.7333
+          },
+          "meanScore": 0.8889
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        }
+      },
+      "user_feedback": {
+        "DIRECT_LLM": {
+          "trials": 9,
+          "technical": {
+            "successes": 9,
+            "total": 9,
+            "proportion": 1,
+            "lower": 0.7009,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 6,
+            "total": 9,
+            "proportion": 0.6667,
+            "lower": 0.3542,
+            "upper": 0.8794
+          },
+          "meanScore": 1.3333
+        },
+        "CURRENT_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 8,
+            "total": 9,
+            "proportion": 0.8889,
+            "lower": 0.565,
+            "upper": 0.9801
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.4444
+        },
+        "IMPROVED_AGENT": {
+          "trials": 9,
+          "technical": {
+            "successes": 5,
+            "total": 9,
+            "proportion": 0.5556,
+            "lower": 0.2667,
+            "upper": 0.8112
+          },
+          "score2": {
+            "successes": 1,
+            "total": 9,
+            "proportion": 0.1111,
+            "lower": 0.0199,
+            "upper": 0.435
+          },
+          "meanScore": 0.3333
+        }
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "DIRECT_LLM": {
+          "trials": 18,
+          "technical": {
+            "successes": 18,
+            "total": 18,
+            "proportion": 1,
+            "lower": 0.8241,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 8,
+            "total": 18,
+            "proportion": 0.4444,
+            "lower": 0.2456,
+            "upper": 0.6628
+          },
+          "meanScore": 0.8889
+        },
+        "CURRENT_AGENT": {
+          "trials": 18,
+          "technical": {
+            "successes": 14,
+            "total": 18,
+            "proportion": 0.7778,
+            "lower": 0.5479,
+            "upper": 0.91
+          },
+          "score2": {
+            "successes": 0,
+            "total": 18,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.1759
+          },
+          "meanScore": 0.0556
+        },
+        "IMPROVED_AGENT": {
+          "trials": 18,
+          "technical": {
+            "successes": 12,
+            "total": 18,
+            "proportion": 0.6667,
+            "lower": 0.4375,
+            "upper": 0.8372
+          },
+          "score2": {
+            "successes": 0,
+            "total": 18,
+            "proportion": 0,
+            "lower": 0,
+            "upper": 0.1759
+          },
+          "meanScore": 0.1667
+        }
+      },
+      "HARD": {
+        "DIRECT_LLM": {
+          "trials": 15,
+          "technical": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "score2": {
+            "successes": 15,
+            "total": 15,
+            "proportion": 1,
+            "lower": 0.7961,
+            "upper": 1
+          },
+          "meanScore": 2
+        },
+        "CURRENT_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 13,
+            "total": 15,
+            "proportion": 0.8667,
+            "lower": 0.6212,
+            "upper": 0.9626
+          },
+          "score2": {
+            "successes": 4,
+            "total": 15,
+            "proportion": 0.2667,
+            "lower": 0.109,
+            "upper": 0.5195
+          },
+          "meanScore": 0.7333
+        },
+        "IMPROVED_AGENT": {
+          "trials": 15,
+          "technical": {
+            "successes": 9,
+            "total": 15,
+            "proportion": 0.6,
+            "lower": 0.3575,
+            "upper": 0.8018
+          },
+          "score2": {
+            "successes": 2,
+            "total": 15,
+            "proportion": 0.1333,
+            "lower": 0.0374,
+            "upper": 0.3788
+          },
+          "meanScore": 0.5333
+        }
+      },
+      "MEDIUM": {
+        "DIRECT_LLM": {
+          "trials": 33,
+          "technical": {
+            "successes": 32,
+            "total": 33,
+            "proportion": 0.9697,
+            "lower": 0.8468,
+            "upper": 0.9946
+          },
+          "score2": {
+            "successes": 25,
+            "total": 33,
+            "proportion": 0.7576,
+            "lower": 0.5898,
+            "upper": 0.8717
+          },
+          "meanScore": 1.697
+        },
+        "CURRENT_AGENT": {
+          "trials": 33,
+          "technical": {
+            "successes": 26,
+            "total": 33,
+            "proportion": 0.7879,
+            "lower": 0.6225,
+            "upper": 0.8932
+          },
+          "score2": {
+            "successes": 12,
+            "total": 33,
+            "proportion": 0.3636,
+            "lower": 0.2219,
+            "upper": 0.5338
+          },
+          "meanScore": 0.7879
+        },
+        "IMPROVED_AGENT": {
+          "trials": 33,
+          "technical": {
+            "successes": 22,
+            "total": 33,
+            "proportion": 0.6667,
+            "lower": 0.4961,
+            "upper": 0.8025
+          },
+          "score2": {
+            "successes": 7,
+            "total": 33,
+            "proportion": 0.2121,
+            "lower": 0.1068,
+            "upper": 0.3775
+          },
+          "meanScore": 0.5455
+        }
+      }
+    }
+  },
+  "judge": {
+    "type": "NON_INDEPENDENT_SAME_MODEL",
+    "cases": 22,
+    "failedCases": 0,
+    "status": "COMPLETE",
+    "scoredOutputs": 198,
+    "failureReason": null,
+    "reviewQueueRows": 23,
+    "rawResults": "raw/blind-judge.jsonl"
+  },
+  "typicalTrace": {
+    "caseId": "CASE-202",
+    "runIndex": 1,
+    "diagnosis": "REL-202 的 SearchTransport 模块变更导致 Web 端搜索请求超时或失败，用户放弃搜索，拉低 search_completion_rate。",
+    "rootCauseScore": "2",
+    "actions": [
+      {
+        "sequence": 1,
+        "decisionType": "CREATE_HYPOTHESES",
+        "rationale": "基于风险事件与关联发布，建立版本模块回归与分群局部性三类竞争假设，用于指导后续取证。"
+      },
+      {
+        "sequence": 2,
+        "decisionType": "CALL_TOOL",
+        "rationale": "按 region 分组 search_completion_rate，检验异常是否集中在特定地区，以区分全局性 SearchTransport/RequestBudget 问题与区域性/分群问题。"
+      },
+      {
+        "sequence": 3,
+        "decisionType": "CALL_TOOL",
+        "rationale": "风险事件仅带 platform=Web，release 为 web-31.4。按 app_version 对 search_completion_rate 分组可判断下跌是否只落在新版本 web-31.4，进而区分发布相关假设（H1/H2）与非发布/全局原因；同时为 H3 的分群假设提供版本维度的正交下钻。已执行的 region 查询为空，不再重复同维度。此调用须省略 filters.appVersion，仅保留正交 platform 过滤。"
+      },
+      {
+        "sequence": 4,
+        "decisionType": "CALL_TOOL",
+        "rationale": "获取 Web 用户对搜索异常的直接反馈，用于区分 SearchTransport 故障、RequestBudget 限制以及分群差异。反馈内容可对应支持或反驳各假设。"
+      },
+      {
+        "sequence": 5,
+        "decisionType": "ASSESS_EVIDENCE",
+        "rationale": "评估用户反馈证据：反馈中出现搜素超时/结果消失，直接支持 SearchTransport 变更导致搜索失败；未提及限流或预算拒绝，无法支持 RequestBudget 假说；反馈来自 AU/SG 但缺乏其他区域对比，不能支持分群假说。"
+      },
+      {
+        "sequence": 6,
+        "decisionType": "CALL_TOOL",
+        "rationale": "已有用户反馈显示搜索超时，但尚无证据判断下降是否集中在特定分群；按 user_type 分群可判别 HYP3 与 SearchTransport/RequestBudget 机制类假说，且该 query shape 尚未探索。"
+      },
+      {
+        "sequence": 7,
+        "decisionType": "CALL_TOOL",
+        "rationale": "当前已有用户反馈证实搜索超时/无响应，支持 SearchTransport 变更假设，但缺少 RequestBudget 与 SearchTransport 的判别证据。历史相似事故按平台与版本检索可提供两者各自的先例，从而区分 HYP1 与 HYP2。"
+      },
+      {
+        "sequence": 8,
+        "decisionType": "ASSESS_EVIDENCE",
+        "rationale": "处理 pending 的相似事故证据：历史事故‘Index saturation during a seasonal catalog import’提示搜索性能瓶颈可能由后端索引饱和导致，与 SearchTransport 超时/失败机制相符，可辅助支持该假说；与请求预算限制及分群集中无直接关联。"
+      },
+      {
+        "sequence": 9,
+        "decisionType": "FINALIZE",
+        "rationale": "rel-202 于 09:00 全量发布，10:00 即出现指标首次越界；用户反馈明确提及超时与结果消失；历史相似事故为索引饱和导致的搜索超时，与 SearchTransport 变更机制一致。RequestBudget 与分群假设均无当前事件证据，且无可执行判别工具（探索与反馈来源均已被查询），依据收敛规则应结束多解。由于变更已全量且影响核心搜索完成率，建议回滚 SearchTransport 相关变更以快速止血，后续再排查超时根因。"
+      }
+    ],
+    "tools": []
+  },
+  "latestEvaluationCompletedAt": "2026-08-31T19:35:15.089Z",
+  "limitations": [
+    "Small governed Dev set; no holdout split and Wilson intervals remain wide.",
+    "Six cases are repository-native and sixteen are synthetic; results cannot be generalized to enterprise production incidents.",
+    "Root-cause semantic scores use the same model family as a blind judge and are not independent or human-reviewed.",
+    "The deterministic scorer and LLM judge measure different properties; both raw outputs are retained.",
+    "Costs are estimates using published token rates and assume input cache misses; they are not invoices."
+  ],
+  "artifacts": {
+    "methodology": "docs/evaluation/methodology.md",
+    "reproduce": "docs/evaluation/reproduce.md",
+    "report": "docs/evaluation/releaseguard-evaluation-report.md",
+    "reviewQueue": "evaluation/results/review_queue.csv",
+    "rawDirectory": "evaluation/results/raw/",
+    "github": "https://github.com/Eason4real/releaseguard-ai/tree/main/evaluation"
+  }
+}

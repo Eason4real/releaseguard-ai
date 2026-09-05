@@ -1920,6 +1920,60 @@ test("planner sees EMPTY query shape and can switch dimension or stop without re
   assert.match(buildInitialPlannerSystemPrompt(), /不要为消耗预算枚举全部维度/);
 });
 
+test("Harness v5 composes v3 query policy with the v4 evidence packet protocol", () => {
+  const prompt = buildInitialPlannerSystemPrompt("V5");
+  assert.match(prompt, /Harness v3 查询策略/);
+  assert.match(prompt, /Harness v4 证据包协议/);
+  assert.match(prompt, /综合判断只能引用当前 Run 已持久化且已评估的 Evidence/);
+});
+
+test("Harness v3 planner request contains actionable capability guidance without answer data", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "No additional supported query shape is available.",
+    rationale: "Respect the bounded capability contract.",
+  };
+  const runtimeGuidance = {
+    policyVersion: "HARNESS_V3",
+    toolCapabilities: [{
+      toolName: "get_release",
+      availability: "AVAILABLE",
+      requiredArguments: ["release_id"],
+      availableQueryShapes: [{ argumentSources: { release_id: "release.id" } }],
+    }, {
+      toolName: "query_metric",
+      availability: "UNAVAILABLE_FOR_CURRENT_INVESTIGATION",
+      requiredArguments: ["metric_key", "start_time", "end_time", "granularity_minutes"],
+      availableQueryShapes: [],
+    }],
+  };
+  await withStubbedPlannerResponses([stop], async (requests) => {
+    const decision = await new LLMInvestigationPlanner({
+      provider: "OpenAI-compatible",
+      baseUrl: "https://example.invalid/v1",
+      model: "v3-prompt-capture-test",
+      apiKey: "test-only",
+    }, { policyVersion: "V3" }).plan({
+      aggregate: setup.aggregate,
+      trigger: "INITIAL",
+      humanMessage: null,
+      remainingIterations: 12,
+      remainingToolCalls: 8,
+      runtimeGuidance,
+      modelCallBudget: standaloneModelCallBudget(),
+    });
+    assert.deepEqual(decision, stop);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].messages[0].content, /availability=AVAILABLE/);
+    assert.match(requests[0].messages[0].content, /availableQueryShapes/);
+    assert.deepEqual(plannerCompactContext(requests[0]).runtimeGuidance, runtimeGuidance);
+    assert.doesNotMatch(JSON.stringify(requests[0]),
+      /groundTruth|canonicalRootCause|acceptableAliases|requiredEvidenceIds|expected answer/i);
+  });
+});
+
 function unsupportedSegmentFinalizeDecision(
   aggregate: InvestigationAggregate,
   evidenceId = aggregate.evidence.find((item) => item.category === "PRODUCT_METRIC")!.id,

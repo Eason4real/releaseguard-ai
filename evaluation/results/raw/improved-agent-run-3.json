@@ -1,0 +1,3464 @@
+{
+  "schemaVersion": "investigation-live-benchmark-report-v1",
+  "reportStatus": "COMPLETE",
+  "label": "Live LLM Benchmark",
+  "manifest": {
+    "runId": "LIVE-DEV-1b5188dd-e759-4499-90b0-a1aa18fbde2b",
+    "datasetId": "INVESTIGATION-BENCHMARK-DEV",
+    "datasetVersion": "0.2.0",
+    "datasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "evaluationContractVersion": "phase1a-v2",
+    "telemetrySchemaVersion": "benchmark-observability-v3",
+    "sourceCommit": "aca76ff977e38df48390da10d622768c61e301b1",
+    "executionProvider": "LIVE_LLM_PROVIDER",
+    "runtimeMode": "LIVE_LLM",
+    "enabledTools": [
+      "get_release",
+      "query_metric",
+      "segment_metric",
+      "search_user_feedback",
+      "search_similar_incidents"
+    ],
+    "modelConfiguration": {
+      "provider": "deepseek",
+      "endpointType": "OPENAI_COMPATIBLE_CHAT_COMPLETIONS",
+      "baseUrl": "https://api.deepseek.com/chat/completions",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.1,
+      "topP": "PROVIDER_DEFAULT",
+      "maxOutputTokens": 5000,
+      "reasoningConfig": "DEEPSEEK_ENABLED_HIGH",
+      "maxModelCalls": 20,
+      "toolBudget": 10,
+      "maxIterations": 16,
+      "timeoutMs": 75000,
+      "schemaRepairMax": 2,
+      "transportRetry": 0,
+      "concurrency": 1,
+      "credentialPresent": true
+    },
+    "startedAt": "2026-08-31T19:31:05.602Z",
+    "completedAt": "2026-08-31T19:35:15.089Z",
+    "totalCases": 22,
+    "processedCases": 22,
+    "completedCases": 0,
+    "failedCases": 20,
+    "inconclusiveCases": 2
+  },
+  "cases": [
+    {
+      "caseId": "CASE-201",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 4,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-201",
+        "predictedRootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) The 9.2.0 checkout confirmation change (checkout_confirmation_v2 / CheckoutConfirmation module) introduced a bug that reduced checkout completion for Android users; (2) An external dependency (e.g., payment gateway, backend checkout API) failed around the release window, disproportionately affecting the newly released Android version due to traffic or configuration; (3) The Android-only drop is driven by a specific user segment or region (e.g., a particular platform variant, region, or user type) rather than the release code itself.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 6,
+        "toolCallCount": 4,
+        "tokenUsage": {
+          "inputTokens": 21214,
+          "outputTokens": 10764,
+          "totalTokens": 31978,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 90887.342106
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL",
+          "CALL_TOOL",
+          "CALL_TOOL"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "Risk event is tightly correlated with release REL-201 (Android 9.2.0) and changed checkout modules; need competing explanations for the Android-only drop."
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "按 Android 版本分组定位异常是否仅集中在新发布的 9.2.0，直接检验发布代码假设与分段/外部依赖假设。"
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Evaluate the single pending segment evidence against all active hypotheses before further investigation."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "The app_version segmentation isolated the drop to Android 9.2.0. To discriminate between a release-wide bug and a segment/region-driven cause, break checkout_completion_rate down by region within 9.2.0 Android users; a concentrated region would support the segment hypothesis, while uniform lower rates would strengthen the release-code explanation."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Segmenting Android 9.2.0 users by user_type determines whether the checkout drop is concentrated in a specific cohort (supporting HYP-2) or uniform across user types (supporting HYP-1). Region segmentation already returned EMPTY, and user_type is the next orthogonal slice for this incident."
+          },
+          {
+            "sequence": 6,
+            "iterationId": "ITERATION-006",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Search user feedback from Android 9.2.0 users during the incident window to distinguish a release-introduced checkout confirmation bug from an external payment/dependency failure."
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "checkout_completion_rate",
+              "start_time": "2031-01-01T10:00:00.000Z",
+              "end_time": "2031-01-01T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "dimension": "app_version",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-031"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "checkout_completion_rate",
+              "start_time": "2031-01-01T10:00:00.000Z",
+              "end_time": "2031-01-01T11:00:00.000Z",
+              "filters": {
+                "platform": "Android",
+                "appVersion": "9.2.0"
+              },
+              "dimension": "region",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 3,
+            "iteration": 5,
+            "toolCallId": "TOOL_CALL-003",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "checkout_completion_rate",
+              "start_time": "2031-01-01T10:00:00.000Z",
+              "end_time": "2031-01-01T11:00:00.000Z",
+              "filters": {
+                "platform": "Android",
+                "appVersion": "9.2.0"
+              },
+              "dimension": "user_type",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 4,
+            "iteration": 6,
+            "toolCallId": "TOOL_CALL-004",
+            "toolName": "search_user_feedback",
+            "arguments": {
+              "query": "checkout confirmation failed error",
+              "startTime": "2031-01-01T09:00:00.000Z",
+              "endTime": "2031-01-01T11:30:00.000Z",
+              "platform": "Android",
+              "version": "9.2.0",
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-031",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The breakdown shows checkout completion for 9.2.0 is 0.61 versus 9.1.4 at 0.94, isolating the drop to the newly released version and aligning with a release-introduced bug in the checkout flow."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "This evidence does not break down by region, user_type, or platform variant, so it neither confirms nor refutes a segment/region-driven explanation; it only shows the drop is version-specific."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-031",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "NEUTRAL",
+            "explanation": "The evidence provides no information about payment or backend dependency behavior, so it does not support or contradict an external dependency cause."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "The 9.2.0 checkout confirmation change (checkout_confirmation_v2 / CheckoutConfirmation module) introduced a bug that reduced checkout completion for Android users.",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "The Android-only drop is driven by a specific user segment or region (e.g., a particular platform variant, region, or user type) rather than the release code itself.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "An external dependency (e.g., payment gateway, backend checkout API) failed around the release window, disproportionately affecting the newly released Android version due to traffic or configuration.",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "NO_NEW_EVIDENCE",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 6,
+        "toolCallCount": 4,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "e99f11aa99894a3ab0f103f40bd7738af59ff1e4dc39c818b9c0a0ba5e759838"
+      },
+      "scoring": {
+        "caseId": "CASE-201",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-201",
+            "rootCause": "The Android 9.2.0 release regressed checkout confirmation behavior."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) The 9.2.0 checkout confirmation change (checkout_confirmation_v2 / CheckoutConfirmation module) introduced a bug that reduced checkout completion for Android users; (2) An external dependency (e.g., payment gateway, backend checkout API) failed around the release window, disproportionately affecting the newly released Android version due to traffic or configuration; (3) The Android-only drop is driven by a specific user segment or region (e.g., a particular platform variant, region, or user type) rather than the release code itself."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "EVIDENCE_INSUFFICIENT",
+              "ALTERNATIVES_UNRESOLVED"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 6,
+          "toolCalls": 4,
+          "tokenUsage": {
+            "inputTokens": 21214,
+            "outputTokens": 10764,
+            "totalTokens": 31978,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 90887.342106
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-202",
+      "category": "release_regression",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "PASS",
+        "terminalInvestigationState": "INCONCLUSIVE",
+        "modelCallCount": 4,
+        "toolCallCount": 3,
+        "errorCategory": null
+      },
+      "normalizedPrediction": {
+        "caseId": "CASE-202",
+        "predictedRootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) REL-202 中 SearchTransport/RequestBudget 的变更导致 Web 端搜索会话提前中断,进而拉低 search_completion_rate; (2) 异常集中在特定地域或用户群体,属于流量构成或局部环境问题,而非发布代码缺陷; (3) 搜索后端或外部依赖在异常窗口发生故障,与 REL-202 无关,导致跨版本/跨平台的搜索完成率下降.",
+        "predictedRootCauseId": null,
+        "citedEvidenceIds": [],
+        "diagnosisClaims": [],
+        "modelCallCount": 4,
+        "toolCallCount": 3,
+        "tokenUsage": {
+          "inputTokens": 12338,
+          "outputTokens": 5797,
+          "totalTokens": 18135,
+          "completeness": "COMPLETE"
+        },
+        "durationMs": 52490.995283
+      },
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "CALL_TOOL",
+          "CALL_TOOL"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "当前无假设、无证据。风险事件显示 Web 端 search_completion_rate 在 REL-202 全量发布后 1 小时内显著下降，release 变更涉及 SearchTransport/RequestBudget 与 search_transport_v3，因此首先生成可判别的竞争假设。"
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "按 app_version 分组 Web 端异常窗口的 search_completion_rate，可判断异常是否集中在 web-31.4（支持发布相关假设）还是跨版本（支持后端故障假设），并排除地域/群体假设的干扰。"
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "先用平台维度判断异常是否仅限 Web：若仅 Web 异常则支持发布相关假设，若多平台异常则支持后端/外部依赖假设。app_version 切片已为空，改用平台切片继续区分。"
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "已执行的 segment_metric 在 app_version 和 platform 维度均返回 EMPTY，无法直接按版本/平台分群。为区分发布代码缺陷（HYP-1）与后端/外部依赖故障（HYP-2），查询非 Web 平台（Android）同一异常窗口的 search_completion_rate 并附带基线：若 Android 同步下跌则支持后端故障假设；若 Android 正常则支持发布变更假设。"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "search_completion_rate",
+              "start_time": "2031-01-02T10:00:00.000Z",
+              "end_time": "2031-01-02T11:00:00.000Z",
+              "filters": {
+                "platform": "Web"
+              },
+              "dimension": "app_version",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 3,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "search_completion_rate",
+              "start_time": "2031-01-02T10:00:00.000Z",
+              "end_time": "2031-01-02T11:00:00.000Z",
+              "dimension": "platform",
+              "limit": 10
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          },
+          {
+            "order": 3,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-003",
+            "toolName": "query_metric",
+            "arguments": {
+              "metric_key": "search_completion_rate",
+              "start_time": "2031-01-02T10:00:00.000Z",
+              "end_time": "2031-01-02T11:00:00.000Z",
+              "filters": {
+                "platform": "Android"
+              },
+              "granularity_minutes": 5,
+              "include_baseline": true
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-202 中 SearchTransport/RequestBudget 的变更导致 Web 端搜索会话提前中断，进而拉低 search_completion_rate。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "搜索后端或外部依赖在异常窗口发生故障，与 REL-202 无关，导致跨版本/跨平台的搜索完成率下降。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "异常集中在特定地域或用户群体，属于流量构成或局部环境问题，而非发布代码缺陷。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": "NO_NEW_EVIDENCE",
+        "budgetTerminationReason": null,
+        "terminalState": "INCONCLUSIVE",
+        "modelCallCount": 4,
+        "toolCallCount": 3,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "6c90227ae2d813b5aafbd064efc934e2d4a879c81c3c40b4c99aa760532fecc8"
+      },
+      "scoring": {
+        "caseId": "CASE-202",
+        "rootCause": {
+          "correct": false,
+          "expected": {
+            "id": "RC-202",
+            "rootCause": "The web release regressed search request timeout handling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": "Insufficient evidence to confirm a single root cause. The following unresolved alternatives remain plausible, and the available observations cannot distinguish among them: (1) REL-202 中 SearchTransport/RequestBudget 的变更导致 Web 端搜索会话提前中断,进而拉低 search_completion_rate; (2) 异常集中在特定地域或用户群体,属于流量构成或局部环境问题,而非发布代码缺陷; (3) 搜索后端或外部依赖在异常窗口发生故障,与 REL-202 无关,导致跨版本/跨平台的搜索完成率下降."
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "AUTOMATICALLY_EVALUATED",
+          "audit": {
+            "predictedAnswerMode": "ABSTAIN",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [
+              "EVIDENCE_INSUFFICIENT",
+              "ALTERNATIVES_UNRESOLVED"
+            ],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "INCORRECT",
+            "decisionReason": "Answer mode ABSTAIN conflicts with expected CAUSAL."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 4,
+          "toolCalls": 3,
+          "tokenUsage": {
+            "inputTokens": 12338,
+            "outputTokens": 5797,
+            "totalTokens": 18135,
+            "completeness": "COMPLETE"
+          },
+          "durationMs": 52490.995283
+        },
+        "runtimeFailed": false,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-203",
+      "category": "release_regression",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [
+          "CREATE_HYPOTHESES",
+          "CALL_TOOL",
+          "ASSESS_EVIDENCE",
+          "CALL_TOOL"
+        ],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 1,
+        "plannerValidationEvents": [
+          {
+            "iteration": 3,
+            "attemptIndex": 0,
+            "outcome": "REPAIR_ATTEMPTED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "responseStructure": null
+          },
+          {
+            "iteration": 3,
+            "attemptIndex": 1,
+            "outcome": "REPAIRED",
+            "validationKind": "SCHEMA",
+            "decisionType": null,
+            "validationCode": "INVALID_JSON",
+            "validationPath": "$",
+            "validationSubcode": null,
+            "responseHash": "26d3942cd78f47579b01410ebb9fd442dd7bef302ff99f6fc646d3f19ae565a0",
+            "responseStructure": {
+              "raw": {
+                "responseHash": "26d3942cd78f47579b01410ebb9fd442dd7bef302ff99f6fc646d3f19ae565a0",
+                "responseLength": 1501,
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              },
+              "normalized": {
+                "topLevelKeys": [
+                  "assessments",
+                  "rationale",
+                  "type"
+                ],
+                "decisionType": "ASSESS_EVIDENCE",
+                "shape": {
+                  "assessmentsFieldType": "array",
+                  "assessmentsArrayLength": 1,
+                  "assessmentObjectCount": 1,
+                  "assessmentKeySets": [
+                    [
+                      "evidenceId",
+                      "relations"
+                    ]
+                  ],
+                  "relationsArrayLengths": [
+                    3
+                  ],
+                  "relationObjectCount": 3,
+                  "relationKeySets": [
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ],
+                    [
+                      "explanation",
+                      "relation",
+                      "targetHypothesisId"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "COMPLETED",
+            "decisionType": "CREATE_HYPOTHESES",
+            "publicRationale": "风险事件显示 iOS 12.0.0 staged cohort 的 crash-free sessions 显著下降，release 仅变更 DeepLinkRouter。需要区分版本代码回归、外部/子群因素和统计假象三种可能，以指导取证。"
+          },
+          {
+            "sequence": 2,
+            "iterationId": "ITERATION-002",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "先按 app_version 对 iOS 的 crash_free_session_rate 做分群，确认异常是否仅出现在 12.0.0，以此区分版本特有回归与统计/环境因素。"
+          },
+          {
+            "sequence": 3,
+            "iterationId": "ITERATION-003",
+            "status": "COMPLETED",
+            "decisionType": "ASSESS_EVIDENCE",
+            "publicRationale": "Pending segment_metric evidence must be assessed against all active hypotheses before further tool calls; the breakdown by app_version for platform=iOS shows crash-free session rate 0.89 for 12.0.0 (sampleSize=900) versus 0.995 for 11.9.2 (sampleSize=3100), which discriminates by the released version."
+          },
+          {
+            "sequence": 4,
+            "iterationId": "ITERATION-004",
+            "status": "COMPLETED",
+            "decisionType": "CALL_TOOL",
+            "publicRationale": "Current evidence isolates the crash to iOS 12.0.0, but cannot yet distinguish a DeepLinkRouter code regression from external/environmental factors. Segmenting by region within the affected cohort directly tests whether the anomaly is geographically concentrated (supporting environmental causes) or uniformly distributed (supporting a version-intrinsic defect)."
+          },
+          {
+            "sequence": 5,
+            "iterationId": "ITERATION-005",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [
+          {
+            "order": 1,
+            "iteration": 2,
+            "toolCallId": "TOOL_CALL-001",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "crash_free_session_rate",
+              "start_time": "2031-01-03T08:00:00.000Z",
+              "end_time": "2031-01-03T12:00:00.000Z",
+              "dimension": "app_version",
+              "filters": {
+                "platform": "iOS"
+              },
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "SUCCESS",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [
+              "EV-071"
+            ],
+            "error": null
+          },
+          {
+            "order": 2,
+            "iteration": 4,
+            "toolCallId": "TOOL_CALL-002",
+            "toolName": "segment_metric",
+            "arguments": {
+              "metric_key": "crash_free_session_rate",
+              "start_time": "2031-01-03T08:00:00.000Z",
+              "end_time": "2031-01-03T12:00:00.000Z",
+              "dimension": "region",
+              "filters": {
+                "platform": "iOS",
+                "appVersion": "12.0.0"
+              },
+              "limit": 20
+            },
+            "status": "COMPLETED",
+            "resultStatus": "EMPTY",
+            "observationMetadata": {
+              "valueType": "object",
+              "topLevelKeys": [
+                "data",
+                "reason"
+              ],
+              "itemCount": null
+            },
+            "evidenceIds": [],
+            "error": null
+          }
+        ],
+        "evidencePersistenceEvents": [
+          {
+            "evidenceId": "EV-071",
+            "toolCallId": "TOOL_CALL-001",
+            "category": "SEGMENT_METRIC",
+            "source": "Benchmark Fixture",
+            "strength": "MEDIUM",
+            "provenance": "synthetic",
+            "statement": "The read-only segment_metric tool returned a current investigation observation."
+          }
+        ],
+        "evidenceAssessments": [
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-001",
+            "relation": "SUPPORTS",
+            "explanation": "The segment_metric result shows the crash-free session rate drop is specific to app_version 12.0.0 (0.89) while 11.9.2 remains at baseline (0.995), matching the REL-203 staged version and supporting a version-specific regression linked to the release."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-002",
+            "relation": "NEUTRAL",
+            "explanation": "This evidence isolates the anomaly to the 12.0.0 cohort but does not address external service, iOS system version, region, or user_type dimensions; it neither confirms nor refutes an external/environmental cause, so the relation is neutral."
+          },
+          {
+            "iteration": 3,
+            "evidenceId": "EV-071",
+            "hypothesisId": "HYPOTHESIS-003",
+            "relation": "CONTRADICTS",
+            "explanation": "The segmentation shows 12.0.0 with sampleSize=900, above the 500 minimum sample threshold, and a pronounced version-specific drop (0.89 vs 0.995); this contradicts the sampling or traffic-allocation artifact hypothesis and indicates a real version-cohort anomaly."
+          }
+        ],
+        "hypothesisTransitions": [
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 1,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": null,
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-001",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "SUPPORTED",
+              "confidence": "MEDIUM",
+              "supportScore": 4,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-002",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            }
+          },
+          {
+            "iteration": 3,
+            "hypothesisId": "HYPOTHESIS-003",
+            "before": {
+              "status": "ACTIVE",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 0
+            },
+            "after": {
+              "status": "REJECTED",
+              "confidence": "LOW",
+              "supportScore": 0,
+              "contradictionScore": 4
+            }
+          }
+        ],
+        "competingHypothesisState": [
+          {
+            "hypothesisId": "HYPOTHESIS-001",
+            "revision": 1,
+            "statement": "REL-203 部署的 DeepLinkRouter 变更引入了客户端崩溃，导致 iOS 12.0.0 staged 用户 crash-free sessions 下降。",
+            "status": "SUPPORTED",
+            "confidence": "MEDIUM",
+            "supportScore": 4,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-002",
+            "revision": 1,
+            "statement": "iOS 12.0.0 staged 用户崩溃率上升是由外部服务（如 deep link 解析/后端接口）或特定环境（如 iOS 系统版本、地区、用户类型）因素导致，而非 DeepLinkRouter 代码本身。",
+            "status": "ACTIVE",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 0
+          },
+          {
+            "hypothesisId": "HYPOTHESIS-003",
+            "revision": 1,
+            "statement": "iOS 12.0.0 staged cohort 的 crash-free 下降是灰度流量分配或采样统计假象，并非真实的崩溃回归。",
+            "status": "REJECTED",
+            "confidence": "LOW",
+            "supportScore": 0,
+            "contradictionScore": 4
+          }
+        ],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 6,
+        "toolCallCount": 2,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "f0ae59fc1ba8e8bf3fc6a1667afa709dc2789c4c6744732cf7f583902b5a7cfb"
+      },
+      "scoring": {
+        "caseId": "CASE-203",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-203",
+            "rootCause": "The staged iOS 12.0.0 release introduced a crash regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-204",
+      "category": "release_regression",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-204",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-204",
+            "rootCause": "The earlier purchase response adapter release introduced an incompatible response format."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-205",
+      "category": "release_regression",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-205",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-205",
+            "rootCause": "The desktop 6.5.0 release regressed chunked upload scheduling."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-206",
+      "category": "configuration",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-206",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-206",
+            "rootCause": "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [
+              "recommendation-domain",
+              "affected-new-users",
+              "experiment-rollout-mechanism",
+              "incorrect-assignment"
+            ],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "REVIEW_REQUIRED",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-207",
+      "category": "configuration",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-207",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-207",
+            "rootCause": "The catalog result-cap configuration truncated returning-user results."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-208",
+      "category": "configuration",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-208",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-208",
+            "rootCause": "The notification prompt percentage-rollout configuration reduced opt-ins."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-209",
+      "category": "configuration",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-209",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-209",
+            "rootCause": "The targeted eligibility-rule rollout excluded Australian new users."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-210",
+      "category": "upstream_dependency",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-210",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-210",
+            "rootCause": "A regional payment-provider outage caused the cross-platform failures."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-211",
+      "category": "upstream_dependency",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-211",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-211",
+            "rootCause": "The carrier quote dependency caused the regional shipping latency."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-212",
+      "category": "upstream_dependency",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-212",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-212",
+            "rootCause": "An external identity-provider outage caused the regional sign-in failures."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-213",
+      "category": "user_feedback",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-213",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-213",
+            "rootCause": "The activation metric is under-reporting successful account completions."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-214",
+      "category": "user_feedback",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-214",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-214",
+            "rootCause": "The degraded metric reflects slower page rendering, not failed order processing."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-215",
+      "category": "user_feedback",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-215",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-215",
+            "rootCause": "The analytics SDK rollout stopped recording recommendation click events correctly."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-216",
+      "category": "unknown",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-216",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-216",
+            "rootCause": "The aggregate conversion decline is a benign new-user traffic mix shift."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-217",
+      "category": "unknown",
+      "difficulty": "EASY",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-217",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-217",
+            "rootCause": "The alert is a transient low-sample fluctuation rather than a sustained regression."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-218",
+      "category": "unknown",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-218",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-218",
+            "rootCause": "The conversion change is expected behavior from a promotion-driven low-intent traffic mix."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "CAUSAL",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [],
+            "uncertaintyPolicyResult": "NOT_APPLICABLE",
+            "specificityPolicyResult": "PASS",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-219",
+      "category": "insufficient_evidence",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-219",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-219",
+            "rootCause": "Available evidence cannot distinguish the checkout release from payment-provider instability."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [
+              "release-alternative",
+              "provider-alternative",
+              "alternatives-unresolved"
+            ],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-220",
+      "category": "insufficient_evidence",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-220",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-220",
+            "rootCause": "The low-sample aggregate alert lacks enough evidence to identify a root cause."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [
+              "insufficient-evidence"
+            ],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-221",
+      "category": "insufficient_evidence",
+      "difficulty": "HARD",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-221",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-221",
+            "rootCause": "Current evidence is insufficient to confirm the historical retry mechanism."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    },
+    {
+      "caseId": "CASE-222",
+      "category": "insufficient_evidence",
+      "difficulty": "MEDIUM",
+      "execution": {
+        "status": "FAIL",
+        "terminalInvestigationState": "FAILED",
+        "modelCallCount": 0,
+        "toolCallCount": 0,
+        "error": "PROVIDER_FAILURE",
+        "errorCategory": "RUNTIME_ERROR"
+      },
+      "normalizedPrediction": null,
+      "telemetry": {
+        "schemaVersion": "benchmark-observability-v3",
+        "availability": "PARTIAL",
+        "plannerActions": [],
+        "plannerStopDecision": null,
+        "schemaRepairCount": 0,
+        "plannerValidationEvents": [],
+        "guardEvents": [],
+        "iterations": [
+          {
+            "sequence": 1,
+            "iterationId": "ITERATION-001",
+            "status": "FAILED",
+            "decisionType": null,
+            "publicRationale": "deepseek 402: {\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+          }
+        ],
+        "toolTrajectory": [],
+        "evidencePersistenceEvents": [],
+        "evidenceAssessments": [],
+        "hypothesisTransitions": [],
+        "competingHypothesisState": [],
+        "diagnosisAttempts": [],
+        "finalizeAttempts": [],
+        "stopReason": null,
+        "budgetTerminationReason": null,
+        "terminalState": "FAILED",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "unavailableFields": [
+          "diagnosisAttempts.rejectedAttempts",
+          "validationRejectionReason.whenNotPersistedByRuntime"
+        ],
+        "telemetryIdentity": "630d22e653a3c6c4279d739192fdefeac97ab63615824cb1226ac0c9ebbe3c2d"
+      },
+      "scoring": {
+        "caseId": "CASE-222",
+        "rootCause": {
+          "correct": null,
+          "expected": {
+            "id": "RC-222",
+            "rootCause": "Sparse regional feedback is insufficient to identify one delivery root cause."
+          },
+          "predicted": {
+            "id": null,
+            "rootCause": ""
+          },
+          "matchedBy": "NONE",
+          "evaluationStatus": "RUNTIME_FAILED",
+          "audit": {
+            "predictedAnswerMode": "CAUSAL",
+            "expectedAnswerMode": "ABSTAIN",
+            "matchedConcepts": [],
+            "missingRequiredConcepts": [],
+            "forbiddenAssertions": [
+              "DEFINITE_CAUSAL_ATTRIBUTION"
+            ],
+            "uncertaintyPolicyResult": "FAIL",
+            "specificityPolicyResult": "FAIL",
+            "finalDecision": "RUNTIME_FAILED",
+            "decisionReason": "Runtime failure is excluded from automatic root-cause correctness."
+          }
+        },
+        "evidence": {
+          "precision": 0,
+          "relevantCount": 0,
+          "citedCount": 0,
+          "duplicateEvidenceIds": [],
+          "unknownEvidenceIds": []
+        },
+        "grounding": {
+          "unsupportedClaimRate": null,
+          "unsupportedClaims": [],
+          "evaluatedClaimCount": 0,
+          "status": "NOT_EVALUABLE"
+        },
+        "cost": {
+          "modelCalls": 0,
+          "toolCalls": 0
+        },
+        "runtimeFailed": true,
+        "overallStatus": "PARTIALLY_EVALUATED"
+      }
+    }
+  ],
+  "aggregate": {
+    "totalCases": 22,
+    "completedCases": 0,
+    "failedCases": 20,
+    "inconclusiveCases": 2,
+    "rootCauseTop1Accuracy": 0,
+    "rootCauseExactMatchAccuracy": 0,
+    "rootCauseSemanticAccuracy": 0,
+    "automaticallyEvaluatedCases": 2,
+    "correctCases": 0,
+    "incorrectCases": 2,
+    "reviewRequiredCases": 0,
+    "runtimeFailedCases": 20,
+    "autoEvaluationCoverage": 0.09090909090909091,
+    "autoEvaluableAccuracy": 0,
+    "meanEvidencePrecision": 0,
+    "meanUnsupportedClaimRate": null,
+    "groundingEvaluableCases": 0,
+    "groundingUnavailableCases": 22,
+    "medianModelCalls": 0,
+    "medianToolCalls": 0,
+    "totalModelCalls": 10,
+    "totalToolCalls": 7,
+    "plannerValidationFailures": 0,
+    "plannerDecisionRepairAttempts": 1,
+    "plannerDecisionRepairSuccesses": 1,
+    "plannerDecisionRepairRate": 1,
+    "plannerFirstAttemptSuccessRate": 0.9285714285714286,
+    "plannerFinalSuccessRate": 1,
+    "errorTaxonomyCounts": {
+      "PLANNER_SCHEMA_ERROR": 0,
+      "INVALID_PLANNER_DECISION": 0,
+      "RUNTIME_ERROR": 20
+    },
+    "groundedContractMismatches": 0,
+    "tokenUsage": {
+      "inputTokens": 33552,
+      "outputTokens": 16561,
+      "totalTokens": 50113,
+      "completeness": "PARTIAL"
+    },
+    "totalDurationMs": 143378.337389,
+    "estimatedOrActualCost": null
+  },
+  "breakdown": {
+    "category": {
+      "configuration": {
+        "totalCases": 4,
+        "completedCases": 0,
+        "failedCases": 4,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 4,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 4,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 4
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "insufficient_evidence": {
+        "totalCases": 4,
+        "completedCases": 0,
+        "failedCases": 4,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 4,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 4,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 4
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "release_regression": {
+        "totalCases": 5,
+        "completedCases": 0,
+        "failedCases": 3,
+        "inconclusiveCases": 2,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 2,
+        "correctCases": 0,
+        "incorrectCases": 2,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 3,
+        "autoEvaluationCoverage": 0.4,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 5,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 10,
+        "totalToolCalls": 7,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.9285714285714286,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 3
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 33552,
+          "outputTokens": 16561,
+          "totalTokens": 50113,
+          "completeness": "PARTIAL"
+        },
+        "totalDurationMs": 143378.337389,
+        "estimatedOrActualCost": null
+      },
+      "unknown": {
+        "totalCases": 3,
+        "completedCases": 0,
+        "failedCases": 3,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 3,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 3,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 3
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "upstream_dependency": {
+        "totalCases": 3,
+        "completedCases": 0,
+        "failedCases": 3,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 3,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 3,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 3
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "user_feedback": {
+        "totalCases": 3,
+        "completedCases": 0,
+        "failedCases": 3,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 3,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 3,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 3
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      }
+    },
+    "difficulty": {
+      "EASY": {
+        "totalCases": 6,
+        "completedCases": 0,
+        "failedCases": 5,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 5,
+        "autoEvaluationCoverage": 0.16666666666666666,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 6,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 6,
+        "totalToolCalls": 4,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 1,
+        "plannerDecisionRepairSuccesses": 1,
+        "plannerDecisionRepairRate": 1,
+        "plannerFirstAttemptSuccessRate": 0.9,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 5
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 21214,
+          "outputTokens": 10764,
+          "totalTokens": 31978,
+          "completeness": "PARTIAL"
+        },
+        "totalDurationMs": 90887.342106,
+        "estimatedOrActualCost": null
+      },
+      "HARD": {
+        "totalCases": 5,
+        "completedCases": 0,
+        "failedCases": 5,
+        "inconclusiveCases": 0,
+        "rootCauseTop1Accuracy": null,
+        "rootCauseExactMatchAccuracy": null,
+        "rootCauseSemanticAccuracy": null,
+        "automaticallyEvaluatedCases": 0,
+        "correctCases": 0,
+        "incorrectCases": 0,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 5,
+        "autoEvaluationCoverage": 0,
+        "autoEvaluableAccuracy": null,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 5,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 0,
+        "totalToolCalls": 0,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": null,
+        "plannerFinalSuccessRate": null,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 5
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": null,
+          "outputTokens": null,
+          "totalTokens": null,
+          "completeness": "UNAVAILABLE"
+        },
+        "totalDurationMs": null,
+        "estimatedOrActualCost": null
+      },
+      "MEDIUM": {
+        "totalCases": 11,
+        "completedCases": 0,
+        "failedCases": 10,
+        "inconclusiveCases": 1,
+        "rootCauseTop1Accuracy": 0,
+        "rootCauseExactMatchAccuracy": 0,
+        "rootCauseSemanticAccuracy": 0,
+        "automaticallyEvaluatedCases": 1,
+        "correctCases": 0,
+        "incorrectCases": 1,
+        "reviewRequiredCases": 0,
+        "runtimeFailedCases": 10,
+        "autoEvaluationCoverage": 0.09090909090909091,
+        "autoEvaluableAccuracy": 0,
+        "meanEvidencePrecision": 0,
+        "meanUnsupportedClaimRate": null,
+        "groundingEvaluableCases": 0,
+        "groundingUnavailableCases": 11,
+        "medianModelCalls": 0,
+        "medianToolCalls": 0,
+        "totalModelCalls": 4,
+        "totalToolCalls": 3,
+        "plannerValidationFailures": 0,
+        "plannerDecisionRepairAttempts": 0,
+        "plannerDecisionRepairSuccesses": 0,
+        "plannerDecisionRepairRate": null,
+        "plannerFirstAttemptSuccessRate": 1,
+        "plannerFinalSuccessRate": 1,
+        "errorTaxonomyCounts": {
+          "PLANNER_SCHEMA_ERROR": 0,
+          "INVALID_PLANNER_DECISION": 0,
+          "RUNTIME_ERROR": 10
+        },
+        "groundedContractMismatches": 0,
+        "tokenUsage": {
+          "inputTokens": 12338,
+          "outputTokens": 5797,
+          "totalTokens": 18135,
+          "completeness": "PARTIAL"
+        },
+        "totalDurationMs": 52490.995283,
+        "estimatedOrActualCost": null
+      }
+    }
+  },
+  "semanticHash": "95e563a0ea63f791f03218924dd179e0613d190ac19e18f49cf04f8bbe3ae733"
+}

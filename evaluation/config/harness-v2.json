@@ -1,0 +1,38 @@
+{
+  "schema_version": "releaseguard-harness-v2-experiment-v1",
+  "status": "EXPERIMENTAL_NOT_V1",
+  "inherits": ["model.json", "improved-agent.json"],
+  "changes": {
+    "transport_max_retries": 2,
+    "transport_retry_base_delay_ms": 500,
+    "fixture_query_shape_hints": true,
+    "safe_partial_resume": true,
+    "retryable_http_statuses": [408, 409, 429, "5xx"],
+    "retryable_network_error": "TypeError transport failure",
+    "non_retryable_http_statuses": [400, 401, 402, 403, 404],
+    "retry_counts_against_model_call_budget": false,
+    "provider_error_classification": [
+      "PROVIDER_AUTHENTICATION_FAILED",
+      "PROVIDER_QUOTA_EXHAUSTED",
+      "PROVIDER_RATE_LIMITED",
+      "PROVIDER_UNAVAILABLE",
+      "PROVIDER_TIMEOUT",
+      "PROVIDER_MALFORMED_RESPONSE",
+      "PROVIDER_FAILURE"
+    ]
+  },
+  "activation": {
+    "environment": {
+      "LIVE_EVAL_TRANSPORT_RETRIES": "2",
+      "LIVE_EVAL_RETRY_BASE_DELAY_MS": "500",
+      "LIVE_EVAL_FIXTURE_QUERY_HINTS": "true"
+    },
+    "default_behavior_unchanged": true
+  },
+  "evaluation_boundary": {
+    "v1_results_are_immutable": true,
+    "full_live_rerun_completed": false,
+    "measured_improvement_claimed": false,
+    "notes": "Focused deterministic transport tests only. A separately versioned live run is required before claiming metric improvement."
+  }
+}

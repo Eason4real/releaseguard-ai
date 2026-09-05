@@ -47,7 +47,7 @@ export async function POST(
         if (!config.provider || !config.baseUrl || !config.model || !config.apiKey) {
           return Response.json({ code: "MODEL_NOT_CONFIGURED", error: "继续调查前请配置模型服务。" }, { status: 503 });
         }
-        planner = new LLMInvestigationPlanner(config);
+        planner = new LLMInvestigationPlanner(config, { maxDecisionRepairAttempts: 2 });
       }
     }
     const retrievers = await createRuntimeRetrievers();

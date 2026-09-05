@@ -13,15 +13,20 @@ import {
   telemetryFromAggregate,
   semanticHarnessReport,
   type HarnessAgentRequest,
+  type DevHarnessReport,
   type HarnessExecutionProvider,
   type HarnessExecutionProviderFactory,
   type HarnessExecutionTelemetry,
   type HarnessFixtureExecutionRecord,
 } from "../eval/investigation-benchmark/harness";
-import { benchmarkEvidenceMap } from
+import { benchmarkEvidenceMap, fixtureToolCapabilities } from
   "../eval/investigation-benchmark/harness/fixture-adapter";
+import { normalizeInvestigationToolArguments } from
+  "../lib/investigation/tool-query-policy";
 import { projectInconclusivePrediction } from
   "../eval/investigation-benchmark/harness/inconclusive-prediction";
+import { loadLivePreflightFixture } from
+  "../eval/investigation-benchmark/harness/preflight-fixture";
 import { __testOnlyLiveProvider } from
   "../eval/investigation-benchmark/harness/live-provider";
 import { __testOnlyDeterministicProvider } from
@@ -235,10 +240,20 @@ test("fixture matching rejects a wrong segment dimension without consuming the o
     planner,
     maxIterations: 8,
     maxToolCalls: 2,
+    includeFixtureQueryHints: true,
     onFixtureExecutions: (value) => { matches = value; },
   });
   const results = aggregate.toolCalls.map((call) => call.result?.status);
   assert.deepEqual(results, ["EMPTY", "SUCCESS"]);
+  assert.deepEqual(aggregate.toolCalls[0].result?.output, {
+    data: null,
+    reason: "FIXTURE_QUERY_SHAPE_UNAVAILABLE",
+    query_shape_hints: {
+      available_metric_keys: [request.agentInput.riskEvent!.metricKey],
+      available_dimensions: ["user_type"],
+      disclosure: "Names only; no observation values, evidence IDs, or expected answers are disclosed.",
+    },
+  });
   assert.equal(aggregate.evidence.length, 1);
   assert.equal(aggregate.evidence[0].category, "SEGMENT_METRIC");
   assert.equal(aggregate.evidence[0].source, "Benchmark Fixture");
@@ -704,6 +719,63 @@ test("single-case debugging rejects unknown IDs and preserves dataset identity",
   }), /UNKNOWN_DEV_CASE/);
 });
 
+test("bounded case selections are ordered, isolated, and resume-safe", async () => {
+  const selection = ["CASE-204", "CASE-206", "CASE-213"];
+  let checkpoint: DevHarnessReport | null = null;
+  await assert.rejects(runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    caseIds: selection,
+    onCheckpoint(report) {
+      checkpoint = report;
+      if (report.cases.length === 1) throw new Error("TEST_INTERRUPT_SELECTION");
+    },
+  }), /TEST_INTERRUPT_SELECTION/);
+  assert.ok(checkpoint);
+  const partial = checkpoint as DevHarnessReport;
+  assert.deepEqual(partial.manifest.caseSelection, selection);
+  const resumed = await runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    caseIds: selection,
+    resumeReport: partial,
+  });
+  assert.deepEqual(resumed.cases.map((item) => item.caseId), selection);
+  await assert.rejects(runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    caseIds: ["CASE-206", "CASE-204", "CASE-213"],
+    resumeReport: partial,
+  }), /LIVE_RESUME_CASE_SELECTION_MISMATCH/);
+});
+
+test("partial resume preserves the frozen prefix and rejects incompatible state", async () => {
+  let partial: Awaited<ReturnType<typeof runInvestigationBenchmarkDevHarness>> | null = null;
+  await assert.rejects(runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    onCheckpoint(report) {
+      partial = report;
+      if (report.cases.length === 3) throw new Error("TEST_INTERRUPT");
+    },
+  }), /TEST_INTERRUPT/);
+  assert.ok(partial);
+  const checkpoint = partial as DevHarnessReport;
+  const resumed = await runInvestigationBenchmarkDevHarness({
+    sourceCommit,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    resumeReport: checkpoint,
+  });
+  assert.equal(resumed.cases.length, 22);
+  assert.equal(new Set(resumed.cases.map((item) => item.caseId)).size, 22);
+  assert.deepEqual(resumed.cases.slice(0, 3), checkpoint.cases);
+  await assert.rejects(runInvestigationBenchmarkDevHarness({
+    sourceCommit: `${sourceCommit}-different`,
+    providerFactory: createDeterministicHarnessProviderFactory(),
+    resumeReport: checkpoint,
+  }), /LIVE_RESUME_SOURCE_COMMIT_MISMATCH/);
+});
+
 test("Run A and Run B have identical normalized results, scores, aggregates, and semantic hash", async () => {
   const timesA = ["2031-03-01T00:00:00.000Z", "2031-03-01T00:00:01.000Z"];
   const timesB = ["2031-03-02T00:00:00.000Z", "2031-03-02T00:00:09.000Z"];
@@ -982,6 +1054,91 @@ test("duplicate guard telemetry links the rejected candidate without changing ex
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
   assert.equal(runA.telemetry.telemetryIdentity, runB.telemetry.telemetryIdentity);
+});
+
+test("Harness v3 normalizes schema aliases without using case or Gold metadata", () => {
+  assert.deepEqual(normalizeInvestigationToolArguments("segment_metric", {
+    metricKey: " checkout_completion_rate ",
+    startTime: "2031-01-01T09:00:00Z",
+    endTime: "2031-01-01T11:00:00+00:00",
+    dimension: "app-version",
+    filters: { platform: " Android ", app_version: " 9.2.0 " },
+  }), {
+    metric_key: "checkout_completion_rate",
+    start_time: "2031-01-01T09:00:00.000Z",
+    end_time: "2031-01-01T11:00:00.000Z",
+    dimension: "app_version",
+    filters: { platform: "Android", appVersion: "9.2.0" },
+  });
+});
+
+test("Harness v3 capability guidance exposes schema names only", () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures[0];
+  const request = __testOnly.observationRequest(fixture);
+  const capabilities = fixtureToolCapabilities(request.observations, request.enabledTools);
+  const serialized = JSON.stringify(capabilities);
+  assert.ok(capabilities.some((item) => item.toolName === "segment_metric"));
+  for (const forbidden of [
+    "evidenceId",
+    "sourceRef",
+    "output",
+    "groundTruth",
+    "canonicalRootCauseId",
+    "expected",
+  ]) assert.equal(serialized.includes(forbidden), false, forbidden);
+  for (const observation of request.observations) {
+    assert.equal(serialized.includes(observation.evidenceId), false);
+    assert.equal(serialized.includes(observation.sourceRef), false);
+  }
+});
+
+test("Harness v3 preflight capability contract points to the only matchable query", () => {
+  const request = loadLivePreflightFixture().request;
+  const capabilities = fixtureToolCapabilities(request.observations, request.enabledTools);
+  const releaseCapability = capabilities.find((item) => item.toolName === "get_release");
+  assert.deepEqual(releaseCapability, {
+    toolName: "get_release",
+    availability: "AVAILABLE",
+    requiredArguments: ["release_id"],
+    metricKeys: [],
+    dimensions: [],
+    scopeFields: [],
+    availableQueryShapes: [{ argumentSources: { release_id: "release.id" } }],
+  });
+  for (const capability of capabilities.filter((item) => item.toolName !== "get_release")) {
+    assert.equal(capability.availability, "UNAVAILABLE_FOR_CURRENT_INVESTIGATION");
+    assert.deepEqual(capability.availableQueryShapes, []);
+  }
+});
+
+test("Harness v3 classifies EMPTY and enforces a cumulative no-information budget", async () => {
+  const fixture = loadInvestigationBenchmarkDevDataset().fixtures[0];
+  const request = __testOnly.observationRequest(fixture);
+  const planner = scriptedToolPlanner(Array.from({ length: 5 }, (_, index) => ({
+    toolName: "query_metric",
+    arguments: {
+      metricKey: `unsupported_metric_${index}`,
+      startTime: "2031-01-01T09:00:00Z",
+      endTime: "2031-01-01T11:00:00Z",
+      filters: { platform: "android" },
+    },
+  })));
+  const aggregate = await executeHarnessAgentRuntime(request, {
+    planner,
+    harnessVersion: "V3",
+    includeFixtureQueryHints: true,
+    maxIterations: 12,
+    maxToolCalls: 10,
+  });
+  assert.equal(aggregate.run.status, "INCONCLUSIVE");
+  assert.equal(aggregate.run.stopReason, "NO_NEW_EVIDENCE");
+  assert.equal(aggregate.toolCalls.length, 4);
+  for (const call of aggregate.toolCalls) {
+    assert.equal(call.arguments.metric_key, call.arguments.metricKey ?? call.arguments.metric_key);
+    assert.equal(call.result?.status, "EMPTY");
+    assert.equal((call.result?.output as Record<string, unknown>).empty_reason,
+      "UNSUPPORTED_QUERY");
+  }
 });
 
 test("default fixture provider does not cite a metric observation selected for another metric", async () => {
