@@ -518,12 +518,10 @@ export function evaluateEvidenceReadinessV2(
   const unresolvedUntestedCompetitors = leading ? ranked.filter((item) =>
     item.id !== leading.id
     && !["REJECTED", "WEAKENED"].includes(item.status)
-    && (item.supportScore > 0 || item.contradictionScore > 0
-      || ["MEDIUM", "HIGH"].includes(item.confidence)
-      || aggregate.hypothesisEvidenceLinks.some((link) =>
-        link.hypothesisId === item.id
-        && ["SUPPORTS", "CONTRADICTS"].includes(link.relation)
-        && current.some((evidence) => evidence.id === link.evidenceId)))
+    && !aggregate.hypothesisEvidenceLinks.some((link) =>
+      link.hypothesisId === item.id
+      && ["SUPPORTS", "CONTRADICTS"].includes(link.relation)
+      && current.some((evidence) => evidence.id === link.evidenceId))
     && !aggregate.hypothesisEvidenceLinks.some((link) =>
       link.hypothesisId === item.id
       && link.relation === "CONTRADICTS"
@@ -545,6 +543,9 @@ export function evaluateEvidenceReadinessV2(
   if (!impactPresent) reasons.push("CURRENT_IMPACT_UNAVAILABLE");
   if (unresolvedCompetitors.length > 0) reasons.push("UNRESOLVED_EQUAL_COMPETITOR");
   if (unresolvedUntestedCompetitors.length > 0) reasons.push("UNTESTED_VIABLE_COMPETITOR");
+  if (allUnresolvedCompetitors.length > 0 && remainingToolCalls <= 0) {
+    reasons.push("DISCRIMINATOR_UNAVAILABLE");
+  }
 
   let status: EvidenceReadinessV2Status;
   if (pending.size > 0 || (!leading && remainingToolCalls > 0)
@@ -555,6 +556,8 @@ export function evaluateEvidenceReadinessV2(
   } else if (leading && linkedSupport && linkedImpactSupport && impactPresent
     && independentCurrentSources >= 2 && allUnresolvedCompetitors.length === 0) {
     status = "READY_FOR_CAUSAL";
+  } else if (unresolvedUntestedCompetitors.length > 0 && remainingToolCalls <= 0) {
+    status = "READY_FOR_ABSTENTION";
   } else if (leading || (impactPresent && current.length > 0)) {
     status = "READY_FOR_BOUNDED_HYPOTHESIS";
   } else {

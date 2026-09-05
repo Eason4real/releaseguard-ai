@@ -367,6 +367,19 @@ test("v8 readiness distinguishes causal, bounded, abstention, and collection sta
   const causal = v8AggregateFixture();
   assert.equal(evaluateEvidenceReadinessV2(causal, 5).status, "READY_FOR_CAUSAL");
 
+  const discriminated = v8AggregateFixture();
+  discriminated.hypotheses[1] = {
+    ...discriminated.hypotheses[1], status: "ACTIVE", confidence: "LOW",
+    supportScore: 0, contradictionScore: 1,
+  };
+  discriminated.hypothesisEvidenceLinks.push(...discriminated.evidence.map((evidence, index) => ({
+    id: `LINK-DISCRIMINATED-${index}`, runId: "RUN-V7", hypothesisId: "HYP-2",
+    evidenceId: evidence.id, relation: "CONTRADICTS" as const,
+    explanation: "The current evidence contradicts the alternative.",
+    linkedBy: "AGENT" as const, createdAt: "2026-01-01T00:05:00.000Z",
+  })));
+  assert.equal(evaluateEvidenceReadinessV2(discriminated, 5).status, "READY_FOR_CAUSAL");
+
   const bounded = v8AggregateFixture();
   bounded.hypotheses[1] = {
     ...bounded.hypotheses[1], status: "SUPPORTED", confidence: "MEDIUM",
@@ -411,9 +424,10 @@ test("v8 readiness distinguishes causal, bounded, abstention, and collection sta
     })),
   );
   const untested = evaluateEvidenceReadinessV2(untestedAlternative, 0);
-  assert.equal(untested.status, "READY_FOR_CAUSAL");
-  assert.deepEqual(untested.unresolvedCompetingHypothesisIds, []);
-  assert.ok(!untested.reasons.includes("UNTESTED_VIABLE_COMPETITOR"));
+  assert.equal(untested.status, "READY_FOR_ABSTENTION");
+  assert.deepEqual(untested.unresolvedCompetingHypothesisIds, ["HYP-2"]);
+  assert.ok(untested.reasons.includes("UNTESTED_VIABLE_COMPETITOR"));
+  assert.ok(untested.reasons.includes("DISCRIMINATOR_UNAVAILABLE"));
 
   const collecting = aggregateFixture({ includeImpact: false });
   assert.equal(evaluateEvidenceReadinessV2(collecting, 3).status, "NEEDS_COLLECTION");
@@ -423,6 +437,77 @@ test("v8 readiness distinguishes causal, bounded, abstention, and collection sta
   abstaining.evidence = [];
   abstaining.hypothesisEvidenceLinks = [];
   assert.equal(evaluateEvidenceReadinessV2(abstaining, 0).status, "READY_FOR_ABSTENTION");
+});
+
+test("v8 staged planner continues collection for an unresolved discriminator", async () => {
+  const aggregate = v8AggregateFixture();
+  aggregate.hypotheses[1] = {
+    ...aggregate.hypotheses[1], status: "SUPPORTED", confidence: "MEDIUM",
+    supportScore: aggregate.hypotheses[0].supportScore, contradictionScore: 0,
+  };
+  aggregate.hypothesisEvidenceLinks.push(...aggregate.evidence.map((evidence, index) => ({
+    id: `LINK-COMPETING-${index}`,
+    runId: "RUN-V7",
+    hypothesisId: "HYP-2",
+    evidenceId: evidence.id,
+    relation: "SUPPORTS" as const,
+    explanation: "The evidence does not distinguish the competing mechanism.",
+    linkedBy: "AGENT" as const,
+    createdAt: "2026-01-01T00:05:00.000Z",
+  })));
+  let collectorCalls = 0;
+  let synthesizerCalls = 0;
+  const collector: InvestigationPlanner = {
+    type: "LLM",
+    async plan() {
+      collectorCalls += 1;
+      return { type: "CALL_TOOL", toolName: "query_metric", arguments: {
+        metric_key: "checkout_conversion", filters: { dimension: "experiment" },
+      }, targetHypothesisIds: ["HYP-1", "HYP-2"], testIntent: "DISCRIMINATE",
+      queryValue: "DISCRIMINATING", rationale: "Collect the missing discriminator." };
+    },
+  };
+  const synthesizer: InvestigationSynthesizer = {
+    type: "LLM",
+    async synthesize() {
+      synthesizerCalls += 1;
+      return { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+        reason: "test", rationale: "test" };
+    },
+  };
+  const decision = await new StagedInvestigationPlanner(
+    collector, synthesizer, { packetVersion: "V2" },
+  ).plan(contextFor(aggregate));
+  assert.equal(decision.type, "CALL_TOOL");
+  assert.equal(collectorCalls, 1);
+  assert.equal(synthesizerCalls, 0);
+});
+
+test("v8 staged planner permits bounded abstention when no discriminator remains", async () => {
+  const aggregate = v8AggregateFixture();
+  aggregate.hypotheses[1] = {
+    ...aggregate.hypotheses[1], status: "ACTIVE", confidence: "LOW",
+    supportScore: 0, contradictionScore: 0,
+  };
+  aggregate.hypothesisEvidenceLinks.push(...aggregate.evidence.map((evidence, index) => ({
+    id: `LINK-UNTESTED-PLANNER-${index}`,
+    runId: "RUN-V7", hypothesisId: "HYP-2", evidenceId: evidence.id,
+    relation: "NEUTRAL" as const,
+    explanation: "No available evidence distinguishes this alternative.",
+    linkedBy: "AGENT" as const, createdAt: "2026-01-01T00:06:00.000Z",
+  })));
+  let seenReadiness = "";
+  const collector: InvestigationPlanner = { type: "LLM", async plan() {
+    throw new Error("collector must not run after bounded exhaustion");
+  } };
+  const synthesizer: InvestigationSynthesizer = { type: "LLM", async synthesize(input) {
+    seenReadiness = input.readiness.status;
+    return { type: "STOP_INCONCLUSIVE", reasonCode: "INSUFFICIENT_EVIDENCE",
+      reason: "test", rationale: "test" };
+  } };
+  await new StagedInvestigationPlanner(collector, synthesizer, { packetVersion: "V2" })
+    .plan({ ...contextFor(aggregate), remainingToolCalls: 0 });
+  assert.equal(seenReadiness, "READY_FOR_ABSTENTION");
 });
 
 test("v8 staged planner uses Packet v2 without changing the v7 default", async () => {
