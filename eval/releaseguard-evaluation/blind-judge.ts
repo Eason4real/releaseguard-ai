@@ -3,9 +3,11 @@ import { readFile } from "node:fs/promises";
 import { callModel, type ModelResponseObservation } from "../../lib/investigation/model";
 
 type HarnessPredictionSet = "HARNESS_V2" | "HARNESS_V3" | "HARNESS_V4" | "HARNESS_V7";
+type PredictionSet = "V1" | HarnessPredictionSet | "PORTFOLIO_FINAL";
 
 type Prediction = {
-  system: "DIRECT_LLM" | "CURRENT_AGENT" | "IMPROVED_AGENT" | HarnessPredictionSet;
+  system: "DIRECT_LLM" | "CURRENT_AGENT" | "IMPROVED_AGENT" | HarnessPredictionSet
+    | "PORTFOLIO_FINAL";
   runIndex: number;
   caseId: string;
   diagnosis: string | null;
@@ -76,11 +78,51 @@ async function readJson(path: string) {
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
 }
 
-async function loadPredictions(
+export async function loadPredictions(
   root: string,
-  predictionSet: "V1" | HarnessPredictionSet,
+  predictionSet: PredictionSet,
+  reportPath?: string,
 ): Promise<Prediction[]> {
   const predictions: Prediction[] = [];
+  if (predictionSet === "PORTFOLIO_FINAL") {
+    if (!reportPath) throw new Error("PORTFOLIO_FINAL_REPORT_PATH_REQUIRED");
+    const report = await readJson(reportPath);
+    if (report.schemaVersion !== "investigation-live-benchmark-report-v1"
+      || report.reportStatus !== "COMPLETE") {
+      throw new Error("PORTFOLIO_FINAL_REPORT_INVALID");
+    }
+    const manifest = report.manifest as Record<string, unknown> | undefined;
+    const cases = report.cases;
+    if (!Array.isArray(cases)
+      || cases.length !== 22
+      || manifest?.totalCases !== 22
+      || manifest?.processedCases !== 22) {
+      throw new Error("PORTFOLIO_FINAL_REPORT_COVERAGE_INVALID");
+    }
+    for (const item of cases as Array<Record<string, unknown>>) {
+      const execution = (item.execution ?? {}) as Record<string, unknown>;
+      const normalized = (item.normalizedPrediction ?? {}) as Record<string, unknown>;
+      const technicalStatus = String(execution.status ?? "FAILED");
+      const passed = technicalStatus === "PASS";
+      predictions.push({
+        system: "PORTFOLIO_FINAL",
+        runIndex: 1,
+        caseId: String(item.caseId),
+        diagnosis: passed && normalized.predictedRootCause
+          ? String(normalized.predictedRootCause)
+          : null,
+        evidenceIds: passed && Array.isArray(normalized.citedEvidenceIds)
+          ? normalized.citedEvidenceIds.map(String)
+          : [],
+        technicalStatus,
+      });
+    }
+    if (new Set(predictions.map((item) => item.caseId)).size !== 22
+      || predictions.some((item) => !/^CASE-\d+$/.test(item.caseId))) {
+      throw new Error("PORTFOLIO_FINAL_REPORT_CASE_IDS_INVALID");
+    }
+    return predictions;
+  }
   if (predictionSet !== "V1") {
     const version = predictionSet.toLowerCase().replace("harness_", "");
     const system = predictionSet;
@@ -141,7 +183,8 @@ export async function runBlindJudge(config: {
   baseUrl: string;
   apiKey: string;
   model: string;
-  predictionSet?: "V1" | HarnessPredictionSet;
+  predictionSet?: PredictionSet;
+  reportPath?: string;
   judgeVersion?: string;
   skipCaseIds?: string[];
   onCase?: (record: Record<string, unknown>) => Promise<void> | void;
@@ -149,8 +192,12 @@ export async function runBlindJudge(config: {
   const frozen = await readJson(`${config.root}/evaluation/dataset/frozen-cases.json`);
   const predictionSet = config.predictionSet ?? "V1";
   const judgeVersion = config.judgeVersion ?? "releaseguard-blind-v1";
-  const predictions = await loadPredictions(config.root, predictionSet);
-  const outputsPerCase = predictionSet === "V1" ? 9 : 3;
+  const predictions = await loadPredictions(config.root, predictionSet, config.reportPath);
+  const outputsPerCase = predictionSet === "V1"
+    ? 9
+    : predictionSet === "PORTFOLIO_FINAL"
+      ? 1
+      : 3;
   const skipped = new Set(config.skipCaseIds ?? []);
   const records: Record<string, unknown>[] = [];
   for (const frozenCase of frozen.cases as Array<Record<string, unknown>>) {
@@ -246,4 +293,27 @@ export async function runBlindJudge(config: {
     await config.onCase?.(record);
   }
   return records;
+}
+
+export function summarizeBlindJudgeRecords(records: Array<Record<string, unknown>>) {
+  const judged = records.flatMap((record) => Array.isArray(record.scores)
+    ? (record.scores as Array<Record<string, unknown>>)
+    : []);
+  const scores = Object.fromEntries(["0", "1", "2", "N/A"].map((score) => [
+    score,
+    judged.filter((item) => String(item.score) === score).length,
+  ]));
+  const scorable = judged.filter((item) => ["0", "1", "2"].includes(String(item.score)));
+  const strict = scorable.filter((item) => String(item.score) === "2").length;
+  const lenient = scorable.filter((item) => ["1", "2"].includes(String(item.score))).length;
+  return {
+    cases: records.length,
+    scores,
+    errors: records.filter((record) => Boolean(record.error)).length,
+    strict,
+    lenient,
+    scorable: scorable.length,
+    strictRate: scorable.length ? strict / scorable.length : 0,
+    lenientRate: scorable.length ? lenient / scorable.length : 0,
+  };
 }

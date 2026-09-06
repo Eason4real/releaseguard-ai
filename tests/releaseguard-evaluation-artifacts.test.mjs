@@ -35,7 +35,8 @@ test("benchmark UI fetches the latest generated summary and contains no hand-mai
 test("Harness v2 artifacts stay versioned and require three anonymous outputs per case", async () => {
   const judge = await readFile(new URL("eval/releaseguard-evaluation/blind-judge.ts", root), "utf8");
   const runner = await readFile(new URL("scripts/run-releaseguard-blind-judge-v2.mjs", root), "utf8");
-  assert.match(judge, /predictionSet === "V1" \? 9 : 3/);
+  assert.match(judge, /predictionSet === "PORTFOLIO_FINAL"/);
+  assert.match(judge, /\? 1\s+: 3/);
   assert.match(judge, /type HarnessPredictionSet = "HARNESS_V2" \| "HARNESS_V3"/);
   assert.match(judge, /if \(predictionSet !== "V1"\)/);
   assert.match(runner, /evaluation\/results\/v2\/judge/);
@@ -47,7 +48,8 @@ test("Harness v3 uses isolated run and blind-judge artifacts", async () => {
   const judge = await readFile(new URL("eval/releaseguard-evaluation/blind-judge.ts", root), "utf8");
   const runner = await readFile(new URL("scripts/run-releaseguard-blind-judge-v3.mjs", root), "utf8");
   const series = await readFile(new URL("scripts/run-harness-v3-series.sh", root), "utf8");
-  assert.match(judge, /predictionSet === "V1" \? 9 : 3/);
+  assert.match(judge, /predictionSet === "PORTFOLIO_FINAL"/);
+  assert.match(judge, /\? 1\s+: 3/);
   assert.match(judge, /evaluation\/results\/\$\{version\}\/raw\/harness-\$\{version\}-run-/);
   assert.match(runner, /evaluation\/results\/v3\/judge/);
   assert.match(runner, /predictionSet: "HARNESS_V3"/);

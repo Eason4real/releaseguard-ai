@@ -14,6 +14,7 @@ const testNames = [
   "investigation-benchmark-dev-harness",
   "investigation-benchmark-live-adapter",
   "investigation-benchmark-report",
+  "releaseguard-portfolio-final-judge",
 ];
 const outputFiles = testNames.map((name) => new URL(`${name}.test.mjs`, outputDirectory));
 
