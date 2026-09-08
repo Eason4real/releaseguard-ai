@@ -32,6 +32,7 @@ export type PlannerContext = {
   humanMessage: string | null;
   remainingIterations: number;
   remainingToolCalls: number;
+  runtimeGuidance?: Record<string, unknown>;
   signal?: AbortSignal;
   modelCallBudget?: {
     reserve(input: {
@@ -188,6 +189,7 @@ export type InvestigationDecision =
       arguments: Record<string, unknown>;
       targetHypothesisIds: string[];
       testIntent: "SUPPORT" | "REFUTE" | "DISCRIMINATE";
+      queryValue?: "DECISIVE" | "DISCRIMINATING" | "SUPPORTING" | "REDUNDANT";
       rationale: string;
     }
   | {

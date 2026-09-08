@@ -252,12 +252,45 @@ export async function runInvestigationBenchmarkHarness(
     .sort((left, right) => left.caseId.localeCompare(right.caseId));
   const entries = options.caseId
     ? allEntries.filter((entry) => entry.caseId === options.caseId)
-    : allEntries;
+    : options.caseIds
+      ? options.caseIds.map((caseId) => allEntries.find((entry) => entry.caseId === caseId))
+        .filter((entry): entry is (typeof allEntries)[number] => Boolean(entry))
+      : allEntries;
   if (options.caseId && entries.length !== 1) throw new Error(`UNKNOWN_DEV_CASE: ${options.caseId}`);
+  if (options.caseIds) {
+    if (options.caseIds.length === 0 || new Set(options.caseIds).size !== options.caseIds.length
+      || entries.length !== options.caseIds.length) throw new Error("INVALID_CASE_SELECTION");
+  }
+  if (options.caseId && options.resumeReport) throw new Error("LIVE_RESUME_SINGLE_CASE_FORBIDDEN");
+  const resume = options.resumeReport;
+  if (resume) {
+    if (resume.reportStatus !== "INCOMPLETE") throw new Error("LIVE_RESUME_REPORT_NOT_PARTIAL");
+    if (resume.manifest.datasetHash !== validation.calculatedDatasetHash) {
+      throw new Error("LIVE_RESUME_DATASET_HASH_MISMATCH");
+    }
+    if (resume.manifest.sourceCommit !== options.sourceCommit) {
+      throw new Error("LIVE_RESUME_SOURCE_COMMIT_MISMATCH");
+    }
+    if (JSON.stringify(resume.manifest.modelConfiguration)
+      !== JSON.stringify(options.providerFactory.executionMetadata.modelConfiguration)) {
+      throw new Error("LIVE_RESUME_MODEL_CONFIGURATION_MISMATCH");
+    }
+    const expectedSelection = options.caseIds ?? null;
+    const resumeSelection = resume.manifest.caseSelection ?? null;
+    if (JSON.stringify(resumeSelection) !== JSON.stringify(expectedSelection)) {
+      throw new Error("LIVE_RESUME_CASE_SELECTION_MISMATCH");
+    }
+    const expectedPrefix = entries.slice(0, resume.cases.length).map((item) => item.caseId);
+    if (JSON.stringify(resume.cases.map((item) => item.caseId)) !== JSON.stringify(expectedPrefix)) {
+      throw new Error("LIVE_RESUME_CASE_SEQUENCE_MISMATCH");
+    }
+  }
   const now = options.now ?? (() => new Date().toISOString());
-  const startedAt = now();
-  const runId = options.runId ?? crypto.randomUUID();
-  const cases: HarnessCaseExecutionResult[] = [];
+  const startedAt = resume?.manifest.startedAt ?? now();
+  const runId = resume?.manifest.runId ?? options.runId ?? crypto.randomUUID();
+  const cases: HarnessCaseExecutionResult[] = structuredClone(resume?.cases ?? []);
+  const pendingEntries = entries.filter((entry) =>
+    !cases.some((item) => item.caseId === entry.caseId));
   const createReport = async (
     reportStatus: DevHarnessReport["reportStatus"],
     completedAt: string | null,
@@ -287,6 +320,7 @@ export async function runInvestigationBenchmarkHarness(
         failedCases: cases.filter((item) => item.execution.status === "FAIL").length,
         inconclusiveCases: cases.filter((item) =>
           item.execution.terminalInvestigationState === "INCONCLUSIVE").length,
+        ...(options.caseIds ? { caseSelection: [...options.caseIds] } : {}),
       },
       cases: structuredClone(cases),
       aggregate: aggregateHarnessCases(cases),
@@ -300,16 +334,17 @@ export async function runInvestigationBenchmarkHarness(
       semanticHash: await calculateHarnessSemanticHash(reportWithoutHash),
     };
   };
-  for (const [index, entry] of entries.entries()) {
+  const completedBeforeResume = cases.length;
+  for (const [index, entry] of pendingEntries.entries()) {
     const fixture = fixtures.get(entry.fixtureRef);
     if (!fixture) throw new Error(`MISSING_DEV_FIXTURE: ${entry.fixtureRef}`);
-    options.onProgress?.({ index: index + 1, total: entries.length, caseId: entry.caseId, phase: "START" });
+    options.onProgress?.({ index: completedBeforeResume + index + 1, total: entries.length, caseId: entry.caseId, phase: "START" });
     const started = performance.now();
     const result = await executeCase(entry, fixture, options);
     cases.push(result);
     await options.onCheckpoint?.(await createReport("INCOMPLETE", null));
     options.onProgress?.({
-      index: index + 1,
+      index: completedBeforeResume + index + 1,
       total: entries.length,
       caseId: entry.caseId,
       phase: "END",

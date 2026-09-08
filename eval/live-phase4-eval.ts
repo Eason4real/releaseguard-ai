@@ -17,7 +17,7 @@ for (const scenario of phase4ScenarioInputs) {
       observations.push(observation);
       scenarioObservations.push(observation);
     },
-  });
+  }, { maxDecisionRepairAttempts: 2 });
   const result = await runLiveScenarioRuntime(scenario, planner);
   attachModelObservations(result.plannerCalls, scenarioObservations);
   runtimeResults.push(result);

@@ -17,10 +17,14 @@ import { LiveEvalStore, type LiveEvalObservability } from "../../support/live-ev
 import {
   bindFixtureExecutionRecords,
   createFixtureExecutionRecord,
+  fixtureQueryShapeHints,
+  fixtureToolCapabilities,
   observationMatchesSelector,
   productionEvidenceCategory,
   selectorFromToolArguments,
 } from "./fixture-adapter";
+import { normalizeInvestigationToolArguments } from
+  "../../../lib/investigation/tool-query-policy";
 import type { HarnessAgentRequest, HarnessFixtureExecutionRecord } from "./types";
 
 type ObservedToolDecision = {
@@ -174,7 +178,12 @@ class HarnessRuntimePlanner implements InvestigationPlanner {
   }
 }
 
-const fixtureToolExecutor = (request: HarnessAgentRequest) => {
+const fixtureToolExecutor = (
+  request: HarnessAgentRequest,
+  includeQueryHints = false,
+  classifyEmptyResults = false,
+) => {
+  const allObservations = request.observations.map((observation, index) => ({ observation, index }));
   const remaining = request.observations.map((observation, index) => ({ observation, index }));
   const records: HarnessFixtureExecutionRecord[] = [];
   const executor: InvestigationToolExecutor = async (name, args) => {
@@ -182,7 +191,36 @@ const fixtureToolExecutor = (request: HarnessAgentRequest) => {
     const index = remaining.findIndex(({ observation }) =>
       observationMatchesSelector(observation, name, selector));
     if (index < 0) {
-      const output = { data: null, reason: "FIXTURE_OBSERVATION_UNAVAILABLE" };
+      const enabled = request.enabledTools.includes(name);
+      const allForTool = allObservations.filter(({ observation }) => observation.toolName === name);
+      const remainingForTool = remaining.filter(({ observation }) => observation.toolName === name);
+      const sameMetricRemaining = remainingForTool.filter(({ observation }) =>
+        selector.metricKey !== undefined
+        && observation.selector.metricKey !== undefined
+        && observation.selector.metricKey.localeCompare(selector.metricKey, undefined, {
+          sensitivity: "base",
+        }) === 0);
+      const emptyReason = !enabled
+        ? "UNSUPPORTED_QUERY"
+        : remainingForTool.length === 0 && allForTool.length > 0
+          ? "NO_INFORMATION_GAIN"
+          : remainingForTool.length === 0
+            ? "NO_DATA"
+            : selector.metricKey !== undefined && sameMetricRemaining.length === 0
+              ? "UNSUPPORTED_QUERY"
+              : "NO_MATCH";
+      const output = {
+        data: null,
+        reason: includeQueryHints
+          ? classifyEmptyResults ? emptyReason : "FIXTURE_QUERY_SHAPE_UNAVAILABLE"
+          : "FIXTURE_OBSERVATION_UNAVAILABLE",
+        ...(includeQueryHints && classifyEmptyResults ? { empty_reason: emptyReason } : {}),
+        ...(includeQueryHints ? {
+          query_shape_hints: fixtureQueryShapeHints(
+            remaining.map((item) => item.observation), name, selector,
+          ),
+        } : {}),
+      };
       records.push(createFixtureExecutionRecord(name, args, null, null, output));
       return {
         status: "EMPTY",
@@ -258,6 +296,8 @@ export async function executeHarnessAgentRuntime(
     maxModelCalls?: number;
     maxIterations?: number;
     maxToolCalls?: number;
+    includeFixtureQueryHints?: boolean;
+    harnessVersion?: "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8";
     onObservability?: (observability: LiveEvalObservability) => void;
     onFixtureExecutions?: (records: HarnessFixtureExecutionRecord[]) => void;
   } = {},
@@ -266,7 +306,13 @@ export async function executeHarnessAgentRuntime(
   const store = new LiveEvalStore(analytics);
   const observedTools: ObservedToolDecision[] = [];
   const observedStop = { decision: null as ObservedStopDecision | null };
-  const fixtureExecution = fixtureToolExecutor(request);
+  const v3 = ["V3", "V4", "V5", "V6", "V7", "V8"].includes(options.harnessVersion ?? "");
+  const v4 = ["V4", "V5", "V6", "V7", "V8"].includes(options.harnessVersion ?? "");
+  const fixtureExecution = fixtureToolExecutor(
+    request,
+    options.includeFixtureQueryHints,
+    v3,
+  );
   const runId = await startInvestigation(store, {
     question: request.agentInput.incidentQuestion,
     provider: options.provider ?? "HARNESS_PROVIDER",
@@ -285,6 +331,31 @@ export async function executeHarnessAgentRuntime(
       maxIterations: options.maxIterations ?? 8,
       maxToolCalls: options.maxToolCalls ?? 2,
       toolExecutor: fixtureExecution.executor,
+      ...(v3 ? {
+        normalizeToolArguments: normalizeInvestigationToolArguments,
+        maxConsecutiveNoEvidence: 4,
+        maxNoEvidenceTotal: 4,
+        runtimeGuidance: {
+          policyVersion: options.harnessVersion === "V8" ? "HARNESS_V8" : options.harnessVersion === "V7" ? "HARNESS_V7" : options.harnessVersion === "V6" ? "HARNESS_V6" : options.harnessVersion === "V5" ? "HARNESS_V5" : v4 ? "HARNESS_V4" : "HARNESS_V3",
+          toolCapabilities: fixtureToolCapabilities(request.observations, request.enabledTools),
+          emptyResultProtocol: [
+            "NO_DATA",
+            "UNSUPPORTED_QUERY",
+            "NO_MATCH",
+            "NO_INFORMATION_GAIN",
+          ],
+          disclosure: "Schema names only; no observation values, Evidence IDs, Gold, or expected answers.",
+          ...(v4 ? {
+            evidencePacketProtocol: {
+              phases: ["COLLECT", "SYNTHESIZE"],
+              synthesisAllowsToolCalls: false,
+              minimumCompetingHypotheses: 2,
+              queryValueTaxonomy: ["DECISIVE", "DISCRIMINATING", "SUPPORTING", "REDUNDANT"],
+              inconclusiveReasons: ["INSUFFICIENT_EVIDENCE", "CONFLICTING_EVIDENCE", "UNSUPPORTED_QUERY_SPACE", "BUDGET_EXHAUSTED", "MODEL_UNCERTAINTY"],
+            },
+          } : {}),
+        },
+      } : {}),
     });
   } catch (error) {
     const failedAggregate = await store.getAggregate(runId);

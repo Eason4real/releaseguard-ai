@@ -111,6 +111,7 @@ import {
   allowedPlannerRepairDecisionTypes,
   buildGroundingEvidenceInventory,
   buildInitialPlannerSystemPrompt,
+  buildDiscriminatorPlanningContext,
   buildKnownInvestigationSlices,
   buildPlannerRepairFeedback,
   formatPlannerDecisionContract,
@@ -1826,8 +1827,99 @@ test("planner context derives structured known slices without benchmark metadata
   const compact = plannerCompactContext(request);
   assert.deepEqual(compact.knownInvestigationSlices,
     buildKnownInvestigationSlices(setup.aggregate));
+  assert.deepEqual(compact.discriminatorPlanningContext,
+    buildDiscriminatorPlanningContext(setup.aggregate, null));
   assert.doesNotMatch(JSON.stringify(compact),
     /CASE-205|gold|authored selector|expected observation|fixture-only|benchmark split/i);
+});
+
+test("planner discriminator context inventories successful query shapes and unresolved competitors", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const context = buildDiscriminatorPlanningContext(setup.aggregate, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.map((item) => item.id),
+      },
+    },
+  });
+  assert.deepEqual(context.unresolvedCompetitors, [{
+    hypothesisIds: setup.aggregate.hypotheses.map((item) => item.id).sort(),
+    status: "UNRESOLVED",
+  }]);
+  const metricQuery = context.attemptedQueryShapes.find((item) => item.tool === "query_metric")!;
+  assert.equal(metricQuery.resultStatus, "SUCCESS");
+  assert.equal(metricQuery.state, "OBSERVED");
+  assert.equal(metricQuery.dimension, null);
+  assert.equal(metricQuery.filters.platform, "Desktop");
+  assert.ok(metricQuery.canonicalSignature.includes("query_metric"));
+  assert.equal(context.discriminatorGaps.length, 1);
+  assert.equal(context.discriminatorGaps[0].suggestedTool, null);
+});
+
+test("planner discriminator context distinguishes EMPTY attempts and canonicalizes aliases", async () => {
+  const setup = await plannerSearchPolicySetup(true);
+  const context = buildDiscriminatorPlanningContext(setup.aggregate, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.slice(0, 2).map((item) => item.id),
+      },
+    },
+  });
+  const emptyRegion = context.attemptedQueryShapes.find((item) =>
+    item.tool === "segment_metric" && item.dimension === "region")!;
+  assert.equal(emptyRegion.resultStatus, "EMPTY");
+  assert.equal(emptyRegion.state, "ATTEMPTED_EMPTY");
+  assert.equal(emptyRegion.filters.appVersion, "6.5.0");
+
+  const reordered = {
+    metricKey: setup.event.metricKey,
+    endTime: setup.event.lastBreachedAt,
+    startTime: setup.event.firstBreachedAt,
+    filters: { app_version: "6.5.0", platform: "Desktop" },
+    dimension: "region",
+    limit: 10,
+  };
+  const reorderedContext = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    toolCalls: [...setup.aggregate.toolCalls, {
+      ...setup.aggregate.toolCalls.find((item) => item.name === "segment_metric")!,
+      arguments: reordered,
+      result: { ...setup.aggregate.toolCalls.find((item) => item.name === "segment_metric")!.result! },
+    }],
+  });
+  const regionQueries = reorderedContext.attemptedQueryShapes.filter((item) =>
+    item.tool === "segment_metric" && item.dimension === "region");
+  assert.equal(new Set(regionQueries.map((item) => item.canonicalSignature)).size, 1);
+
+  const pendingCall = {
+    ...setup.aggregate.toolCalls[0],
+    result: null,
+    arguments: { ...setup.aggregate.toolCalls[0].arguments, dimension: "user_type" },
+  };
+  const pendingShape = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    toolCalls: [...setup.aggregate.toolCalls, pendingCall],
+  }).attemptedQueryShapes.at(-1)!;
+  assert.equal(pendingShape.resultStatus, "ERROR");
+  assert.equal(pendingShape.state, "ATTEMPTED_FAILED");
+});
+
+test("planner discriminator context removes the gap after direct refutation", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const firstEvidence = setup.aggregate.evidence[0];
+  const context = buildDiscriminatorPlanningContext({
+    ...setup.aggregate,
+    hypothesisEvidenceLinks: setup.aggregate.hypotheses.slice(0, 2).map((hypothesis) => ({
+      ...hypothesisLink(setup.runId, firstEvidence.id, hypothesis.id, "CONTRADICTS"),
+    })),
+  }, {
+    stagedArchitecture: {
+      readiness: {
+        unresolvedCompetingHypothesisIds: setup.aggregate.hypotheses.slice(0, 2).map((item) => item.id),
+      },
+    },
+  });
+  assert.deepEqual(context.discriminatorGaps, []);
 });
 
 test("planner segment drill-down contract preserves orthogonal filters and dimension choice", async () => {
@@ -1918,6 +2010,60 @@ test("planner sees EMPTY query shape and can switch dimension or stop without re
   assert.deepEqual(stopped.decision, stop);
   assert.match(buildInitialPlannerSystemPrompt(), /不得重复完全相同调用/);
   assert.match(buildInitialPlannerSystemPrompt(), /不要为消耗预算枚举全部维度/);
+});
+
+test("Harness v5 composes v3 query policy with the v4 evidence packet protocol", () => {
+  const prompt = buildInitialPlannerSystemPrompt("V5");
+  assert.match(prompt, /Harness v3 查询策略/);
+  assert.match(prompt, /Harness v4 证据包协议/);
+  assert.match(prompt, /综合判断只能引用当前 Run 已持久化且已评估的 Evidence/);
+});
+
+test("Harness v3 planner request contains actionable capability guidance without answer data", async () => {
+  const setup = await plannerSearchPolicySetup();
+  const stop: InvestigationDecision = {
+    type: "STOP_INCONCLUSIVE",
+    reasonCode: "INSUFFICIENT_EVIDENCE",
+    reason: "No additional supported query shape is available.",
+    rationale: "Respect the bounded capability contract.",
+  };
+  const runtimeGuidance = {
+    policyVersion: "HARNESS_V3",
+    toolCapabilities: [{
+      toolName: "get_release",
+      availability: "AVAILABLE",
+      requiredArguments: ["release_id"],
+      availableQueryShapes: [{ argumentSources: { release_id: "release.id" } }],
+    }, {
+      toolName: "query_metric",
+      availability: "UNAVAILABLE_FOR_CURRENT_INVESTIGATION",
+      requiredArguments: ["metric_key", "start_time", "end_time", "granularity_minutes"],
+      availableQueryShapes: [],
+    }],
+  };
+  await withStubbedPlannerResponses([stop], async (requests) => {
+    const decision = await new LLMInvestigationPlanner({
+      provider: "OpenAI-compatible",
+      baseUrl: "https://example.invalid/v1",
+      model: "v3-prompt-capture-test",
+      apiKey: "test-only",
+    }, { policyVersion: "V3" }).plan({
+      aggregate: setup.aggregate,
+      trigger: "INITIAL",
+      humanMessage: null,
+      remainingIterations: 12,
+      remainingToolCalls: 8,
+      runtimeGuidance,
+      modelCallBudget: standaloneModelCallBudget(),
+    });
+    assert.deepEqual(decision, stop);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].messages[0].content, /availability=AVAILABLE/);
+    assert.match(requests[0].messages[0].content, /availableQueryShapes/);
+    assert.deepEqual(plannerCompactContext(requests[0]).runtimeGuidance, runtimeGuidance);
+    assert.doesNotMatch(JSON.stringify(requests[0]),
+      /groundTruth|canonicalRootCause|acceptableAliases|requiredEvidenceIds|expected answer/i);
+  });
 });
 
 function unsupportedSegmentFinalizeDecision(
@@ -2574,6 +2720,91 @@ test("non-recoverable grounding repair remains restricted to FINALIZE", async ()
   assert.equal(semanticError.validationSubcode, "ROOT_CAUSE_HYPOTHESIS_MISMATCH");
   assert.equal(semanticError.grounding?.recoverable, false);
   assert.deepEqual(allowedPlannerRepairDecisionTypes(semanticError), ["FINALIZE"]);
+});
+
+test("hypothesis-limit repair narrowly permits collection transition only when collection is required", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED",
+    "CREATE_HYPOTHESES",
+    "hypotheses",
+    "too many active hypotheses",
+  );
+  const context = {
+    aggregate,
+    readiness: "NEEDS_COLLECTION",
+    remainingToolCalls: 3,
+  };
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, context), [
+    "CALL_TOOL", "STOP_INCONCLUSIVE",
+  ]);
+  const feedback = buildPlannerRepairFeedback(error, aggregate, context);
+  assert.match(feedback, /已存在 active Hypotheses/);
+  assert.match(feedback, /不得继续 CREATE_HYPOTHESES/);
+  assert.match(feedback, /完整合法的 CALL_TOOL/);
+  assert.match(feedback, /testIntent=DISCRIMINATE/);
+  assert.match(feedback, /duplicate guard/);
+});
+
+test("hypothesis-limit repair remains locked outside collection state or budget", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED",
+    "CREATE_HYPOTHESES",
+    "hypotheses",
+    "too many active hypotheses",
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "READY_FOR_CAUSAL", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 0,
+  }), ["CREATE_HYPOTHESES"]);
+});
+
+test("ordinary schema and semantic repairs do not gain cross-type replanning", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const schemaError = new PlannerDecisionValidationError(
+    "INVALID_JSON", "CREATE_HYPOTHESES", "$", "invalid JSON", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(schemaError, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+  const semanticError = new PlannerDecisionSemanticError(
+    "DUPLICATE_HYPOTHESIS", "CREATE_HYPOTHESES", "hypotheses[0].statement", "duplicate", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(semanticError, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CREATE_HYPOTHESES"]);
+});
+
+test("allowed hypothesis-limit repair CALL_TOOL still uses the normal decision contract", async () => {
+  const setup = await runningInvestigationWithHypotheses();
+  const aggregate = (await setup.store.getAggregate(setup.runId))!;
+  const error = new PlannerDecisionSemanticError(
+    "ACTIVE_HYPOTHESIS_LIMIT_EXCEEDED", "CREATE_HYPOTHESES", "hypotheses", "too many", 0,
+  );
+  assert.deepEqual(allowedPlannerRepairDecisionTypes(error, {
+    aggregate, readiness: "NEEDS_COLLECTION", remainingToolCalls: 3,
+  }), ["CALL_TOOL", "STOP_INCONCLUSIVE"]);
+  const callTool = parseInvestigationDecision(JSON.stringify({
+    type: "CALL_TOOL",
+    toolName: "query_metric",
+    arguments: { metric_key: setup.event.metricKey },
+    targetHypothesisIds: setup.hypotheses.map((item) => item.id),
+    testIntent: "DISCRIMINATE",
+    rationale: "Test the competing hypotheses.",
+  }));
+  assert.equal(callTool.type, "CALL_TOOL");
+  validatePlannerDecisionSemantics(callTool, {
+    aggregate,
+    remainingIterations: 5,
+    remainingToolCalls: 3,
+    availableToolNames: ["query_metric"],
+  });
 });
 
 test("grounding repair can remove an unsupported segment claim", async () => {

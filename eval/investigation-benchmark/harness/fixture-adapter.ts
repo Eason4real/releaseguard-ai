@@ -27,7 +27,7 @@ const text = (value: unknown) => typeof value === "string" && value.trim()
 
 const equal = (left: string | undefined, right: string | undefined) =>
   left !== undefined && right !== undefined
-  && left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+  && left.localeCompare(right, undefined, { sensitivity: "base" }) === 0;
 
 const scopeFields = ["platform", "version", "region", "userType"] as const;
 
@@ -60,19 +60,110 @@ export function selectorFromToolArguments(
   const filters = record(args.filters);
   const scope = {
     platform: text(args.platform) ?? text(filters.platform),
-    version: text(args.version) ?? text(filters.appVersion),
+    version: text(args.version) ?? text(args.appVersion) ?? text(args.app_version)
+      ?? text(filters.appVersion) ?? text(filters.app_version),
     region: text(args.region) ?? text(filters.region),
-    userType: text(args.userType) ?? text(filters.userType),
+    userType: text(args.userType) ?? text(args.user_type)
+      ?? text(filters.userType) ?? text(filters.user_type),
   };
-  if (toolName === "get_release") return { releaseId: text(args.release_id) };
+  if (toolName === "get_release") {
+    return { releaseId: text(args.release_id) ?? text(args.releaseId) };
+  }
   if (toolName === "query_metric") {
-    return { metricKey: text(args.metric_key), ...scope };
+    return { metricKey: text(args.metric_key) ?? text(args.metricKey), ...scope };
   }
   if (toolName === "segment_metric") {
-    return { metricKey: text(args.metric_key), dimension: text(args.dimension), ...scope };
+    return {
+      metricKey: text(args.metric_key) ?? text(args.metricKey),
+      dimension: text(args.dimension)?.toLowerCase().replaceAll("-", "_"),
+      ...scope,
+    };
   }
-  return { metricKey: text(args.metricKey), ...scope };
+  return { metricKey: text(args.metricKey) ?? text(args.metric_key), ...scope };
 }
+
+export function fixtureToolCapabilities(
+  observations: readonly HarnessToolObservation[],
+  enabledTools: readonly string[],
+) {
+  return [...new Set(enabledTools)].sort().map((toolName) => {
+    const relevant = observations.filter((item) => item.toolName === toolName);
+    const metricKeys = [...new Set(relevant.flatMap((item) =>
+      item.selector.metricKey ? [item.selector.metricKey] : []))].sort();
+    const dimensions = [...new Set(relevant.flatMap((item) =>
+      item.selector.dimension ? [item.selector.dimension] : []))].sort();
+    const scopeFields = scopeFieldsFor(relevant);
+    const availableQueryShapes = uniqueQueryShapes(relevant.map((item) => {
+      const selector = item.selector;
+      if (toolName === "get_release") {
+        return { argumentSources: { release_id: "release.id" } };
+      }
+      return {
+        ...(selector.metricKey ? { metricKey: selector.metricKey } : {}),
+        ...(selector.dimension ? { dimension: selector.dimension } : {}),
+        argumentSources: Object.fromEntries([
+          ...(selector.metricKey ? [[metricArgumentName(toolName), "availableQueryShapes[].metricKey"]] : []),
+          ...scopeFieldsFor([item]).map((field) => [
+            scopeArgumentName(toolName, field),
+            contextSourceForScope(field),
+          ]),
+        ]),
+      };
+    }));
+    return {
+      toolName,
+      availability: relevant.length > 0 ? "AVAILABLE" : "UNAVAILABLE_FOR_CURRENT_INVESTIGATION",
+      requiredArguments: requiredArgumentsFor(toolName),
+      metricKeys,
+      dimensions,
+      scopeFields,
+      availableQueryShapes,
+    };
+  });
+}
+
+const requiredArgumentsFor = (toolName: string) => {
+  if (toolName === "get_release") return ["release_id"];
+  if (toolName === "query_metric") {
+    return ["metric_key", "start_time", "end_time", "granularity_minutes"];
+  }
+  if (toolName === "segment_metric") {
+    return ["metric_key", "start_time", "end_time", "dimension"];
+  }
+  if (toolName === "search_user_feedback") return ["query"];
+  if (toolName === "search_similar_incidents") return ["query"];
+  return [];
+};
+
+const metricArgumentName = (toolName: string) =>
+  toolName === "query_metric" || toolName === "segment_metric" ? "metric_key" : "metricKey";
+
+const scopeArgumentName = (toolName: string, field: (typeof scopeFields)[number]) => {
+  if (toolName === "query_metric" || toolName === "segment_metric") {
+    const filterName = field === "version" ? "appVersion" : field;
+    return `filters.${filterName}`;
+  }
+  return field === "version" ? "version" : field;
+};
+
+const contextSourceForScope = (field: (typeof scopeFields)[number]) => {
+  if (field === "version") return "release.version or riskEvent.filters.appVersion";
+  if (field === "userType") return "riskEvent.filters.userType";
+  return `riskEvent.filters.${field}`;
+};
+
+const uniqueQueryShapes = (shapes: Array<Record<string, unknown>>) => {
+  const seen = new Set<string>();
+  return shapes.filter((shape) => {
+    const signature = JSON.stringify(shape);
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+};
+
+const scopeFieldsFor = (observations: readonly HarnessToolObservation[]) =>
+  scopeFields.filter((field) => observations.some((item) => item.selector[field] !== undefined));
 
 export function projectObservationSelector(input: {
   toolName: string;
@@ -143,6 +234,28 @@ export function observationMatchesSelector(
     return compatibleRetrievalScope(expected, selector);
   }
   return false;
+}
+
+export function fixtureQueryShapeHints(
+  observations: readonly HarnessToolObservation[],
+  toolName: string,
+  selector: HarnessObservationSelector,
+) {
+  const relevant = observations.filter((observation) =>
+    observation.toolName === toolName
+    && (selector.metricKey === undefined
+      || observation.selector.metricKey === selector.metricKey));
+  const availableMetricKeys = [...new Set(relevant
+    .map((item) => item.selector.metricKey)
+    .filter((item): item is string => Boolean(item)))].sort();
+  const availableDimensions = [...new Set(relevant
+    .map((item) => item.selector.dimension)
+    .filter((item): item is string => Boolean(item)))].sort();
+  return {
+    ...(availableMetricKeys.length > 0 ? { available_metric_keys: availableMetricKeys } : {}),
+    ...(availableDimensions.length > 0 ? { available_dimensions: availableDimensions } : {}),
+    disclosure: "Names only; no observation values, evidence IDs, or expected answers are disclosed.",
+  };
 }
 
 export const createFixtureExecutionRecord = (
