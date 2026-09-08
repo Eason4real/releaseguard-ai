@@ -1,0 +1,27 @@
+{
+  "schema_version": "releaseguard-evaluation-model-v1",
+  "provider": "deepseek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "temperature": 0.1,
+  "top_p": "provider_default",
+  "max_output_tokens": 5000,
+  "request_timeout_ms": 75000,
+  "transport_retries": 0,
+  "schema_repairs": 1,
+  "current_agent": {
+    "max_model_calls": 20,
+    "max_tool_calls": 10,
+    "max_iterations": 16
+  },
+  "concurrency": 1,
+  "pricing": {
+    "currency": "USD",
+    "unit_tokens": 1000000,
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "as_of": "2026-08-31",
+    "peak": {"input_cache_miss": 0.44, "output": 1.32},
+    "off_peak": {"input_cache_miss": 0.22, "output": 0.66},
+    "cache_hit_not_assumed": true
+  }
+}

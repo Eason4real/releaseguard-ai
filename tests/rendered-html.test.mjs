@@ -35,6 +35,8 @@ test("renders development preview metadata", async () => {
   assert.match(html, /风险调查/);
   assert.match(html, /最佳实践/);
   assert.match(html, /href=["']\/best-practice["']/);
+  assert.match(html, /评测报告/);
+  assert.match(html, /href=["']\/benchmark["']/);
   assert.match(html, /第一次体验？/);
   assert.match(html, /3 分钟完成一次发布风险调查/);
   assert.match(html, /href=["']\/guided-experience["']/);
@@ -51,6 +53,27 @@ test("renders development preview metadata", async () => {
   assert.match(html, /演示环境就绪/);
   assert.doesNotMatch(html, /LLM/);
   assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
+});
+
+test("renders the public Final V8 evidence summary without low-level judge scores", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("benchmark-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/benchmark", { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /22 \/ 22/);
+  assert.match(html, /14 \/ 22/);
+  assert.match(html, /受控工具调用/);
+  assert.match(html, /Failure Analysis/);
+  assert.match(html, /不代表生产环境准确率/);
+  assert.doesNotMatch(html, /严格根因准确率|Strict Blind Judge|Grounded diagnosis/);
+  assert.doesNotMatch(html, /score2Strict|rootCauseScore|rawDirectory/);
+  assert.doesNotMatch(html, /API Key|Fine-grained access token/);
 });
 
 test("renders the business-facing best practice scenario", async () => {

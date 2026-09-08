@@ -513,6 +513,9 @@ export default function PublicDemo() {
         <Link className="nav-item" data-testid="best-practice-entry" href="/best-practice">
           <span className="nav-glyph">◎</span>最佳实践
         </Link>
+        <Link className="nav-item" data-testid="benchmark-entry" href="/benchmark">
+          <span className="nav-glyph">▤</span>评测报告
+        </Link>
         {navigation.slice(2).map((item) => <button
           key={item.id}
           className={view === item.id ? "nav-item active" : "nav-item"}

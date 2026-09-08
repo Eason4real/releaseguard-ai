@@ -1,6 +1,10 @@
 import type { InvestigationAggregate } from "../../../lib/investigation/types";
 import { LLMInvestigationPlanner } from "../../../lib/investigation/llm-planner";
-import { resolveModelEndpoint } from "../../../lib/investigation/model";
+import { LLMInvestigationSynthesizer } from "../../../lib/investigation/llm-synthesizer";
+import { StagedInvestigationPlanner } from "../../../lib/investigation/staged-planner";
+import { ModelTransportError, resolveModelEndpoint } from "../../../lib/investigation/model";
+import { projectInvestigationOutcomeV2 } from
+  "../../../lib/investigation/outcome-projection";
 import { summarizePlannerUsage } from "../../../lib/investigation/planner-usage";
 import { executeHarnessAgentRuntime, HarnessRuntimeExecutionError } from "./runtime";
 import { telemetryFromAggregate } from "./telemetry";
@@ -66,6 +70,14 @@ export function validateLiveHarnessModelConfig(
     apiKey: required(input.apiKey, "LIVE_API_KEY_REQUIRED"),
     model: required(input.model, "LIVE_MODEL_REQUIRED"),
     requestTimeoutMs: input.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS,
+    transportMaxRetries: Math.min(2, Math.max(0, Math.trunc(input.transportMaxRetries ?? 0))),
+    transportRetryBaseDelayMs: Math.min(
+      4_000,
+      Math.max(0, Math.trunc(input.transportRetryBaseDelayMs ?? 500)),
+    ),
+    fixtureQueryHints: input.fixtureQueryHints ?? false,
+    harnessVersion: input.harnessVersion ?? "V2",
+    sourceIdentity: input.sourceIdentity?.trim() || undefined,
     ...(input.transport ? { transport: input.transport } : {}),
     ...(input.responseObserver ? { responseObserver: input.responseObserver } : {}),
   };
@@ -88,8 +100,11 @@ const manifestConfiguration = (
   toolBudget: 10,
   maxIterations: 16,
   timeoutMs: config.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS,
-  schemaRepairMax: 1,
-  transportRetry: 0,
+  schemaRepairMax: 2,
+  transportRetry: config.transportMaxRetries ?? 0,
+  fixtureQueryHints: config.fixtureQueryHints ?? false,
+  harnessVersion: config.harnessVersion ?? "V2",
+  sourceIdentity: config.sourceIdentity ?? null,
   concurrency: 1,
   credentialPresent: true,
 });
@@ -103,6 +118,7 @@ const predictionFromAggregate = (
   aggregate: InvestigationAggregate,
   durationMs: number,
   fixtureExecutions: readonly HarnessFixtureExecutionRecord[],
+  harnessVersion?: LiveHarnessModelConfig["harnessVersion"],
 ) => {
   const diagnosis = aggregate.diagnosis;
   const claims = aggregate.diagnosisClaims.filter((item) => item.diagnosisId === diagnosis?.id);
@@ -130,11 +146,21 @@ const predictionFromAggregate = (
         })),
       })
     : null;
+  const outcomeProjection = harnessVersion === "V8"
+    ? projectInvestigationOutcomeV2(aggregate)
+    : null;
+  const v8BoundedPrediction = outcomeProjection?.kind === "BOUNDED_HYPOTHESIS"
+    ? `Leading hypothesis (not yet confirmed as the sole root cause): ${outcomeProjection.leadingHypothesis}`
+    : null;
   return {
     predictedRootCause: diagnosis?.rootCause
+      ?? v8BoundedPrediction
       ?? inconclusivePrediction
       ?? INCONCLUSIVE_PREDICTION_FALLBACK,
     predictedRootCauseId: null,
+    ...(outcomeProjection
+      ? { outcomeProjection }
+      : {}),
     ...(!diagnosis ? { citedEvidenceIds: [] } : {}),
     diagnosisClaims: claims.map((claim) => ({
       claimId: claim.id,
@@ -158,6 +184,12 @@ const predictionFromAggregate = (
 
 const providerErrorCode = (error: unknown) => {
   if (error instanceof HarnessRuntimeExecutionError) return providerErrorCode(error.runtimeCause);
+  if (error instanceof ModelTransportError) {
+    if (error.statusCode === 401 || error.statusCode === 403) return "PROVIDER_AUTHENTICATION_FAILED";
+    if (error.statusCode === 402) return "PROVIDER_QUOTA_EXHAUSTED";
+    if (error.statusCode === 429) return "PROVIDER_RATE_LIMITED";
+    if (error.statusCode !== null && error.statusCode >= 500) return "PROVIDER_UNAVAILABLE";
+  }
   const message = error instanceof Error ? error.message : "";
   if (/\b(?:401|403)\b/.test(message)) return "PROVIDER_AUTHENTICATION_FAILED";
   if (/\b429\b/.test(message)) return "PROVIDER_RATE_LIMITED";
@@ -205,13 +237,26 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
     let observability;
     let fixtureExecutions: HarnessFixtureExecutionRecord[] = [];
     try {
+      const collector = new LLMInvestigationPlanner(this.#config, {
+        maxDecisionRepairAttempts: 2,
+        policyVersion: this.#config.harnessVersion ?? "V2",
+      });
+      const planner = ["V7", "V8"].includes(this.#config.harnessVersion ?? "")
+        ? new StagedInvestigationPlanner(
+            collector,
+            new LLMInvestigationSynthesizer(this.#config, 1),
+            { packetVersion: this.#config.harnessVersion === "V8" ? "V2" : "V1" },
+          )
+        : collector;
       const aggregate = await executeHarnessAgentRuntime(request, {
-        planner: new LLMInvestigationPlanner(this.#config),
+        planner,
         provider: this.#config.provider,
         model: this.#config.model,
         maxModelCalls: 20,
         maxIterations: 16,
         maxToolCalls: 10,
+        includeFixtureQueryHints: this.#config.fixtureQueryHints ?? false,
+        harnessVersion: this.#config.harnessVersion ?? "V2",
         onObservability: (value) => { observability = value; },
         onFixtureExecutions: (value) => { fixtureExecutions = value; },
       });
@@ -236,6 +281,7 @@ export class LiveLLMHarnessProvider implements HarnessExecutionProvider {
           aggregate,
           performance.now() - startedAt,
           fixtureExecutions,
+          this.#config.harnessVersion,
         ),
         telemetry: telemetryFromAggregate(request, aggregate, [this.#config.apiKey], observability),
       };

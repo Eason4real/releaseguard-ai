@@ -224,6 +224,13 @@ export async function runAgentLoop(
     feedbackRetriever?: FeedbackRetriever;
     incidentRetriever?: IncidentRetriever;
     toolExecutor?: InvestigationToolExecutor;
+    normalizeToolArguments?: (
+      toolName: string,
+      args: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    maxConsecutiveNoEvidence?: number;
+    maxNoEvidenceTotal?: number;
+    runtimeGuidance?: Record<string, unknown>;
   },
 ) {
   const maxIterations = input.maxIterations ?? 16;
@@ -237,6 +244,7 @@ export async function runAgentLoop(
   const initialToolCallCount = initialAggregate?.toolCalls.filter((call) =>
     call.proposedActionId === null).length ?? 0;
   let emptyEvidenceRounds = 0;
+  let noEvidenceTotal = 0;
   let triggerPending = true;
   const invocationTrigger = input.trigger ?? "INITIAL";
 
@@ -272,6 +280,14 @@ export async function runAgentLoop(
         humanMessage: input.humanMessage ?? null,
         remainingIterations: maxIterations - localRound,
         remainingToolCalls: maxToolCalls - callsThisInvocation,
+        runtimeGuidance: {
+          ...input.runtimeGuidance,
+          noInformationState: {
+            consecutiveCalls: emptyEvidenceRounds,
+            totalCalls: noEvidenceTotal,
+            maximumTotalCalls: input.maxNoEvidenceTotal ?? null,
+          },
+        },
         signal: input.signal,
         modelCallBudget: {
           reserve: ({ attemptIndex, provider, model }) => store.reserveModelCall({
@@ -503,7 +519,10 @@ export async function runAgentLoop(
           );
           return store.getAggregate(input.runId);
         }
-        const signature = createToolSignature(decision.toolName, decision.arguments);
+        const toolArguments = input.normalizeToolArguments
+          ? input.normalizeToolArguments(decision.toolName, decision.arguments)
+          : decision.arguments;
+        const signature = createToolSignature(decision.toolName, toolArguments);
         const duplicate = current.toolCalls.find((call) =>
           call.proposedActionId === null && call.canonicalSignature === signature);
         if (duplicate) {
@@ -526,7 +545,7 @@ export async function runAgentLoop(
         const recorded = await executeAndRecordTool(store, {
           runId: input.runId,
           name: decision.toolName,
-          args: decision.arguments,
+          args: toolArguments,
           iteration: iteration.sequence,
           order: investigationCalls.length + 1,
           analytics: input.analytics,
@@ -541,6 +560,7 @@ export async function runAgentLoop(
           emptyEvidenceRounds = 0;
         } else {
           emptyEvidenceRounds += 1;
+          noEvidenceTotal += 1;
         }
         await store.completeIteration(
           iteration.id,
@@ -549,7 +569,10 @@ export async function runAgentLoop(
           decision.rationale,
           new Date().toISOString(),
         );
-        if (emptyEvidenceRounds >= 3) {
+        const maxConsecutiveNoEvidence = input.maxConsecutiveNoEvidence ?? 3;
+        const maxNoEvidenceTotal = input.maxNoEvidenceTotal ?? Number.POSITIVE_INFINITY;
+        if (emptyEvidenceRounds >= maxConsecutiveNoEvidence
+          || noEvidenceTotal >= maxNoEvidenceTotal) {
           await stopInconclusive(
             store,
             input.runId,

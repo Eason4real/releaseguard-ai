@@ -1,174 +1,169 @@
 # ReleaseGuard AI
 
-简体中文 | [English](README.en.md)
+**面向产品与发布负责人的可审计调查 Agent：通过竞争假设、受控工具取证和人工审批，将发布异常转化为可追溯的诊断与处置流程。**
 
-[![CI](https://github.com/Eason4real/releaseguard-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Eason4real/releaseguard-ai/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-2f6f5e.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg)](https://www.typescriptlang.org/)
-[![Live sandbox](https://img.shields.io/badge/Live_sandbox-open-0b7a55.svg)](https://releaseguard.easonchao.com)
+发布后业务指标异常时，指标、版本记录、用户反馈和历史事故往往分散在不同信息源中，团队也容易把“时间相关”直接判断成“发布导致”。ReleaseGuard AI 维护多个竞争假设，通过受控工具逐步收集支持与反驳证据；证据不足时继续调查或有界拒答，外部写操作则始终由服务端和人工审批控制。
 
-面向软件版本上线后异常调查的可审计 AI Agent：从业务指标异常出发，维护竞争性假设，调用受控工具收集支持与反驳证据，形成可追溯诊断，并把外部写操作置于人工审批之后。
+[在线 Demo](https://releaseguard.easonchao.com) · [GitHub](https://github.com/Eason4real/releaseguard-ai) · [Evaluation Methodology](docs/evaluation/methodology.md) · [Agent Architecture](docs/AGENT_ARCHITECTURE.md)
 
-> An auditable AI agent for post-release incident investigation, evidence-based diagnosis, human approval, and recovery verification.
+> 当前项目是使用合成、可复现数据构建的 Portfolio / Demo，不是企业生产部署。它聚焦发布风险调查，不是通用 SRE Agent、自动修复系统或自主回滚系统。
 
-**[在线体验](https://releaseguard.easonchao.com)** · **[3 分钟引导](https://releaseguard.easonchao.com/guided-experience)** · **[完整案例](https://releaseguard.easonchao.com/best-practice)** · **[评测方法](docs/EVALUATION.zh-CN.md)** · **[系统架构（英文）](docs/AGENT_ARCHITECTURE.md)**
+## 为什么做这个产品
 
-## 为什么做 ReleaseGuard
+- **信息分散：**一次发布调查需要同时理解业务指标、版本变化、用户反馈和历史事故。
+- **相关不等于因果：**发布与异常同时发生，并不能单独证明发布导致异常。
+- **LLM 解释不等于证据：**自然语言结论必须能追溯到实际工具结果。
+- **模型不能直接执行外部动作：**权限、参数和审批必须由服务端掌控。
+- **不确定性也是结果：**证据不足时应明确缺口并安全停止，而不是生成确定性根因。
 
-版本上线后出现业务指标异常时，产品、研发和运维通常需要跨监控、版本、日志、用户反馈与历史事故系统手动调查。困难不只是“找到一些相关信息”，而是持续回答：
-
-- 异常是否与本次发布相关？
-- 哪些用户、版本或地区受到影响？
-- 哪个根因假设最符合现有证据？
-- 哪些证据支持结论，哪些证据在反驳它？
-- 当前应该观察、修复、回滚还是升级处理？
-- 动作执行后，业务指标是否真正恢复？
-
-ReleaseGuard 将这些问题组织为一条有状态、可审计、可恢复的调查链路。
+## 产品如何工作
 
 ```mermaid
-flowchart TD
-    A[确定性异常检测] --> B[Agent 调查]
-    B --> C[竞争性假设]
-    C --> D[工具调用与证据]
-    D --> E[根因诊断与建议]
-    E --> F{人工审批}
-    F -->|继续调查| B
-    F -->|批准| G[受控执行]
-    G --> H[恢复验证]
+flowchart LR
+    A[Risk Signal] --> B[Investigation]
+    B --> C[Competing Hypotheses]
+    C --> D[Tool-based Evidence Collection]
+    D --> E[Evidence Packet]
+    E --> F[Readiness Gate]
+    F --> G[Diagnosis / Abstention]
+    G --> H[Human Approval]
+    H --> I[Action]
+    I --> J[Verification]
+    F -->|需要更多证据| D
 ```
 
-## 核心能力
-
-- **确定性风险检测**：基于动态基线、最小样本量和连续窗口规则创建风险事件；LLM 负责调查原因，不负责凭感觉制造异常。
-- **受控 Agent Loop**：Planner 只能返回结构化决策，运行时统一管理工具、预算、重复调用、重试、停止条件和状态流转。
-- **竞争性假设**：同时保留多个可能原因，并分别关联 `SUPPORTS`、`CONTRADICTS` 和 `NEUTRAL` 证据。
-- **可审计证据链**：持久化 `ToolCall`、`ToolResult`、`Evidence`、`Diagnosis`、`ProposedAction`、`Approval` 与验证记录。
-- **Human-in-the-loop**：只读调查工具可自主运行；已实现的外部写动作 `CREATE_GITHUB_ISSUE` 必须经过针对具体参数的服务端审批。
-- **历史事故检索**：支持关键词、向量和元数据融合检索；相似事故只用于形成假设，不作为当前事故根因的直接证明。
-- **公开隔离环境**：公开体验使用确定性 Replay 数据，不要求凭证，不调用真实模型或外部写接口。
-
-## 系统边界
-
-```mermaid
-flowchart TD
-    UI[产品界面] --> Runtime[Investigation Runtime]
-    Runtime --> Planner[LLM 或确定性 Planner]
-    Runtime --> Tools[受控原子工具]
-    Tools --> Evidence[ToolResult 与 Evidence]
-    Evidence --> Runtime
-    Runtime --> Approval[审批与执行边界]
-    Runtime --> Store[D1 / 本地模拟存储]
-```
-
-公开环境与私有运行环境使用相同的产品语言和核心领域模型，但运行边界不同：
-
-| 模式 | 用途 | 数据与外部能力 |
-| --- | --- | --- |
-| `PUBLIC_DEMO` | 无门槛理解产品流程 | 浏览器内 Replay 数据；禁用共享状态、真实模型和外部写操作 |
-| `PRIVATE_LIVE` | 受控的真实 Agent 运行 | D1 持久化；可配置模型与 GitHub；仅供受信任的单一操作者 |
-| Local / CI | 开发与回归验证 | D1 模拟和确定性检索回退；不冒充托管向量检索 |
-
-## 评测与可复现性
-
-仓库包含一套 22 案例的调查 Benchmark、确定性开发 Harness、语义评分器、RAG 检索评测和运行时回归测试。评测数据与 Gold Label 位于 `eval/`，不会进入 Agent 执行上下文。
-
-当前公开评测重点覆盖：
-
-| 指标族 | 回答的问题 |
+| 环节 | 产品职责 |
 | --- | --- |
-| Root Cause Top-1 | 最终诊断是否命中预先冻结的根因或正确选择保留结论 |
-| Evidence Precision | 最终引用中有多少属于支持证据，而非干扰项或未知证据 |
-| Unsupported Claim Rate | 事实性诊断中有多少缺少机器可核验的证据关联 |
-| Investigation Cost | 实际模型调用、工具调用、Token与端到端耗时 |
-| Reliability | 相同输入多次运行时，流程和结论是否稳定 |
+| Risk Signal | 用 baseline、最小样本量和连续窗口等确定性规则识别异常；LLM 不负责制造风险事件。 |
+| Investigation | 创建可恢复的调查运行，持续保存预算、迭代和公开审计轨迹。 |
+| Competing Hypotheses | 同时维护多个可能原因，以及各自的支持条件和反驳条件。 |
+| Evidence Collection | 通过受控只读工具查询 release、metric、segment、feedback 和 historical incidents。 |
+| Evidence Packet | 将 `ToolResult` 转换为带来源、范围、强度和 hypothesis relation 的结构化 Evidence。 |
+| Readiness Gate | 判断应继续收集、形成因果诊断、输出有界假设，还是安全拒答。 |
+| Diagnosis / Abstention | Synthesizer 只能基于 Evidence Packet 输出结论，并接受服务端 grounding 校验。 |
+| Approval / Action | 当前唯一真实写操作是 `CREATE_GITHUB_ISSUE`，必须绑定冻结参数并获得人工批准。 |
+| Verification | 动作完成后进入验证窗口，重新检查受影响指标、控制指标和必要反馈。 |
 
-具体定义、泄漏控制、已知限制和复现命令见 **[评测方法](docs/EVALUATION.zh-CN.md)**。公开案例和离线模拟结果不会被描述为企业生产数据或真实人工提效。
+## 为什么不是“简单调用 LLM”
 
-## 快速开始
+### 1. Evidence-first 可审计调查
 
-### 环境要求
+`ToolResult`、`Evidence`、`Hypothesis` 和 `Diagnosis` 是独立的持久化对象。系统区分“工具返回了什么”和“该结果对当前假设意味着什么”，并保留 provenance、证据关系和公开调查轨迹。
 
-- Node.js `>=22.13.0`
-- npm
-- Linux、WSL 2，或具备 Bash、`flock`、`curl` 与 GNU `timeout` 的兼容环境
+### 2. Competing Hypotheses + Discriminator
 
-### 本地运行
+系统不只寻找支持第一个猜测的证据。Planner 会维护竞争假设，并寻找能够区分发布回归、测量问题、外部依赖或流量结构等解释的正交查询；缺少 discriminator 时不能直接把相关性升级为因果。
+
+### 3. Readiness + Bounded Abstention
+
+Readiness Gate 区分 `NEEDS_COLLECTION`、`READY_FOR_CAUSAL`、`READY_FOR_BOUNDED_HYPOTHESIS` 和 `READY_FOR_ABSTENTION`。当工具或预算无法继续区分假设时，拒绝确定性归因是合法且可审计的产品结果。
+
+### 4. Human Approval + Action + Verification
+
+模型没有外部写权限。服务端校验 run、diagnosis、action、approval 和不可变 snapshot，通过幂等与重放保护执行获批动作；动作成功只代表变更已执行，后续仍需验证业务是否恢复。
+
+### 5. Benchmark + Blind Judge + Failure Taxonomy
+
+项目不通过几个成功 Demo 证明 Agent 有效。评测固定 dataset 和 Gold，保留失败运行，并分别检查 technical completion、evidence collection、citation、grounding 和 blind-judge result，再用 failure taxonomy 定位真实瓶颈。
+
+## Portfolio v1.0 · Final V8 Benchmark
+
+| 适合快速理解的事实 | 结果 |
+| --- | ---: |
+| 固定 DEV benchmark | 22 cases，单轮 |
+| 至少收集一项 Gold key evidence | 22 / 22 |
+| 收集完整 key-evidence set | 14 / 22 |
+| 受控只读 investigation tool calls | 40 |
+
+Final V8 使用 `gpt-5.6-sol`、temperature `0.1`、10 次 tool budget 和 16 次 max iterations。Gold 仅用于运行后的 scorer / judge，未进入 Agent runtime。
+
+> Final V8 是基于合成、可复现 DEV dataset 的单轮 Portfolio benchmark，用于验证 Agent 调查与评测方法，不代表生产环境准确率。
+
+### Evaluation Reality Check
+
+Final V8 同时暴露出明显的系统限制：evidence collection 明显强于最终 citation 与 grounded synthesis，部分案例在 limitation contract 边界被终止。这些结果描述的是当前 Portfolio benchmark 中的系统边界，不是生产业务准确率。完整 strict / lenient blind-judge 分数、technical failure 分布和 failure taxonomy 均保留在深入评测材料中。
+
+深入评测：[Evaluation Methodology](docs/evaluation/methodology.md) · [Benchmark Contract](docs/investigation-benchmark-evaluation-contract.md) · [Final V8 Failure Analysis](docs/evaluation/portfolio-v1-failure-analysis.md)
+
+Final V8 原始运行与 judge artifacts 作为内部实验记录保留，不作为招聘主阅读路径。
+
+历史 V8 smoke 使用 `deepseek-v4-flash`，Portfolio Final V8 使用 `gpt-5.6-sol`。两阶段结果用于展示迭代路径和失败模式变化，不构成严格的同模型性能提升对比。
+
+## What I learned building the Agent
+
+```text
+Agent 可以执行调查
+→ 发现 technical success 不等于 evidence quality
+→ 建立 Gold benchmark 与 Blind Judge
+→ 用 failure taxonomy 定位 discriminator coverage
+→ 引入 readiness 与 bounded abstention
+→ 增加 narrow semantic repair
+→ 注入 structured discriminator planning context
+→ Final V8 暴露 limitation boundary、citation 与 grounded synthesis 问题
+```
+
+核心结论不是“每次改动都提高准确率”。部分 intervention 的价值在于阻止过早因果判断、保留部分证据、让失败有界，并把下一项产品瓶颈变得可观察、可分类、可验证。
+
+## Demo 与运行边界
+
+首页默认运行 `PUBLIC_DEMO`：无需登录或 API key，使用浏览器内的确定性 Demo / Replay 数据，不调用真实 LLM、GitHub 或 D1，也不会触发真实审批、回滚或外部写操作。
+
+`PRIVATE_LIVE` 是面向单个受信、受访问控制操作者的运行路径。Hosted execution 使用 Cloudflare D1 保存状态；Workers AI 与 Vectorize 同时可用时提供 hosted semantic retrieval，本地与 CI 则使用明确标识的 deterministic fallback。两种 retrieval mode 不应混为一谈。
+
+## Limitations
+
+- Final V8 只有一轮 22-case DEV benchmark，未运行 multi-seed 或 `3×22`。
+- 部分案例因 `INVALID_LIMITATION_BOUNDARY` 中断；evidence collection 明显强于 citation 和 grounded synthesis。
+- Planner 的 query selection 仍受单次 LLM 采样影响。
+- Blind Judge 也是 LLM judge，可能存在语义标准和采样方差。
+- Benchmark 与公开 Demo 使用合成、可复现 fixture，不是真实企业私有数据或生产流量。
+- 当前真实写操作仅支持 `CREATE_GITHUB_ISSUE`；不支持自动修复、自动回滚或通用 remediation。
+- Public Demo 是隔离的 Replay 体验，不证明企业生产部署效果、大规模稳定性或真实客户收益。
+
+## 技术与安全边界
+
+- Next.js、React、TypeScript、Drizzle ORM、Cloudflare Worker / D1。
+- 一个 Investigation Agent，共享服务端 `AgentLoop`；没有 Multi-Agent orchestration。
+- investigation tools 默认只读；外部写操作需要精确审批。
+- 不保存私有 chain-of-thought，只保存公开 rationale、决策、Evidence 和审计事件。
+- `.env*`、credentials、local database、build output 和 runtime report 不应提交到仓库。
+
+## 本地运行
+
+要求 Node.js `>=22.13.0`、npm，以及 Linux / WSL 环境中的 Bash、`flock`、`curl` 和 GNU `timeout`。
 
 ```bash
-git clone https://github.com/Eason4real/releaseguard-ai.git
-cd releaseguard-ai
 npm ci
 cp .env.example .env
 npm run dev
 ```
 
-默认建议使用公开隔离模式：
+显式启动安全的公开模式：
 
 ```bash
 RELEASEGUARD_DEPLOYMENT_MODE=PUBLIC_DEMO npm run dev
 ```
 
-`PRIVATE_LIVE` 需要现有 D1 Schema，以及通过运行环境安全提供的模型或 GitHub 凭证。不要把真实密钥提交到仓库。
-
-## 验证
+主要本地检查：
 
 ```bash
 npm run tsc
 npm run lint
 npm test
 npm run eval
-npm run eval:investigation-dev-harness
 ```
 
-每次 Push 和 Pull Request 都会通过 [GitHub Actions](.github/workflows/ci.yml) 执行类型检查、Lint、构建、测试与确定性评测。需要外部模型凭证的 Live LLM Eval 与确定性 CI Gate 分开运行。
+## 深入阅读
 
-## 项目结构
+- [Product Spec](docs/PRODUCT_SPEC.md)：产品定位、用户旅程和范围边界。
+- [Agent Architecture](docs/AGENT_ARCHITECTURE.md)：运行时对象与职责设计；其中 suggested / future 内容不代表均已实现。
+- [Phase 3 Requirements](docs/PHASE3_REQUIREMENTS.md)：当前架构约束与明确排除项。
+- [Evaluation Methodology](docs/evaluation/methodology.md)：评测设计、评分和数据边界。
+- [Investigation Benchmark Contract](docs/investigation-benchmark-evaluation-contract.md)：Gold、prediction 和 scorer contract。
+- [Final V8 Failure Analysis](docs/evaluation/portfolio-v1-failure-analysis.md)：证据覆盖、失败边界和后续验证方向。
 
-```text
-app/                         产品页面与服务端 API Routes
-lib/investigation/           Agent Loop、Planner、工具、证据、审批与状态机
-lib/analytics/               发布、指标与风险事件
-lib/risk-detection/          确定性异常检测
-lib/retrieval/               反馈与历史事故混合检索
-db/ + drizzle/               D1 Schema、适配器与有序迁移
-eval/                        Benchmark、Harness、Scorer、Fixture 与结果
-tests/                       运行时、审批、安全边界与页面回归测试
-docs/                        产品、架构、评测与安全文档
-worker/                      Cloudflare Worker 入口与绑定
-```
+## 部署说明
 
-## 技术栈
+标准构建生成包含 Worker/API runtime 的 full-stack artifact；本项目不是纯静态导出。公开 Portfolio 部署必须使用 `PUBLIC_DEMO`，并保持 model、shared-state、GitHub 和 verification API 的服务端禁用边界。`PRIVATE_LIVE` 所需的模型、GitHub 和 hosted resource credentials 必须作为部署 secret 提供，不能提交到仓库。
 
-- Next.js `16.2.6`、React `19.2.6`、TypeScript `5.9.3`
-- Vinext、Vite 与 Cloudflare Worker
-- Drizzle ORM 与 Cloudflare D1
-- Workers AI / Vectorize 托管检索路径，以及显式标记的本地确定性回退
-
-## 安全边界
-
-- 公开模式没有凭证输入入口，并由服务端拒绝共享状态、模型、GitHub和验证 API。
-- LLM输出不能绕过服务端工具白名单、参数校验、预算、审批和状态机。
-- 审批只绑定一次具体动作及其冻结参数，不代表对某类动作的长期授权。
-- 不保存或展示隐藏的模型思维链，只保存面向用户的理由、假设、观察和证据引用。
-- 安全问题请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 中的方式私下报告，不要在公开 Issue 中提交密钥或敏感日志。
-
-## 已知限制
-
-- 当前公开案例与 Android 7.3.0 数据是可复现 Fixture，不是生产分析系统接入。
-- 自动化修复后重验证尚未完整接入真实外部系统；公开体验中的恢复验证属于 Replay。
-- 当前只实现一个受审批保护的外部写动作：`CREATE_GITHUB_ISSUE`。
-- 项目不是通用 SRE Agent，也不包含多租户企业后台、Slack/Jira集成或自主生产回滚。
-- Live LLM结果受模型和运行环境影响；确定性回归测试不能替代真实生产验证。
-
-## 文档与参与
-
-- [文档导航](docs/README.zh-CN.md)
-- [产品规格（英文）](docs/PRODUCT_SPEC.md)
-- [Agent 架构（英文）](docs/AGENT_ARCHITECTURE.md)
-- [评测方法](docs/EVALUATION.zh-CN.md)
-- [路线图](ROADMAP.zh-CN.md)
-- [变更记录](CHANGELOG.zh-CN.md)
-- [贡献指南](CONTRIBUTING.zh-CN.md)
-
-欢迎通过 Issue 提交可复现的问题、评测案例或设计讨论。项目采用 [MIT License](LICENSE)。
+GitHub Pages 无法执行该 Worker/API runtime，不适合作为完整部署目标。

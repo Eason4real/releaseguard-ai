@@ -13,6 +13,8 @@ import type {
   InvestigationStopReason,
   ToolCallStatus,
 } from "../../../lib/investigation/types";
+import type { InvestigationOutcomeProjection } from
+  "../../../lib/investigation/outcome-projection";
 
 export const DEV_HARNESS_PROVIDER = "HARNESS_PROVIDER" as const;
 export const DEV_HARNESS_MODE = "DETERMINISTIC_NO_LIVE_MODEL" as const;
@@ -24,7 +26,12 @@ export type LiveModelProvider = (typeof LIVE_MODEL_PROVIDERS)[number];
 export type HarnessExecutionProviderType = typeof DEV_HARNESS_PROVIDER | typeof LIVE_LLM_PROVIDER;
 export type HarnessRuntimeMode = typeof DEV_HARNESS_MODE | typeof LIVE_LLM_MODE;
 
-export type LiveHarnessModelConfig = ModelConfig & { provider: LiveModelProvider };
+export type LiveHarnessModelConfig = ModelConfig & {
+  provider: LiveModelProvider;
+  fixtureQueryHints?: boolean;
+  harnessVersion?: "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8";
+  sourceIdentity?: string;
+};
 
 export type LiveHarnessManifestModelConfiguration = {
   provider: LiveModelProvider;
@@ -39,8 +46,11 @@ export type LiveHarnessManifestModelConfiguration = {
   toolBudget: 10;
   maxIterations: 16;
   timeoutMs: number;
-  schemaRepairMax: 1;
-  transportRetry: 0;
+  schemaRepairMax: 2;
+  transportRetry: number;
+  fixtureQueryHints: boolean;
+  harnessVersion: "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8";
+  sourceIdentity: string | null;
   concurrency: 1;
   credentialPresent: true;
 };
@@ -110,6 +120,7 @@ export type HarnessRawPrediction = {
     citedEvidenceIds?: string[];
   }>;
   diagnosisClaimEvidenceLinks?: Array<{ claimId: string; evidenceId: string }>;
+  outcomeProjection?: InvestigationOutcomeProjection;
   modelCallCount: number;
   toolCallCount: number;
   tokenUsage?: {
@@ -286,6 +297,8 @@ export type HarnessRunManifest = {
   completedCases: number;
   failedCases: number;
   inconclusiveCases: number;
+  /** Optional bounded probe selection; absent for the full Dev harness. */
+  caseSelection?: string[];
 };
 
 export type HarnessCaseExecutionResult = {
@@ -366,7 +379,9 @@ export type DevHarnessRunOptions = {
   sourceCommit: string;
   providerFactory: HarnessExecutionProviderFactory;
   caseId?: string;
+  caseIds?: string[];
   runId?: string;
+  resumeReport?: DevHarnessReport;
   now?: () => string;
   onProgress?: (event: {
     index: number;

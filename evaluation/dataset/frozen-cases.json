@@ -1,0 +1,4853 @@
+{
+  "cases": [
+    {
+      "acceptable_equivalents": [
+        "Checkout confirmation regressed in the Android 9.2.0 release"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-030",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "CheckoutConfirmation",
+                "ReceiptScreen"
+              ],
+              "released_at": "2031-01-01T09:00:00.000Z",
+              "rollout": {
+                "percentage": 100,
+                "status": "FULL"
+              },
+              "version": "9.2.0"
+            }
+          },
+          "sourceId": "SRC-021",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-031",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.61,
+                  "sampleSize": 1320,
+                  "value": "9.2.0"
+                },
+                {
+                  "rate": 0.94,
+                  "sampleSize": 1480,
+                  "value": "9.1.4"
+                }
+              ],
+              "dimension": "app_version"
+            }
+          },
+          "sourceId": "SRC-022",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-032",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "cart_add_rate",
+              "summary": {
+                "baseline": 0.84,
+                "sampleSize": 2800,
+                "value": 0.83
+              }
+            }
+          },
+          "sourceId": "SRC-022",
+          "toolName": "query_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-030"
+          ],
+          "fixtureRef": "fixture://SRC-021",
+          "kind": "release",
+          "sourceId": "SRC-021"
+        },
+        {
+          "evidenceIds": [
+            "EV-031",
+            "EV-032"
+          ],
+          "fixtureRef": "fixture://SRC-022",
+          "kind": "analytics",
+          "sourceId": "SRC-022"
+        }
+      ],
+      "case_id": "CASE-201",
+      "critical_evidence_ids": [
+        "EV-030",
+        "EV-031"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 2,
+      "gold_root_cause": "The Android 9.2.0 release regressed checkout confirmation behavior.",
+      "gold_root_cause_id": "RC-201",
+      "incident_type": "release_regression",
+      "initial_anomaly": {
+        "incidentId": "INC-201",
+        "question": "Why did checkout completion fall only for the newly released Android version?",
+        "release": {
+          "changedModules": [
+            "CheckoutConfirmation",
+            "ReceiptScreen"
+          ],
+          "createdAt": "2031-01-01T08:00:00.000Z",
+          "featureFlags": [
+            "checkout_confirmation_v2"
+          ],
+          "id": "REL-201",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-01T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "9.2.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.32999999999999996,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.94,
+          "correlatedReleaseId": "REL-201",
+          "createdAt": "2031-01-01T11:00:00.000Z",
+          "detectedAt": "2031-01-01T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "appVersion": "9.2.0",
+            "platform": "Android"
+          },
+          "firstBreachedAt": "2031-01-01T10:00:00.000Z",
+          "id": "RISK-201",
+          "lastBreachedAt": "2031-01-01T11:00:00.000Z",
+          "metricKey": "checkout_completion_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.61,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.351063829787234,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "appVersion=9.2.0|platform=Android",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-201-001",
+            "MB-201-002",
+            "MB-201-003"
+          ],
+          "triggerSignature": "risk:201",
+          "updatedAt": "2031-01-01T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped version-isolation release regression.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-201: version control and release timing jointly support release-level attribution.",
+          "CASE-201: get_release and segment_metric expose every required observation.",
+          "CASE-201: evidence topology is version isolation, not copied from another Dev case."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Search request timeout handling regressed in the web release"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-050",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "SearchTransport",
+                "RequestBudget"
+              ],
+              "rollout": {
+                "percentage": 100
+              },
+              "version": "web-31.4"
+            }
+          },
+          "sourceId": "SRC-041",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-051",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "buckets": [
+                0.91,
+                0.9,
+                0.69,
+                0.67,
+                0.68
+              ],
+              "metric": "search_completion_rate",
+              "sampleSize": 4600
+            }
+          },
+          "sourceId": "SRC-042",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-052",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Search stops and shows request timed out.",
+                "region": "AU"
+              },
+              {
+                "content": "Results disappear after waiting several seconds.",
+                "region": "SG"
+              }
+            ]
+          },
+          "sourceId": "SRC-043",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-053",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.81,
+                "title": "Index saturation during a seasonal catalog import"
+              }
+            ]
+          },
+          "sourceId": "SRC-044",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-054",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "search_query_count",
+              "summary": {
+                "baseline": 1,
+                "sampleSize": 5200,
+                "value": 1.03
+              }
+            }
+          },
+          "sourceId": "SRC-042",
+          "toolName": "query_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-050"
+          ],
+          "fixtureRef": "fixture://SRC-041",
+          "kind": "release",
+          "sourceId": "SRC-041"
+        },
+        {
+          "evidenceIds": [
+            "EV-051",
+            "EV-054"
+          ],
+          "fixtureRef": "fixture://SRC-042",
+          "kind": "analytics",
+          "sourceId": "SRC-042"
+        },
+        {
+          "evidenceIds": [
+            "EV-052"
+          ],
+          "fixtureRef": "fixture://SRC-043",
+          "kind": "feedback",
+          "sourceId": "SRC-043"
+        },
+        {
+          "evidenceIds": [
+            "EV-053"
+          ],
+          "fixtureRef": "fixture://SRC-044",
+          "kind": "historical_incident",
+          "sourceId": "SRC-044"
+        }
+      ],
+      "case_id": "CASE-202",
+      "critical_evidence_ids": [
+        "EV-050",
+        "EV-051",
+        "EV-052"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The web release regressed search request timeout handling.",
+      "gold_root_cause_id": "RC-202",
+      "incident_type": "release_regression",
+      "initial_anomaly": {
+        "incidentId": "INC-202",
+        "question": "What explains the new pattern of abandoned search sessions?",
+        "release": {
+          "changedModules": [
+            "SearchTransport",
+            "RequestBudget"
+          ],
+          "createdAt": "2031-01-02T08:00:00.000Z",
+          "featureFlags": [
+            "search_transport_v3"
+          ],
+          "id": "REL-202",
+          "platform": "Web",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-02T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "web-31.4"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.22999999999999998,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.91,
+          "correlatedReleaseId": "REL-202",
+          "createdAt": "2031-01-02T11:00:00.000Z",
+          "detectedAt": "2031-01-02T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Web"
+          },
+          "firstBreachedAt": "2031-01-02T10:00:00.000Z",
+          "id": "RISK-202",
+          "lastBreachedAt": "2031-01-02T11:00:00.000Z",
+          "metricKey": "search_completion_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.68,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.25274725274725274,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Web",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-202-001",
+            "MB-202-002",
+            "MB-202-003"
+          ],
+          "triggerSignature": "risk:202",
+          "updatedAt": "2031-01-02T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Multi-source web request-handling regression.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-202: release context, time series, and user-visible timeouts support the authored granularity.",
+          "CASE-202: current release, analytics, and feedback tools resolve required evidence.",
+          "CASE-202: historical index saturation is a reviewed distractor, not proof."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "A crash regression was introduced by the iOS 12.0.0 staged release"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-070",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "DeepLinkRouter"
+              ],
+              "rollout": {
+                "percentage": 20,
+                "status": "STAGED"
+              },
+              "version": "12.0.0"
+            }
+          },
+          "sourceId": "SRC-061",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-071",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.89,
+                  "sampleSize": 900,
+                  "value": "12.0.0"
+                },
+                {
+                  "rate": 0.995,
+                  "sampleSize": 3100,
+                  "value": "11.9.2"
+                }
+              ],
+              "dimension": "app_version"
+            }
+          },
+          "sourceId": "SRC-062",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-072",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "A settings label is truncated on a small screen."
+              }
+            ]
+          },
+          "sourceId": "SRC-063",
+          "toolName": "search_user_feedback"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-070"
+          ],
+          "fixtureRef": "fixture://SRC-061",
+          "kind": "release",
+          "sourceId": "SRC-061"
+        },
+        {
+          "evidenceIds": [
+            "EV-071"
+          ],
+          "fixtureRef": "fixture://SRC-062",
+          "kind": "analytics",
+          "sourceId": "SRC-062"
+        },
+        {
+          "evidenceIds": [
+            "EV-072"
+          ],
+          "fixtureRef": "fixture://SRC-063",
+          "kind": "feedback",
+          "sourceId": "SRC-063"
+        }
+      ],
+      "case_id": "CASE-203",
+      "critical_evidence_ids": [
+        "EV-070",
+        "EV-071"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 1,
+      "gold_root_cause": "The staged iOS 12.0.0 release introduced a crash regression.",
+      "gold_root_cause_id": "RC-203",
+      "incident_type": "release_regression",
+      "initial_anomaly": {
+        "incidentId": "INC-203",
+        "question": "Why are crash-free sessions lower only in the staged iOS cohort?",
+        "release": {
+          "changedModules": [
+            "DeepLinkRouter"
+          ],
+          "createdAt": "2031-01-03T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-203",
+          "platform": "iOS",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-03T09:00:00.000Z",
+          "rolloutPercentage": 20,
+          "rolloutStatus": "STAGED",
+          "version": "12.0.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.10499999999999998,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.995,
+          "correlatedReleaseId": "REL-203",
+          "createdAt": "2031-01-03T11:00:00.000Z",
+          "detectedAt": "2031-01-03T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "appVersion": "12.0.0",
+            "platform": "iOS"
+          },
+          "firstBreachedAt": "2031-01-03T10:00:00.000Z",
+          "id": "RISK-203",
+          "lastBreachedAt": "2031-01-03T11:00:00.000Z",
+          "metricKey": "crash_free_session_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.89,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.10552763819095476,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "appVersion=12.0.0|platform=iOS",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-203-001",
+            "MB-203-002",
+            "MB-203-003"
+          ],
+          "triggerSignature": "risk:203",
+          "updatedAt": "2031-01-03T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped staged-cohort release regression.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-203: exposed-versus-control cohort evidence supports release-level attribution only.",
+          "CASE-203: release and app-version segmentation are sufficient at the canonical granularity.",
+          "CASE-203: the UI-label complaint is unrelated and reviewed as a realistic distractor."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "An incompatible response format came from the earlier purchase adapter release"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-090",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "ReceiptTheme"
+              ],
+              "id": "REL-204",
+              "released_at": "2031-01-04T09:00:00.000Z",
+              "version": "web-44.2"
+            }
+          },
+          "sourceId": "SRC-081",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-091",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "PurchaseResponseAdapter"
+              ],
+              "id": "REL-904",
+              "released_at": "2031-01-04T08:20:00.000Z",
+              "version": "api-18.7"
+            }
+          },
+          "sourceId": "SRC-081",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-092",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "purchase_success_rate",
+              "sampleSize": 6200,
+              "timeline": [
+                {
+                  "at": "08:15",
+                  "value": 0.96
+                },
+                {
+                  "at": "08:30",
+                  "value": 0.55
+                },
+                {
+                  "at": "09:15",
+                  "value": 0.54
+                }
+              ]
+            }
+          },
+          "sourceId": "SRC-082",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-093",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Payment completed but the purchase response is rejected as malformed."
+              },
+              {
+                "content": "Retrying returns the same response format error."
+              }
+            ]
+          },
+          "sourceId": "SRC-083",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-094",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.87,
+                "title": "Receipt color deployment increased render latency"
+              }
+            ]
+          },
+          "sourceId": "SRC-084",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-095",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.55,
+                  "value": "AU"
+                },
+                {
+                  "rate": 0.54,
+                  "value": "US"
+                }
+              ],
+              "dimension": "region"
+            }
+          },
+          "sourceId": "SRC-082",
+          "toolName": "segment_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-090",
+            "EV-091"
+          ],
+          "fixtureRef": "fixture://SRC-081",
+          "kind": "release",
+          "sourceId": "SRC-081"
+        },
+        {
+          "evidenceIds": [
+            "EV-092",
+            "EV-095"
+          ],
+          "fixtureRef": "fixture://SRC-082",
+          "kind": "analytics",
+          "sourceId": "SRC-082"
+        },
+        {
+          "evidenceIds": [
+            "EV-093"
+          ],
+          "fixtureRef": "fixture://SRC-083",
+          "kind": "feedback",
+          "sourceId": "SRC-083"
+        },
+        {
+          "evidenceIds": [
+            "EV-094"
+          ],
+          "fixtureRef": "fixture://SRC-084",
+          "kind": "historical_incident",
+          "sourceId": "SRC-084"
+        }
+      ],
+      "case_id": "CASE-204",
+      "critical_evidence_ids": [
+        "EV-091",
+        "EV-092",
+        "EV-093"
+      ],
+      "difficulty": "HARD",
+      "difficulty_score": 9,
+      "gold_root_cause": "The earlier purchase response adapter release introduced an incompatible response format.",
+      "gold_root_cause_id": "RC-204",
+      "incident_type": "release_regression",
+      "initial_anomaly": {
+        "incidentId": "INC-204",
+        "question": "Compare release records REL-204 and REL-904 and determine which change aligns with the failures.",
+        "release": {
+          "changedModules": [
+            "ReceiptTheme"
+          ],
+          "createdAt": "2031-01-04T08:00:00.000Z",
+          "featureFlags": [
+            "receipt_theme_refresh"
+          ],
+          "id": "REL-204",
+          "platform": "Web",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-04T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "web-44.2"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.41999999999999993,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.96,
+          "correlatedReleaseId": "REL-204",
+          "createdAt": "2031-01-04T11:00:00.000Z",
+          "detectedAt": "2031-01-04T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Web"
+          },
+          "firstBreachedAt": "2031-01-04T10:00:00.000Z",
+          "id": "RISK-204",
+          "lastBreachedAt": "2031-01-04T11:00:00.000Z",
+          "metricKey": "purchase_success_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.54,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.43749999999999994,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Web",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-204-001",
+            "MB-204-002",
+            "MB-204-003"
+          ],
+          "triggerSignature": "risk:204",
+          "updatedAt": "2031-01-04T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Competing-release attribution with negative and user evidence.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-204: two release records, onset timing, and response-format feedback identify the earlier change.",
+          "CASE-204: opaque release IDs are supplied in the incident question so both records are queryable.",
+          "CASE-204: later UI release and regional uniformity were reviewed as false attribution paths."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Chunked upload scheduling regressed in desktop version 6.5.0"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-110",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "UploadScheduler"
+              ],
+              "rollout": {
+                "percentage": 50
+              },
+              "version": "6.5.0"
+            }
+          },
+          "sourceId": "SRC-101",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-111",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "exposure": 0.5,
+                  "rate": 0.72,
+                  "value": "6.5.0"
+                },
+                {
+                  "exposure": 0,
+                  "rate": 0.97,
+                  "value": "6.4.3"
+                }
+              ],
+              "dimension": "app_version"
+            }
+          },
+          "sourceId": "SRC-102",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-112",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "failureRates": [
+                0.05,
+                0.13,
+                0.28
+              ],
+              "rolloutSteps": [
+                0.1,
+                0.25,
+                0.5
+              ],
+              "sampleSize": 5400
+            }
+          },
+          "sourceId": "SRC-102",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-113",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "A folder icon sometimes appears late after upload."
+              }
+            ]
+          },
+          "sourceId": "SRC-103",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-114",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.76,
+                "title": "Storage provider quota incident"
+              }
+            ]
+          },
+          "sourceId": "SRC-104",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-110"
+          ],
+          "fixtureRef": "fixture://SRC-101",
+          "kind": "release",
+          "sourceId": "SRC-101"
+        },
+        {
+          "evidenceIds": [
+            "EV-111",
+            "EV-112"
+          ],
+          "fixtureRef": "fixture://SRC-102",
+          "kind": "analytics",
+          "sourceId": "SRC-102"
+        },
+        {
+          "evidenceIds": [
+            "EV-113"
+          ],
+          "fixtureRef": "fixture://SRC-103",
+          "kind": "feedback",
+          "sourceId": "SRC-103"
+        },
+        {
+          "evidenceIds": [
+            "EV-114"
+          ],
+          "fixtureRef": "fixture://SRC-104",
+          "kind": "historical_incident",
+          "sourceId": "SRC-104"
+        }
+      ],
+      "case_id": "CASE-205",
+      "critical_evidence_ids": [
+        "EV-110",
+        "EV-111",
+        "EV-112"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The desktop 6.5.0 release regressed chunked upload scheduling.",
+      "gold_root_cause_id": "RC-205",
+      "incident_type": "release_regression",
+      "initial_anomaly": {
+        "incidentId": "INC-205",
+        "question": "What explains the exposure-linked pattern in desktop upload failures?",
+        "release": {
+          "changedModules": [
+            "UploadScheduler"
+          ],
+          "createdAt": "2031-01-05T08:00:00.000Z",
+          "featureFlags": [
+            "chunked_upload_v2"
+          ],
+          "id": "REL-205",
+          "platform": "Desktop",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-05T09:00:00.000Z",
+          "rolloutPercentage": 50,
+          "rolloutStatus": "STAGED",
+          "version": "6.5.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.25,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.97,
+          "correlatedReleaseId": "REL-205",
+          "createdAt": "2031-01-05T11:00:00.000Z",
+          "detectedAt": "2031-01-05T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "appVersion": "6.5.0",
+            "platform": "Desktop"
+          },
+          "firstBreachedAt": "2031-01-05T10:00:00.000Z",
+          "id": "RISK-205",
+          "lastBreachedAt": "2031-01-05T11:00:00.000Z",
+          "metricKey": "document_upload_success_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.72,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.2577319587628866,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "appVersion=6.5.0|platform=Desktop",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-205-001",
+            "MB-205-002",
+            "MB-205-003"
+          ],
+          "triggerSignature": "risk:205",
+          "updatedAt": "2031-01-05T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Dose-response rollout regression with noisy feedback and history.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-205: rollout dose response and unexposed-version control support the release mechanism family.",
+          "CASE-205: release and analytics tools expose the complete required chain.",
+          "CASE-205: storage history and cosmetic feedback are distinct reviewed distractors."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "New users received incorrect behavior from the recommendation flag rollout"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-130",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "ExperimentBinding"
+              ],
+              "feature_flags": [
+                "recommendation_ranker_v4"
+              ],
+              "rollout": {
+                "percentage": 25
+              }
+            }
+          },
+          "sourceId": "SRC-121",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-131",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.31,
+                  "sampleSize": 820,
+                  "value": "NEW-exposed"
+                },
+                {
+                  "rate": 0.67,
+                  "sampleSize": 2420,
+                  "value": "NEW-control"
+                }
+              ],
+              "dimension": "user_type"
+            }
+          },
+          "sourceId": "SRC-122",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-132",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Recommendation cards use a different border color."
+              }
+            ]
+          },
+          "sourceId": "SRC-123",
+          "toolName": "search_user_feedback"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-130"
+          ],
+          "fixtureRef": "fixture://SRC-121",
+          "kind": "release",
+          "sourceId": "SRC-121"
+        },
+        {
+          "evidenceIds": [
+            "EV-131"
+          ],
+          "fixtureRef": "fixture://SRC-122",
+          "kind": "analytics",
+          "sourceId": "SRC-122"
+        },
+        {
+          "evidenceIds": [
+            "EV-132"
+          ],
+          "fixtureRef": "fixture://SRC-123",
+          "kind": "feedback",
+          "sourceId": "SRC-123"
+        }
+      ],
+      "case_id": "CASE-206",
+      "critical_evidence_ids": [
+        "EV-130",
+        "EV-131"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 2,
+      "gold_root_cause": "The recommendation feature-flag rollout assigned the wrong experiment behavior to new users.",
+      "gold_root_cause_id": "RC-206",
+      "incident_type": "configuration",
+      "initial_anomaly": {
+        "incidentId": "INC-206",
+        "question": "Why did recommendation engagement drop only in the exposed cohort?",
+        "release": {
+          "changedModules": [
+            "ExperimentBinding"
+          ],
+          "createdAt": "2031-01-06T08:00:00.000Z",
+          "featureFlags": [
+            "recommendation_ranker_v4"
+          ],
+          "id": "REL-206",
+          "platform": "Service",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-06T09:00:00.000Z",
+          "rolloutPercentage": 25,
+          "rolloutStatus": "STAGED",
+          "version": "svc-22.1"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.36000000000000004,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.67,
+          "correlatedReleaseId": "REL-206",
+          "createdAt": "2031-01-06T11:00:00.000Z",
+          "detectedAt": "2031-01-06T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "userType": "NEW"
+          },
+          "firstBreachedAt": "2031-01-06T10:00:00.000Z",
+          "id": "RISK-206",
+          "lastBreachedAt": "2031-01-06T11:00:00.000Z",
+          "metricKey": "recommendation_engagement_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.31,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.5373134328358209,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "userType=NEW",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-206-001",
+            "MB-206-002",
+            "MB-206-003"
+          ],
+          "triggerSignature": "risk:206",
+          "updatedAt": "2031-01-06T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped feature-flag cohort isolation.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-206: declared flag exposure and control-cohort divergence support configuration attribution.",
+          "CASE-206: get_release and segment_metric expose all decisive facts without a config-center tool.",
+          "CASE-206: cosmetic feedback is not part of the causal graph."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": [
+        "EVIDENCE_INSUFFICIENT",
+        "DATABASE_LOCK"
+      ]
+    },
+    {
+      "acceptable_equivalents": [
+        "Returning-user catalog results were truncated by the configured result cap"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-150",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "QueryPolicy"
+              ],
+              "feature_flags": [
+                "catalog_result_cap_v2"
+              ],
+              "rollout": {
+                "percentage": 100
+              }
+            }
+          },
+          "sourceId": "SRC-141",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-151",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "catalog_result_depth",
+              "summary": {
+                "baseline": 40,
+                "sampleSize": 3800,
+                "value": 10
+              }
+            }
+          },
+          "sourceId": "SRC-142",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-152",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "depth": 10,
+                  "value": "RETURNING"
+                },
+                {
+                  "depth": 40,
+                  "value": "NEW"
+                }
+              ],
+              "dimension": "user_type"
+            }
+          },
+          "sourceId": "SRC-142",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-153",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Catalog thumbnails load slowly on older phones."
+              }
+            ]
+          },
+          "sourceId": "SRC-143",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-154",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.79,
+                "title": "Search index lag reduced result diversity"
+              }
+            ]
+          },
+          "sourceId": "SRC-144",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-150"
+          ],
+          "fixtureRef": "fixture://SRC-141",
+          "kind": "release",
+          "sourceId": "SRC-141"
+        },
+        {
+          "evidenceIds": [
+            "EV-151",
+            "EV-152"
+          ],
+          "fixtureRef": "fixture://SRC-142",
+          "kind": "analytics",
+          "sourceId": "SRC-142"
+        },
+        {
+          "evidenceIds": [
+            "EV-153"
+          ],
+          "fixtureRef": "fixture://SRC-143",
+          "kind": "feedback",
+          "sourceId": "SRC-143"
+        },
+        {
+          "evidenceIds": [
+            "EV-154"
+          ],
+          "fixtureRef": "fixture://SRC-144",
+          "kind": "historical_incident",
+          "sourceId": "SRC-144"
+        }
+      ],
+      "case_id": "CASE-207",
+      "critical_evidence_ids": [
+        "EV-150",
+        "EV-151",
+        "EV-152"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The catalog result-cap configuration truncated returning-user results.",
+      "gold_root_cause_id": "RC-207",
+      "incident_type": "configuration",
+      "initial_anomaly": {
+        "incidentId": "INC-207",
+        "question": "What explains the sudden loss of lower-ranked catalog results?",
+        "release": {
+          "changedModules": [
+            "QueryPolicy"
+          ],
+          "createdAt": "2031-01-07T08:00:00.000Z",
+          "featureFlags": [
+            "catalog_result_cap_v2"
+          ],
+          "id": "REL-207",
+          "platform": "Service",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-07T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "catalog-8.3"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -30,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 40,
+          "correlatedReleaseId": "REL-207",
+          "createdAt": "2031-01-07T11:00:00.000Z",
+          "detectedAt": "2031-01-07T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "userType": "RETURNING"
+          },
+          "firstBreachedAt": "2031-01-07T10:00:00.000Z",
+          "id": "RISK-207",
+          "lastBreachedAt": "2031-01-07T11:00:00.000Z",
+          "metricKey": "catalog_result_depth",
+          "minSampleSize": 500,
+          "observedValue": 10,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.75,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "userType=RETURNING",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-207-001",
+            "MB-207-002",
+            "MB-207-003"
+          ],
+          "triggerSignature": "risk:207",
+          "updatedAt": "2031-01-07T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Observable result-cap configuration regression.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-207: visible flag context, result depth, and user-type control support the configured cap.",
+          "CASE-207: no hidden configuration value is required beyond release and analytics observations.",
+          "CASE-207: index-lag history and thumbnail latency were reviewed as plausible distractors."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Notification opt-ins fell because of the prompt percentage-rollout configuration"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-170",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "feature_flags": [
+                "notification_prompt_sequence"
+              ],
+              "rollout": {
+                "percentage": 60
+              }
+            }
+          },
+          "sourceId": "SRC-161",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-171",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "exposurePercentages": [
+                10,
+                30,
+                60
+              ],
+              "optInRates": [
+                0.68,
+                0.56,
+                0.42
+              ]
+            }
+          },
+          "sourceId": "SRC-162",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-172",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.43,
+                  "value": "10.4"
+                },
+                {
+                  "rate": 0.42,
+                  "value": "10.3"
+                }
+              ],
+              "dimension": "app_version"
+            }
+          },
+          "sourceId": "SRC-162",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-173",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Notification icon style changed after an app update."
+              }
+            ]
+          },
+          "sourceId": "SRC-163",
+          "toolName": "search_user_feedback"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-170"
+          ],
+          "fixtureRef": "fixture://SRC-161",
+          "kind": "release",
+          "sourceId": "SRC-161"
+        },
+        {
+          "evidenceIds": [
+            "EV-171",
+            "EV-172"
+          ],
+          "fixtureRef": "fixture://SRC-162",
+          "kind": "analytics",
+          "sourceId": "SRC-162"
+        },
+        {
+          "evidenceIds": [
+            "EV-173"
+          ],
+          "fixtureRef": "fixture://SRC-163",
+          "kind": "feedback",
+          "sourceId": "SRC-163"
+        }
+      ],
+      "case_id": "CASE-208",
+      "critical_evidence_ids": [
+        "EV-170",
+        "EV-171",
+        "EV-172"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 4,
+      "gold_root_cause": "The notification prompt percentage-rollout configuration reduced opt-ins.",
+      "gold_root_cause_id": "RC-208",
+      "incident_type": "configuration",
+      "initial_anomaly": {
+        "incidentId": "INC-208",
+        "question": "Why does the opt-in decline track percentage exposure rather than platform version?",
+        "release": {
+          "changedModules": [
+            "RolloutRules"
+          ],
+          "createdAt": "2031-01-08T08:00:00.000Z",
+          "featureFlags": [
+            "notification_prompt_sequence"
+          ],
+          "id": "REL-208",
+          "platform": "Service",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-08T09:00:00.000Z",
+          "rolloutPercentage": 60,
+          "rolloutStatus": "STAGED",
+          "version": "config-14.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.31,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.73,
+          "correlatedReleaseId": "REL-208",
+          "createdAt": "2031-01-08T11:00:00.000Z",
+          "detectedAt": "2031-01-08T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Android"
+          },
+          "firstBreachedAt": "2031-01-08T10:00:00.000Z",
+          "id": "RISK-208",
+          "lastBreachedAt": "2031-01-08T11:00:00.000Z",
+          "metricKey": "notification_opt_in_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.42,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.4246575342465754,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Android",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-208-001",
+            "MB-208-002",
+            "MB-208-003"
+          ],
+          "triggerSignature": "risk:208",
+          "updatedAt": "2031-01-08T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Percentage rollout configuration with version controls.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-208: dose response by exposure and app-version controls isolate rollout configuration.",
+          "CASE-208: release and analytics tools provide the required observable facts.",
+          "CASE-208: icon feedback is temporally related but causally irrelevant."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Australian new users were excluded by the targeted eligibility rule rollout"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-190",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "CheckoutTheme"
+              ],
+              "feature_flags": [
+                "eligibility_rules_au_new"
+              ],
+              "version": "10.8.0"
+            }
+          },
+          "sourceId": "SRC-181",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-191",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.48,
+                  "region": "AU",
+                  "value": "NEW"
+                },
+                {
+                  "rate": 0.91,
+                  "region": "AU",
+                  "value": "RETURNING"
+                },
+                {
+                  "rate": 0.9,
+                  "region": "US",
+                  "value": "NEW"
+                }
+              ],
+              "dimension": "user_type"
+            }
+          },
+          "sourceId": "SRC-182",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-192",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Checkout says this account is not eligible.",
+                "region": "AU",
+                "userType": "NEW"
+              },
+              {
+                "content": "Checkout works normally.",
+                "region": "AU",
+                "userType": "RETURNING"
+              }
+            ]
+          },
+          "sourceId": "SRC-183",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-193",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.9,
+                "title": "Android checkout rendering regression"
+              }
+            ]
+          },
+          "sourceId": "SRC-184",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-194",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "checkout_page_latency",
+              "summary": {
+                "baseline": 1,
+                "sampleSize": 4100,
+                "value": 1.02
+              }
+            }
+          },
+          "sourceId": "SRC-182",
+          "toolName": "query_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-190"
+          ],
+          "fixtureRef": "fixture://SRC-181",
+          "kind": "release",
+          "sourceId": "SRC-181"
+        },
+        {
+          "evidenceIds": [
+            "EV-191",
+            "EV-194"
+          ],
+          "fixtureRef": "fixture://SRC-182",
+          "kind": "analytics",
+          "sourceId": "SRC-182"
+        },
+        {
+          "evidenceIds": [
+            "EV-192"
+          ],
+          "fixtureRef": "fixture://SRC-183",
+          "kind": "feedback",
+          "sourceId": "SRC-183"
+        },
+        {
+          "evidenceIds": [
+            "EV-193"
+          ],
+          "fixtureRef": "fixture://SRC-184",
+          "kind": "historical_incident",
+          "sourceId": "SRC-184"
+        }
+      ],
+      "case_id": "CASE-209",
+      "critical_evidence_ids": [
+        "EV-190",
+        "EV-191",
+        "EV-192"
+      ],
+      "difficulty": "HARD",
+      "difficulty_score": 8,
+      "gold_root_cause": "The targeted eligibility-rule rollout excluded Australian new users.",
+      "gold_root_cause_id": "RC-209",
+      "incident_type": "configuration",
+      "initial_anomaly": {
+        "incidentId": "INC-209",
+        "question": "Is the client release or the targeted rule rollout responsible for the cohort pattern?",
+        "release": {
+          "changedModules": [
+            "CheckoutTheme"
+          ],
+          "createdAt": "2031-01-09T08:00:00.000Z",
+          "featureFlags": [
+            "eligibility_rules_au_new"
+          ],
+          "id": "REL-209",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-09T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "10.8.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.42000000000000004,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.9,
+          "correlatedReleaseId": "REL-209",
+          "createdAt": "2031-01-09T11:00:00.000Z",
+          "detectedAt": "2031-01-09T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Android",
+            "userType": "NEW"
+          },
+          "firstBreachedAt": "2031-01-09T10:00:00.000Z",
+          "id": "RISK-209",
+          "lastBreachedAt": "2031-01-09T11:00:00.000Z",
+          "metricKey": "checkout_eligibility_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.48,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.4666666666666667,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Android|userType=NEW",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-209-001",
+            "MB-209-002",
+            "MB-209-003"
+          ],
+          "triggerSignature": "risk:209",
+          "updatedAt": "2031-01-09T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Hard code-versus-configuration attribution using three current sources.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-209: unrelated client module, narrow cohort, and eligibility feedback isolate the rule rollout.",
+          "CASE-209: release, segment, and feedback tools expose all required observations.",
+          "CASE-209: the high-similarity checkout history was reviewed as an adversarial distractor."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Cross-platform payment failures were caused by a regional provider outage"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-210",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.46,
+                  "value": "Android"
+                },
+                {
+                  "rate": 0.47,
+                  "value": "iOS"
+                },
+                {
+                  "rate": 0.45,
+                  "value": "Web"
+                }
+              ],
+              "controlRegionRate": 0.97,
+              "dimension": "platform"
+            }
+          },
+          "sourceId": "SRC-201",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-211",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "The payment provider is unavailable in the US.",
+                "platform": "Android"
+              },
+              {
+                "content": "Provider authorization cannot be completed.",
+                "platform": "iOS"
+              }
+            ]
+          },
+          "sourceId": "SRC-202",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-212",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "Recommendations"
+              ],
+              "released_at": "2031-01-10T09:00:00.000Z",
+              "version": "15.3.0"
+            }
+          },
+          "sourceId": "SRC-203",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-213",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.82,
+                "title": "Mobile SDK payment callback regression"
+              }
+            ]
+          },
+          "sourceId": "SRC-204",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-210"
+          ],
+          "fixtureRef": "fixture://SRC-201",
+          "kind": "analytics",
+          "sourceId": "SRC-201"
+        },
+        {
+          "evidenceIds": [
+            "EV-211"
+          ],
+          "fixtureRef": "fixture://SRC-202",
+          "kind": "feedback",
+          "sourceId": "SRC-202"
+        },
+        {
+          "evidenceIds": [
+            "EV-212"
+          ],
+          "fixtureRef": "fixture://SRC-203",
+          "kind": "release",
+          "sourceId": "SRC-203"
+        },
+        {
+          "evidenceIds": [
+            "EV-213"
+          ],
+          "fixtureRef": "fixture://SRC-204",
+          "kind": "historical_incident",
+          "sourceId": "SRC-204"
+        }
+      ],
+      "case_id": "CASE-210",
+      "critical_evidence_ids": [
+        "EV-210",
+        "EV-211"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "A regional payment-provider outage caused the cross-platform failures.",
+      "gold_root_cause_id": "RC-210",
+      "incident_type": "upstream_dependency",
+      "initial_anomaly": {
+        "incidentId": "INC-210",
+        "question": "Why are payment failures synchronized across app versions and platforms in the US?",
+        "release": {
+          "changedModules": [
+            "Recommendations"
+          ],
+          "createdAt": "2031-01-10T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-210",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-10T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "15.3.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.51,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.97,
+          "correlatedReleaseId": "REL-210",
+          "createdAt": "2031-01-10T11:00:00.000Z",
+          "detectedAt": "2031-01-10T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "US"
+          },
+          "firstBreachedAt": "2031-01-10T10:00:00.000Z",
+          "id": "RISK-210",
+          "lastBreachedAt": "2031-01-10T11:00:00.000Z",
+          "metricKey": "payment_success_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.46,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.5257731958762887,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=US",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-210-001",
+            "MB-210-002",
+            "MB-210-003"
+          ],
+          "triggerSignature": "risk:210",
+          "updatedAt": "2031-01-10T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Region-wide observable payment-provider failure.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-210: cross-platform regional isolation and provider-specific feedback support dependency attribution.",
+          "CASE-210: segment_metric and feedback expose the cause family without traces or provider logs.",
+          "CASE-210: the unrelated Android release and SDK history were reviewed as distractors."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Regional shipping latency came from the carrier quote dependency"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-230",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "latency": 4.8,
+                  "value": "AU"
+                },
+                {
+                  "latency": 4.5,
+                  "value": "NZ"
+                },
+                {
+                  "latency": 1.1,
+                  "value": "US"
+                }
+              ],
+              "dimension": "region"
+            }
+          },
+          "sourceId": "SRC-221",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-231",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Carrier quote lookup waits and then shows a carrier timeout.",
+                "region": "AU"
+              },
+              {
+                "content": "Shipping options appear after the carrier timeout warning.",
+                "region": "NZ"
+              }
+            ]
+          },
+          "sourceId": "SRC-222",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-232",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "checkout_success_rate",
+              "summary": {
+                "baseline": 0.94,
+                "sampleSize": 3600,
+                "value": 0.94
+              }
+            }
+          },
+          "sourceId": "SRC-221",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-233",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": null,
+            "reason": "RELEASE_NOT_FOUND"
+          },
+          "sourceId": "SRC-223",
+          "toolName": "get_release"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-230",
+            "EV-232"
+          ],
+          "fixtureRef": "fixture://SRC-221",
+          "kind": "analytics",
+          "sourceId": "SRC-221"
+        },
+        {
+          "evidenceIds": [
+            "EV-231"
+          ],
+          "fixtureRef": "fixture://SRC-222",
+          "kind": "feedback",
+          "sourceId": "SRC-222"
+        },
+        {
+          "evidenceIds": [
+            "EV-233"
+          ],
+          "fixtureRef": "fixture://SRC-223",
+          "kind": "release",
+          "sourceId": "SRC-223"
+        }
+      ],
+      "case_id": "CASE-211",
+      "critical_evidence_ids": [
+        "EV-230",
+        "EV-231"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The carrier quote dependency caused the regional shipping latency.",
+      "gold_root_cause_id": "RC-211",
+      "incident_type": "upstream_dependency",
+      "initial_anomaly": {
+        "incidentId": "INC-211",
+        "question": "What explains the regional shipping-quote latency without checkout failures elsewhere?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": 3.6999999999999997,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 1.1,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-11T11:00:00.000Z",
+          "detectedAt": "2031-01-11T11:00:00.000Z",
+          "direction": "UP",
+          "filters": {
+            "region": "AU"
+          },
+          "firstBreachedAt": "2031-01-11T10:00:00.000Z",
+          "id": "RISK-211",
+          "lastBreachedAt": "2031-01-11T11:00:00.000Z",
+          "metricKey": "shipping_quote_latency",
+          "minSampleSize": 500,
+          "observedValue": 4.8,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": 3.3636363636363633,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=AU",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-211-001",
+            "MB-211-002",
+            "MB-211-003"
+          ],
+          "triggerSignature": "risk:211",
+          "updatedAt": "2031-01-11T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Carrier quote dependency latency visible through regional metrics and feedback.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-211: regional latency, carrier-specific feedback, and normal checkout exclude a broad regression.",
+          "CASE-211: analytics and feedback tools support dependency-family attribution without internal logs.",
+          "CASE-211: the absent release record is retained as a non-causal contextual distractor."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Regional sign-in failed because the external identity provider was unavailable"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-250",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "NavigationShell"
+              ],
+              "platform": "Android",
+              "version": "18.1.0"
+            }
+          },
+          "sourceId": "SRC-241",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-251",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.39,
+                  "region": "EU",
+                  "value": "Android"
+                },
+                {
+                  "rate": 0.4,
+                  "region": "EU",
+                  "value": "iOS"
+                },
+                {
+                  "rate": 0.38,
+                  "region": "EU",
+                  "value": "Web"
+                },
+                {
+                  "rate": 0.98,
+                  "region": "US",
+                  "value": "Web"
+                }
+              ],
+              "dimension": "platform"
+            }
+          },
+          "sourceId": "SRC-242",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-252",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "The external identity consent page reports service unavailable."
+              },
+              {
+                "content": "Both browser and phone return the same identity-provider error."
+              }
+            ]
+          },
+          "sourceId": "SRC-243",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-253",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.93,
+                "title": "Android token cache regression after navigation update"
+              }
+            ]
+          },
+          "sourceId": "SRC-244",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-254",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "navigation_open_rate",
+              "summary": {
+                "baseline": 1,
+                "sampleSize": 5900,
+                "value": 1.01
+              }
+            }
+          },
+          "sourceId": "SRC-242",
+          "toolName": "query_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-250"
+          ],
+          "fixtureRef": "fixture://SRC-241",
+          "kind": "release",
+          "sourceId": "SRC-241"
+        },
+        {
+          "evidenceIds": [
+            "EV-251",
+            "EV-254"
+          ],
+          "fixtureRef": "fixture://SRC-242",
+          "kind": "analytics",
+          "sourceId": "SRC-242"
+        },
+        {
+          "evidenceIds": [
+            "EV-252"
+          ],
+          "fixtureRef": "fixture://SRC-243",
+          "kind": "feedback",
+          "sourceId": "SRC-243"
+        },
+        {
+          "evidenceIds": [
+            "EV-253"
+          ],
+          "fixtureRef": "fixture://SRC-244",
+          "kind": "historical_incident",
+          "sourceId": "SRC-244"
+        }
+      ],
+      "case_id": "CASE-212",
+      "critical_evidence_ids": [
+        "EV-250",
+        "EV-251",
+        "EV-252"
+      ],
+      "difficulty": "HARD",
+      "difficulty_score": 9,
+      "gold_root_cause": "An external identity-provider outage caused the regional sign-in failures.",
+      "gold_root_cause_id": "RC-212",
+      "incident_type": "upstream_dependency",
+      "initial_anomaly": {
+        "incidentId": "INC-212",
+        "question": "Does the mobile release or an external identity path explain the sign-in pattern?",
+        "release": {
+          "changedModules": [
+            "NavigationShell"
+          ],
+          "createdAt": "2031-01-12T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-212",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-12T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "18.1.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.59,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.98,
+          "correlatedReleaseId": "REL-212",
+          "createdAt": "2031-01-12T11:00:00.000Z",
+          "detectedAt": "2031-01-12T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "EU"
+          },
+          "firstBreachedAt": "2031-01-12T10:00:00.000Z",
+          "id": "RISK-212",
+          "lastBreachedAt": "2031-01-12T11:00:00.000Z",
+          "metricKey": "sign_in_success_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.39,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.6020408163265306,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=EU",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-212-001",
+            "MB-212-002",
+            "MB-212-003"
+          ],
+          "triggerSignature": "risk:212",
+          "updatedAt": "2031-01-12T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Hard external identity failure with release and historical traps.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-212: cross-platform region pattern and identity-page feedback contradict a mobile-only cause.",
+          "CASE-212: release, segment, and feedback tools support the observable dependency family.",
+          "CASE-212: the near-match token history is explicitly reviewed as non-proof."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Successful account completions are under-counted by the activation metric"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-270",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "activationEventRate": 0.52,
+              "completedAccountRate": 0.9,
+              "completionCount": 4300
+            }
+          },
+          "sourceId": "SRC-261",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-271",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "coverage": "complete",
+            "matches": [],
+            "queryWindow": "incident"
+          },
+          "sourceId": "SRC-262",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-272",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "eventRate": 0.53,
+                  "value": "AU"
+                },
+                {
+                  "eventRate": 0.52,
+                  "value": "US"
+                }
+              ],
+              "dimension": "region"
+            }
+          },
+          "sourceId": "SRC-261",
+          "toolName": "segment_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-270",
+            "EV-272"
+          ],
+          "fixtureRef": "fixture://SRC-261",
+          "kind": "analytics",
+          "sourceId": "SRC-261"
+        },
+        {
+          "evidenceIds": [
+            "EV-271"
+          ],
+          "fixtureRef": "fixture://SRC-262",
+          "kind": "feedback",
+          "sourceId": "SRC-262"
+        }
+      ],
+      "case_id": "CASE-213",
+      "critical_evidence_ids": [
+        "EV-270",
+        "EV-271"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 1,
+      "gold_root_cause": "The activation metric is under-reporting successful account completions.",
+      "gold_root_cause_id": "RC-213",
+      "incident_type": "user_feedback",
+      "initial_anomaly": {
+        "incidentId": "INC-213",
+        "question": "Why does the activation signal decline without a matching account outcome change?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": -0.39,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.91,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-13T11:00:00.000Z",
+          "detectedAt": "2031-01-13T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Web"
+          },
+          "firstBreachedAt": "2031-01-13T10:00:00.000Z",
+          "id": "RISK-213",
+          "lastBreachedAt": "2031-01-13T11:00:00.000Z",
+          "metricKey": "activation_event_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.52,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.42857142857142855,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Web",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-213-001",
+            "MB-213-002",
+            "MB-213-003"
+          ],
+          "triggerSignature": "risk:213",
+          "updatedAt": "2031-01-13T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped metric-versus-business-outcome contradiction.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-213: stable completed accounts and complete absence of user impact support under-reporting.",
+          "CASE-213: query_metric and feedback retrieval expose both required controls.",
+          "CASE-213: uniform regional event loss does not identify a user-impacting segment."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Slower page rendering caused the metric decline without order failures"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-290",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "orderSuccessBaseline": 0.96,
+              "orderSuccessRate": 0.96,
+              "renderLatency": 3.2
+            }
+          },
+          "sourceId": "SRC-281",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-291",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Order succeeds, but product images take several seconds to appear."
+              },
+              {
+                "content": "Confirmation is immediate while the page keeps drawing images."
+              }
+            ]
+          },
+          "sourceId": "SRC-282",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-292",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "OrderPageImages"
+              ],
+              "version": "web-52.0"
+            }
+          },
+          "sourceId": "SRC-283",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-293",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.78,
+                "title": "Order database latency delayed confirmations"
+              }
+            ]
+          },
+          "sourceId": "SRC-284",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-290"
+          ],
+          "fixtureRef": "fixture://SRC-281",
+          "kind": "analytics",
+          "sourceId": "SRC-281"
+        },
+        {
+          "evidenceIds": [
+            "EV-291"
+          ],
+          "fixtureRef": "fixture://SRC-282",
+          "kind": "feedback",
+          "sourceId": "SRC-282"
+        },
+        {
+          "evidenceIds": [
+            "EV-292"
+          ],
+          "fixtureRef": "fixture://SRC-283",
+          "kind": "release",
+          "sourceId": "SRC-283"
+        },
+        {
+          "evidenceIds": [
+            "EV-293"
+          ],
+          "fixtureRef": "fixture://SRC-284",
+          "kind": "historical_incident",
+          "sourceId": "SRC-284"
+        }
+      ],
+      "case_id": "CASE-214",
+      "critical_evidence_ids": [
+        "EV-290",
+        "EV-291"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The degraded metric reflects slower page rendering, not failed order processing.",
+      "gold_root_cause_id": "RC-214",
+      "incident_type": "user_feedback",
+      "initial_anomaly": {
+        "incidentId": "INC-214",
+        "question": "What does the latency signal represent when order outcomes and feedback disagree?",
+        "release": {
+          "changedModules": [
+            "OrderPageImages"
+          ],
+          "createdAt": "2031-01-14T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-214",
+          "platform": "Web",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-14T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "web-52.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": 2.1,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 1.1,
+          "correlatedReleaseId": "REL-214",
+          "createdAt": "2031-01-14T11:00:00.000Z",
+          "detectedAt": "2031-01-14T11:00:00.000Z",
+          "direction": "UP",
+          "filters": {
+            "platform": "Web"
+          },
+          "firstBreachedAt": "2031-01-14T10:00:00.000Z",
+          "id": "RISK-214",
+          "lastBreachedAt": "2031-01-14T11:00:00.000Z",
+          "metricKey": "order_page_render_latency",
+          "minSampleSize": 500,
+          "observedValue": 3.2,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": 1.909090909090909,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Web",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-214-001",
+            "MB-214-002",
+            "MB-214-003"
+          ],
+          "triggerSignature": "risk:214",
+          "updatedAt": "2031-01-14T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "User-experience latency separated from transaction correctness.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-214: normal order outcomes and rendering-specific feedback bound the diagnosis.",
+          "CASE-214: analytics and feedback tools distinguish experience latency from transaction failure.",
+          "CASE-214: release context and database history are reviewed as non-decisive."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Recommendation click events were misreported after the analytics SDK rollout"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-310",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "AnalyticsSDK"
+              ],
+              "feature_flags": [
+                "recommendation_event_v2"
+              ],
+              "version": "web-sdk-7.0"
+            }
+          },
+          "sourceId": "SRC-301",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-311",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "clickEventRate": 0.18,
+              "recommendationDestinationBaseline": 0.72,
+              "recommendationDestinationVisits": 0.71,
+              "sampleSize": 7100
+            }
+          },
+          "sourceId": "SRC-302",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-312",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "coverage": "complete",
+            "matches": [],
+            "queryWindow": "incident"
+          },
+          "sourceId": "SRC-303",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-313",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.91,
+                "title": "Ranking model relevance regression reduced clicks"
+              }
+            ]
+          },
+          "sourceId": "SRC-304",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-314",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "eventRate": 0.19,
+                  "value": "AU"
+                },
+                {
+                  "eventRate": 0.18,
+                  "value": "US"
+                }
+              ],
+              "dimension": "region"
+            }
+          },
+          "sourceId": "SRC-302",
+          "toolName": "segment_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-310"
+          ],
+          "fixtureRef": "fixture://SRC-301",
+          "kind": "release",
+          "sourceId": "SRC-301"
+        },
+        {
+          "evidenceIds": [
+            "EV-311",
+            "EV-314"
+          ],
+          "fixtureRef": "fixture://SRC-302",
+          "kind": "analytics",
+          "sourceId": "SRC-302"
+        },
+        {
+          "evidenceIds": [
+            "EV-312"
+          ],
+          "fixtureRef": "fixture://SRC-303",
+          "kind": "feedback",
+          "sourceId": "SRC-303"
+        },
+        {
+          "evidenceIds": [
+            "EV-313"
+          ],
+          "fixtureRef": "fixture://SRC-304",
+          "kind": "historical_incident",
+          "sourceId": "SRC-304"
+        }
+      ],
+      "case_id": "CASE-215",
+      "critical_evidence_ids": [
+        "EV-310",
+        "EV-311",
+        "EV-312"
+      ],
+      "difficulty": "HARD",
+      "difficulty_score": 8,
+      "gold_root_cause": "The analytics SDK rollout stopped recording recommendation click events correctly.",
+      "gold_root_cause_id": "RC-215",
+      "incident_type": "user_feedback",
+      "initial_anomaly": {
+        "incidentId": "INC-215",
+        "question": "Are recommendation users disengaging, or is the reported signal incomplete?",
+        "release": {
+          "changedModules": [
+            "AnalyticsSDK"
+          ],
+          "createdAt": "2031-01-15T08:00:00.000Z",
+          "featureFlags": [
+            "recommendation_event_v2"
+          ],
+          "id": "REL-215",
+          "platform": "Web",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-15T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "web-sdk-7.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.54,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.72,
+          "correlatedReleaseId": "REL-215",
+          "createdAt": "2031-01-15T11:00:00.000Z",
+          "detectedAt": "2031-01-15T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Web"
+          },
+          "firstBreachedAt": "2031-01-15T10:00:00.000Z",
+          "id": "RISK-215",
+          "lastBreachedAt": "2031-01-15T11:00:00.000Z",
+          "metricKey": "recommendation_click_event_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.18,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.7500000000000001,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Web",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-215-001",
+            "MB-215-002",
+            "MB-215-003"
+          ],
+          "triggerSignature": "risk:215",
+          "updatedAt": "2031-01-15T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Hard telemetry false alarm with current controls and historical trap.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-215: stable downstream visits, complete feedback, and SDK release context support telemetry failure.",
+          "CASE-215: three current source kinds provide the required evidence without hidden SDK logs.",
+          "CASE-215: ranking-history similarity is reviewed as a high-relevance but contradicted distractor."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "A higher share of new-user traffic lowered aggregate conversion without cohort regression"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-330",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "after": [
+                {
+                  "rate": 0.3,
+                  "share": 0.45,
+                  "value": "NEW"
+                },
+                {
+                  "rate": 0.71,
+                  "share": 0.55,
+                  "value": "RETURNING"
+                }
+              ],
+              "before": [
+                {
+                  "rate": 0.3,
+                  "share": 0.2,
+                  "value": "NEW"
+                },
+                {
+                  "rate": 0.71,
+                  "share": 0.8,
+                  "value": "RETURNING"
+                }
+              ],
+              "dimension": "user_type"
+            }
+          },
+          "sourceId": "SRC-321",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-331",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "dataQuality": "OK",
+              "sampleSize": 9400,
+              "withinSegmentMovement": 0
+            }
+          },
+          "sourceId": "SRC-321",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-332",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": null,
+            "reason": "RELEASE_NOT_FOUND"
+          },
+          "sourceId": "SRC-322",
+          "toolName": "get_release"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-330",
+            "EV-331"
+          ],
+          "fixtureRef": "fixture://SRC-321",
+          "kind": "analytics",
+          "sourceId": "SRC-321"
+        },
+        {
+          "evidenceIds": [
+            "EV-332"
+          ],
+          "fixtureRef": "fixture://SRC-322",
+          "kind": "release",
+          "sourceId": "SRC-322"
+        }
+      ],
+      "case_id": "CASE-216",
+      "critical_evidence_ids": [
+        "EV-330",
+        "EV-331"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 1,
+      "gold_root_cause": "The aggregate conversion decline is a benign new-user traffic mix shift.",
+      "gold_root_cause_id": "RC-216",
+      "incident_type": "unknown",
+      "initial_anomaly": {
+        "incidentId": "INC-216",
+        "question": "Does the aggregate conversion decline represent a product regression?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": -0.08999999999999997,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.63,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-16T11:00:00.000Z",
+          "detectedAt": "2031-01-16T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {},
+          "firstBreachedAt": "2031-01-16T10:00:00.000Z",
+          "id": "RISK-216",
+          "lastBreachedAt": "2031-01-16T11:00:00.000Z",
+          "metricKey": "purchase_conversion_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.54,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.1428571428571428,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "all",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-216-001",
+            "MB-216-002",
+            "MB-216-003"
+          ],
+          "triggerSignature": "risk:216",
+          "updatedAt": "2031-01-16T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped Simpson's-paradox traffic mix case.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-216: unchanged within-cohort rates and changed weights prove a benign composition effect.",
+          "CASE-216: segment_metric and query_metric expose the complete weighted comparison.",
+          "CASE-216: no release exists, preventing reuse of a release-regression template."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "An isolated low-sample fluctuation caused the alert without sustained degradation"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-350",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "baseline": 0.88,
+              "buckets": [
+                {
+                  "sampleSize": 620,
+                  "value": 0.88
+                },
+                {
+                  "sampleSize": 18,
+                  "value": 0.5
+                },
+                {
+                  "sampleSize": 640,
+                  "value": 0.87
+                },
+                {
+                  "sampleSize": 610,
+                  "value": 0.89
+                }
+              ]
+            }
+          },
+          "sourceId": "SRC-341",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-351",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Support reply took longer than expected.",
+                "timestamp": "previous-day"
+              }
+            ]
+          },
+          "sourceId": "SRC-342",
+          "toolName": "search_user_feedback"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-350"
+          ],
+          "fixtureRef": "fixture://SRC-341",
+          "kind": "analytics",
+          "sourceId": "SRC-341"
+        },
+        {
+          "evidenceIds": [
+            "EV-351"
+          ],
+          "fixtureRef": "fixture://SRC-342",
+          "kind": "feedback",
+          "sourceId": "SRC-342"
+        }
+      ],
+      "case_id": "CASE-217",
+      "critical_evidence_ids": [
+        "EV-350"
+      ],
+      "difficulty": "EASY",
+      "difficulty_score": 2,
+      "gold_root_cause": "The alert is a transient low-sample fluctuation rather than a sustained regression.",
+      "gold_root_cause_id": "RC-217",
+      "incident_type": "unknown",
+      "initial_anomaly": {
+        "incidentId": "INC-217",
+        "question": "Does the isolated alert represent a sustained product problem?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": -0.38,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.88,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-17T11:00:00.000Z",
+          "detectedAt": "2031-01-17T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "NZ"
+          },
+          "firstBreachedAt": "2031-01-17T10:00:00.000Z",
+          "id": "RISK-217",
+          "lastBreachedAt": "2031-01-17T11:00:00.000Z",
+          "metricKey": "support_resolution_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.5,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.4318181818181818,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=NZ",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-217-001",
+            "MB-217-002",
+            "MB-217-003"
+          ],
+          "triggerSignature": "risk:217",
+          "updatedAt": "2031-01-17T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Transient low-sample anomaly with complete recovery evidence.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-217: sample size and immediate recovery distinguish noise from persistent impact.",
+          "CASE-217: query_metric alone contains the decisive time-series and quality evidence.",
+          "CASE-217: prior-day feedback is outside the current window and reviewed as distractor noise."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "Promotion traffic added low-intent browsers and changed conversion without a regression"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-370",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "browseRequests": {
+                "baseline": 1,
+                "value": 1.8
+              },
+              "browseToCart": {
+                "baseline": 0.41,
+                "value": 0.28
+              },
+              "errorRate": {
+                "baseline": 0.01,
+                "value": 0.01
+              },
+              "latency": {
+                "baseline": 1,
+                "value": 1.02
+              }
+            }
+          },
+          "sourceId": "SRC-361",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-371",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "The promotion brought me in to browse; I was not planning to buy."
+              },
+              {
+                "content": "Promo pages and cart work normally."
+              }
+            ]
+          },
+          "sourceId": "SRC-362",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-372",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "SettingsIcons"
+              ],
+              "version": "20.0.1"
+            }
+          },
+          "sourceId": "SRC-363",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-373",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.75,
+                "title": "Cart API errors reduced conversion"
+              }
+            ]
+          },
+          "sourceId": "SRC-364",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-370"
+          ],
+          "fixtureRef": "fixture://SRC-361",
+          "kind": "analytics",
+          "sourceId": "SRC-361"
+        },
+        {
+          "evidenceIds": [
+            "EV-371"
+          ],
+          "fixtureRef": "fixture://SRC-362",
+          "kind": "feedback",
+          "sourceId": "SRC-362"
+        },
+        {
+          "evidenceIds": [
+            "EV-372"
+          ],
+          "fixtureRef": "fixture://SRC-363",
+          "kind": "release",
+          "sourceId": "SRC-363"
+        },
+        {
+          "evidenceIds": [
+            "EV-373"
+          ],
+          "fixtureRef": "fixture://SRC-364",
+          "kind": "historical_incident",
+          "sourceId": "SRC-364"
+        }
+      ],
+      "case_id": "CASE-218",
+      "critical_evidence_ids": [
+        "EV-370",
+        "EV-371"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The conversion change is expected behavior from a promotion-driven low-intent traffic mix.",
+      "gold_root_cause_id": "RC-218",
+      "incident_type": "unknown",
+      "initial_anomaly": {
+        "incidentId": "INC-218",
+        "question": "Why did browse-to-cart conversion fall while request volume and reliability remained healthy?",
+        "release": {
+          "changedModules": [
+            "SettingsIcons"
+          ],
+          "createdAt": "2031-01-18T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-218",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-18T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "20.0.1"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.12999999999999995,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.41,
+          "correlatedReleaseId": "REL-218",
+          "createdAt": "2031-01-18T11:00:00.000Z",
+          "detectedAt": "2031-01-18T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "AU",
+            "userType": "NEW"
+          },
+          "firstBreachedAt": "2031-01-18T10:00:00.000Z",
+          "id": "RISK-218",
+          "lastBreachedAt": "2031-01-18T11:00:00.000Z",
+          "metricKey": "browse_to_cart_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.28,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.3170731707317072,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=AU|userType=NEW",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-218-001",
+            "MB-218-002",
+            "MB-218-003"
+          ],
+          "triggerSignature": "risk:218",
+          "updatedAt": "2031-01-18T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Expected promotional cohort behavior with release and history distractors.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-218: volume, reliability controls, and promotion feedback support expected demand behavior.",
+          "CASE-218: analytics and feedback are sufficient without a campaign-management tool.",
+          "CASE-218: unrelated release and cart-error history are reviewed as alternative false leads."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "The current observations cannot resolve release regression versus provider instability"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-390",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "CheckoutClient"
+              ],
+              "released_at": "2031-01-19T09:00:00.000Z",
+              "version": "21.0.0"
+            }
+          },
+          "sourceId": "SRC-381",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-391",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.64,
+                  "value": "Android"
+                },
+                {
+                  "rate": 0.71,
+                  "value": "iOS"
+                }
+              ],
+              "confidence": "OVERLAPPING",
+              "dimension": "platform"
+            }
+          },
+          "sourceId": "SRC-382",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-392",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "matches": [
+              {
+                "content": "Checkout stopped after updating Android."
+              },
+              {
+                "content": "The payment provider timed out on iOS."
+              }
+            ]
+          },
+          "sourceId": "SRC-383",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-393",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.88,
+                "title": "Provider instability after mobile release"
+              }
+            ]
+          },
+          "sourceId": "SRC-384",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-390"
+          ],
+          "fixtureRef": "fixture://SRC-381",
+          "kind": "release",
+          "sourceId": "SRC-381"
+        },
+        {
+          "evidenceIds": [
+            "EV-391"
+          ],
+          "fixtureRef": "fixture://SRC-382",
+          "kind": "analytics",
+          "sourceId": "SRC-382"
+        },
+        {
+          "evidenceIds": [
+            "EV-392"
+          ],
+          "fixtureRef": "fixture://SRC-383",
+          "kind": "feedback",
+          "sourceId": "SRC-383"
+        },
+        {
+          "evidenceIds": [
+            "EV-393"
+          ],
+          "fixtureRef": "fixture://SRC-384",
+          "kind": "historical_incident",
+          "sourceId": "SRC-384"
+        }
+      ],
+      "case_id": "CASE-219",
+      "critical_evidence_ids": [
+        "EV-390",
+        "EV-391",
+        "EV-392"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 7,
+      "gold_root_cause": "Available evidence cannot distinguish the checkout release from payment-provider instability.",
+      "gold_root_cause_id": "RC-219",
+      "incident_type": "insufficient_evidence",
+      "initial_anomaly": {
+        "incidentId": "INC-219",
+        "question": "Can the current observations distinguish release behavior from provider instability?",
+        "release": {
+          "changedModules": [
+            "CheckoutClient"
+          ],
+          "createdAt": "2031-01-19T08:00:00.000Z",
+          "featureFlags": [],
+          "id": "REL-219",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-19T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "21.0.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.2899999999999999,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.95,
+          "correlatedReleaseId": "REL-219",
+          "createdAt": "2031-01-19T11:00:00.000Z",
+          "detectedAt": "2031-01-19T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "AU"
+          },
+          "firstBreachedAt": "2031-01-19T10:00:00.000Z",
+          "id": "RISK-219",
+          "lastBreachedAt": "2031-01-19T11:00:00.000Z",
+          "metricKey": "payment_completion_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.66,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.3052631578947368,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=AU",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-219-001",
+            "MB-219-002",
+            "MB-219-003"
+          ],
+          "triggerSignature": "risk:219",
+          "updatedAt": "2031-01-19T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Production-shaped unresolved release-versus-provider competition.",
+      "public_gold_basis": null,
+      "public_source": "repository://releaseguard/governed-dev-authoring",
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-219: platform overlap and conflicting feedback leave release and provider hypotheses viable.",
+          "CASE-219: all available release, analytics, and feedback observations are represented.",
+          "CASE-219: no hidden true cause exists; history is a clue only and split structure is unique."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "repository_native",
+      "unacceptable_statements": [
+        "DEFINITE_CAUSAL_ATTRIBUTION",
+        "RELEASE_EXCLUDED"
+      ]
+    },
+    {
+      "acceptable_equivalents": [
+        "A root cause cannot be determined from the low-sample aggregate retention signal"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-410",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "buckets": [
+                {
+                  "sampleSize": 84,
+                  "value": 0.29
+                }
+              ],
+              "summary": {
+                "baseline": 0.42,
+                "sampleSize": 84,
+                "value": 0.29
+              }
+            }
+          },
+          "sourceId": "SRC-401",
+          "toolName": "query_metric"
+        },
+        {
+          "evidenceId": "EV-411",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "dimensionsTried": [
+              "platform",
+              "region",
+              "user_type"
+            ],
+            "reason": "NO_SEGMENT_DATA",
+            "status": "EMPTY"
+          },
+          "sourceId": "SRC-401",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-412",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": null,
+            "reason": "RELEASE_NOT_FOUND"
+          },
+          "sourceId": "SRC-402",
+          "toolName": "get_release"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-410",
+            "EV-411"
+          ],
+          "fixtureRef": "fixture://SRC-401",
+          "kind": "analytics",
+          "sourceId": "SRC-401"
+        },
+        {
+          "evidenceIds": [
+            "EV-412"
+          ],
+          "fixtureRef": "fixture://SRC-402",
+          "kind": "release",
+          "sourceId": "SRC-402"
+        }
+      ],
+      "case_id": "CASE-220",
+      "critical_evidence_ids": [
+        "EV-410",
+        "EV-411"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "The low-sample aggregate alert lacks enough evidence to identify a root cause.",
+      "gold_root_cause_id": "RC-220",
+      "incident_type": "insufficient_evidence",
+      "initial_anomaly": {
+        "incidentId": "INC-220",
+        "question": "Can one aggregate retention alert establish a reliable cause?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": -0.13,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.42,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-20T11:00:00.000Z",
+          "detectedAt": "2031-01-20T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {},
+          "firstBreachedAt": "2031-01-20T10:00:00.000Z",
+          "id": "RISK-220",
+          "lastBreachedAt": "2031-01-20T11:00:00.000Z",
+          "metricKey": "day_one_retention_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.29,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.30952380952380953,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "all",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-220-001",
+            "MB-220-002",
+            "MB-220-003"
+          ],
+          "triggerSignature": "risk:220",
+          "updatedAt": "2031-01-20T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Missing segmentation and corroboration boundary.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-220: low sample and empty segmentation establish an evidence boundary, not a hidden cause.",
+          "CASE-220: query_metric and segment_metric fully represent the available observations.",
+          "CASE-220: no-release context is a distractor, and no decisive fixture data is withheld."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": [
+        "DEFINITE_CAUSAL_ATTRIBUTION"
+      ]
+    },
+    {
+      "acceptable_equivalents": [
+        "The similar historical retry cause is not confirmed by current incident evidence"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-430",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "changed_modules": [
+                "CouponClient"
+              ],
+              "feature_flags": [
+                "coupon_retry_v3"
+              ],
+              "version": "22.4.0"
+            }
+          },
+          "sourceId": "SRC-421",
+          "toolName": "get_release"
+        },
+        {
+          "evidenceId": "EV-431",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.57,
+                  "value": "22.4.0"
+                },
+                {
+                  "rate": 0.62,
+                  "value": "22.3.1"
+                }
+              ],
+              "controlQuality": "PARTIAL",
+              "dimension": "app_version"
+            }
+          },
+          "sourceId": "SRC-422",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-432",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "queryWindow": "incident",
+            "reason": "FEEDBACK_INDEX_DELAYED",
+            "status": "EMPTY"
+          },
+          "sourceId": "SRC-423",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-433",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "chunk": "A retry reached the service before an earlier request completed.",
+                "relevance": 0.96,
+                "title": "Coupon retry and idempotency conflict"
+              }
+            ]
+          },
+          "sourceId": "SRC-424",
+          "toolName": "search_similar_incidents"
+        },
+        {
+          "evidenceId": "EV-434",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "metric": "coupon_view_rate",
+              "summary": {
+                "baseline": 0.93,
+                "sampleSize": 4400,
+                "value": 0.92
+              }
+            }
+          },
+          "sourceId": "SRC-422",
+          "toolName": "query_metric"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-430"
+          ],
+          "fixtureRef": "fixture://SRC-421",
+          "kind": "release",
+          "sourceId": "SRC-421"
+        },
+        {
+          "evidenceIds": [
+            "EV-431",
+            "EV-434"
+          ],
+          "fixtureRef": "fixture://SRC-422",
+          "kind": "analytics",
+          "sourceId": "SRC-422"
+        },
+        {
+          "evidenceIds": [
+            "EV-432"
+          ],
+          "fixtureRef": "fixture://SRC-423",
+          "kind": "feedback",
+          "sourceId": "SRC-423"
+        },
+        {
+          "evidenceIds": [
+            "EV-433"
+          ],
+          "fixtureRef": "fixture://SRC-424",
+          "kind": "historical_incident",
+          "sourceId": "SRC-424"
+        }
+      ],
+      "case_id": "CASE-221",
+      "critical_evidence_ids": [
+        "EV-430",
+        "EV-431",
+        "EV-432"
+      ],
+      "difficulty": "HARD",
+      "difficulty_score": 9,
+      "gold_root_cause": "Current evidence is insufficient to confirm the historical retry mechanism.",
+      "gold_root_cause_id": "RC-221",
+      "incident_type": "insufficient_evidence",
+      "initial_anomaly": {
+        "incidentId": "INC-221",
+        "question": "Does the current incident evidence confirm the high-similarity historical mechanism?",
+        "release": {
+          "changedModules": [
+            "CouponClient"
+          ],
+          "createdAt": "2031-01-21T08:00:00.000Z",
+          "featureFlags": [
+            "coupon_retry_v3"
+          ],
+          "id": "REL-221",
+          "platform": "Android",
+          "provenance": "governed_dev_fixture",
+          "releasedAt": "2031-01-21T09:00:00.000Z",
+          "rolloutPercentage": 100,
+          "rolloutStatus": "FULL",
+          "version": "22.4.0"
+        },
+        "riskEvent": {
+          "absoluteDeviation": -0.3600000000000001,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.93,
+          "correlatedReleaseId": "REL-221",
+          "createdAt": "2031-01-21T11:00:00.000Z",
+          "detectedAt": "2031-01-21T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "platform": "Android"
+          },
+          "firstBreachedAt": "2031-01-21T10:00:00.000Z",
+          "id": "RISK-221",
+          "lastBreachedAt": "2031-01-21T11:00:00.000Z",
+          "metricKey": "coupon_redemption_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.57,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.3870967741935485,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "platform=Android",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-221-001",
+            "MB-221-002",
+            "MB-221-003"
+          ],
+          "triggerSignature": "risk:221",
+          "updatedAt": "2031-01-21T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Hard historical-memory trap with no current mechanism evidence.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-221: partial version controls and unavailable feedback do not confirm the historical mechanism.",
+          "CASE-221: current release, analytics, and feedback availability are all tool-observable.",
+          "CASE-221: historical similarity is deliberately labeled distractor and never required proof."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    },
+    {
+      "acceptable_equivalents": [
+        "The available regional signal and sparse feedback cannot determine a delivery cause"
+      ],
+      "agent_accessible_observations": [
+        {
+          "evidenceId": "EV-450",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "data": {
+              "breakdown": [
+                {
+                  "rate": 0.7,
+                  "sampleSize": 640,
+                  "value": "SG"
+                },
+                {
+                  "rate": 0.94,
+                  "sampleSize": 2100,
+                  "value": "AU"
+                }
+              ],
+              "dimension": "region"
+            }
+          },
+          "sourceId": "SRC-441",
+          "toolName": "segment_metric"
+        },
+        {
+          "evidenceId": "EV-451",
+          "observationScope": "CURRENT_INCIDENT",
+          "payload": {
+            "coverage": "SPARSE",
+            "matches": [
+              {
+                "content": "My delivery has not appeared yet; the screen gives no reason.",
+                "region": "SG"
+              }
+            ]
+          },
+          "sourceId": "SRC-442",
+          "toolName": "search_user_feedback"
+        },
+        {
+          "evidenceId": "EV-452",
+          "observationScope": "HISTORICAL",
+          "payload": {
+            "matches": [
+              {
+                "relevance": 0.84,
+                "title": "Regional queue backlog delayed digital delivery"
+              }
+            ]
+          },
+          "sourceId": "SRC-443",
+          "toolName": "search_similar_incidents"
+        }
+      ],
+      "agent_accessible_sources": [
+        {
+          "evidenceIds": [
+            "EV-450"
+          ],
+          "fixtureRef": "fixture://SRC-441",
+          "kind": "analytics",
+          "sourceId": "SRC-441"
+        },
+        {
+          "evidenceIds": [
+            "EV-451"
+          ],
+          "fixtureRef": "fixture://SRC-442",
+          "kind": "feedback",
+          "sourceId": "SRC-442"
+        },
+        {
+          "evidenceIds": [
+            "EV-452"
+          ],
+          "fixtureRef": "fixture://SRC-443",
+          "kind": "historical_incident",
+          "sourceId": "SRC-443"
+        }
+      ],
+      "case_id": "CASE-222",
+      "critical_evidence_ids": [
+        "EV-450",
+        "EV-451"
+      ],
+      "difficulty": "MEDIUM",
+      "difficulty_score": 5,
+      "gold_root_cause": "Sparse regional feedback is insufficient to identify one delivery root cause.",
+      "gold_root_cause_id": "RC-222",
+      "incident_type": "insufficient_evidence",
+      "initial_anomaly": {
+        "incidentId": "INC-222",
+        "question": "Can the available regional metric and limited feedback identify one delivery cause?",
+        "release": null,
+        "riskEvent": {
+          "absoluteDeviation": -0.24,
+          "baselineMethod": "RECENT_MEDIAN",
+          "baselinePointCount": 12,
+          "baselineValue": 0.94,
+          "correlatedReleaseId": null,
+          "createdAt": "2031-01-22T11:00:00.000Z",
+          "detectedAt": "2031-01-22T11:00:00.000Z",
+          "direction": "DOWN",
+          "filters": {
+            "region": "SG"
+          },
+          "firstBreachedAt": "2031-01-22T10:00:00.000Z",
+          "id": "RISK-222",
+          "lastBreachedAt": "2031-01-22T11:00:00.000Z",
+          "metricKey": "digital_delivery_success_rate",
+          "minSampleSize": 500,
+          "observedValue": 0.7,
+          "provenance": "governed_dev_fixture",
+          "relativeDeviation": -0.2553191489361702,
+          "requiredConsecutiveBuckets": 3,
+          "sampleSize": 1200,
+          "segmentSignature": "region=SG",
+          "status": "OPEN",
+          "thresholdPct": 0.1,
+          "triggerBucketIds": [
+            "MB-222-001",
+            "MB-222-002",
+            "MB-222-003"
+          ],
+          "triggerSignature": "risk:222",
+          "updatedAt": "2031-01-22T11:00:00.000Z"
+        }
+      },
+      "leakage_control": "The harness projects a strict execution whitelist and removes Gold, evidence roles, case metadata, and provenance before Planner execution.",
+      "potential_answer_leakage": "Gold and fixture observations share an evaluator-owned source module.",
+      "provenance_description": "Sparse-feedback evidence boundary with multiple viable explanations.",
+      "public_gold_basis": null,
+      "public_source": null,
+      "review_status": {
+        "groundTruthSemantics": "APPROVED",
+        "notes": [
+          "CASE-222: one ambiguous complaint cannot discriminate queue, eligibility, or notification hypotheses.",
+          "CASE-222: segment and feedback tools expose all available current evidence.",
+          "CASE-222: historical queue similarity remains a distractor and no true cause is hidden."
+        ],
+        "splitSimilarity": "APPROVED",
+        "toolSolvability": "APPROVED"
+      },
+      "source_class": "synthetic",
+      "unacceptable_statements": []
+    }
+  ],
+  "claim_boundary": "Offline reconstructed governed Dev cases; not 22 public incidents and not a Holdout set.",
+  "schema_version": "releaseguard-frozen-evaluation-dataset-v1",
+  "source_dataset": {
+    "caseEntries": [
+      {
+        "caseId": "CASE-201",
+        "category": "release_regression",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 0,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 0,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 2,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-201",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-201: version control and release timing jointly support release-level attribution.",
+            "CASE-201: get_release and segment_metric expose every required observation.",
+            "CASE-201: evidence topology is version isolation, not copied from another Dev case."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped version-isolation release regression.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "get_release",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-301"
+      },
+      {
+        "caseId": "CASE-202",
+        "category": "release_regression",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-202",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-202: release context, time series, and user-visible timeouts support the authored granularity.",
+            "CASE-202: current release, analytics, and feedback tools resolve required evidence.",
+            "CASE-202: historical index saturation is a reviewed distractor, not proof."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Multi-source web request-handling regression.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-302"
+      },
+      {
+        "caseId": "CASE-203",
+        "category": "release_regression",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 0,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 0,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 1,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-203",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-203: exposed-versus-control cohort evidence supports release-level attribution only.",
+            "CASE-203: release and app-version segmentation are sufficient at the canonical granularity.",
+            "CASE-203: the UI-label complaint is unrelated and reviewed as a realistic distractor."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped staged-cohort release regression.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "get_release",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-301"
+      },
+      {
+        "caseId": "CASE-204",
+        "category": "release_regression",
+        "difficulty": "HARD",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 2,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 2
+        },
+        "difficultyScore": 9,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-204",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-204: two release records, onset timing, and response-format feedback identify the earlier change.",
+            "CASE-204: opaque release IDs are supplied in the incident question so both records are queryable.",
+            "CASE-204: later UI release and regional uniformity were reviewed as false attribution paths."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Competing-release attribution with negative and user evidence.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-303"
+      },
+      {
+        "caseId": "CASE-205",
+        "category": "release_regression",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-205",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-205: rollout dose response and unexposed-version control support the release mechanism family.",
+            "CASE-205: release and analytics tools expose the complete required chain.",
+            "CASE-205: storage history and cosmetic feedback are distinct reviewed distractors."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Dose-response rollout regression with noisy feedback and history.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-302"
+      },
+      {
+        "caseId": "CASE-206",
+        "category": "configuration",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 0,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 2,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-206",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-206: declared flag exposure and control-cohort divergence support configuration attribution.",
+            "CASE-206: get_release and segment_metric expose all decisive facts without a config-center tool.",
+            "CASE-206: cosmetic feedback is not part of the causal graph."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped feature-flag cohort isolation.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "get_release",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-304"
+      },
+      {
+        "caseId": "CASE-207",
+        "category": "configuration",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-207",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-207: visible flag context, result depth, and user-type control support the configured cap.",
+            "CASE-207: no hidden configuration value is required beyond release and analytics observations.",
+            "CASE-207: index-lag history and thumbnail latency were reviewed as plausible distractors."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Observable result-cap configuration regression.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-305"
+      },
+      {
+        "caseId": "CASE-208",
+        "category": "configuration",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 4,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-208",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-208: dose response by exposure and app-version controls isolate rollout configuration.",
+            "CASE-208: release and analytics tools provide the required observable facts.",
+            "CASE-208: icon feedback is temporally related but causally irrelevant."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Percentage rollout configuration with version controls.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-306"
+      },
+      {
+        "caseId": "CASE-209",
+        "category": "configuration",
+        "difficulty": "HARD",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 2,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 8,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-209",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-209: unrelated client module, narrow cohort, and eligibility feedback isolate the rule rollout.",
+            "CASE-209: release, segment, and feedback tools expose all required observations.",
+            "CASE-209: the high-similarity checkout history was reviewed as an adversarial distractor."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Hard code-versus-configuration attribution using three current sources.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-304"
+      },
+      {
+        "caseId": "CASE-210",
+        "category": "upstream_dependency",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-210",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-210: cross-platform regional isolation and provider-specific feedback support dependency attribution.",
+            "CASE-210: segment_metric and feedback expose the cause family without traces or provider logs.",
+            "CASE-210: the unrelated Android release and SDK history were reviewed as distractors."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Region-wide observable payment-provider failure.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-307"
+      },
+      {
+        "caseId": "CASE-211",
+        "category": "upstream_dependency",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 0,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-211",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-211: regional latency, carrier-specific feedback, and normal checkout exclude a broad regression.",
+            "CASE-211: analytics and feedback tools support dependency-family attribution without internal logs.",
+            "CASE-211: the absent release record is retained as a non-causal contextual distractor."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Carrier quote dependency latency visible through regional metrics and feedback.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "query_metric",
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-308"
+      },
+      {
+        "caseId": "CASE-212",
+        "category": "upstream_dependency",
+        "difficulty": "HARD",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 2,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 2
+        },
+        "difficultyScore": 9,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-212",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-212: cross-platform region pattern and identity-page feedback contradict a mobile-only cause.",
+            "CASE-212: release, segment, and feedback tools support the observable dependency family.",
+            "CASE-212: the near-match token history is explicitly reviewed as non-proof."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Hard external identity failure with release and historical traps.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-307"
+      },
+      {
+        "caseId": "CASE-213",
+        "category": "user_feedback",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 0,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 0,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 1,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-213",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-213: stable completed accounts and complete absence of user impact support under-reporting.",
+            "CASE-213: query_metric and feedback retrieval expose both required controls.",
+            "CASE-213: uniform regional event loss does not identify a user-impacting segment."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped metric-versus-business-outcome contradiction.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-309"
+      },
+      {
+        "caseId": "CASE-214",
+        "category": "user_feedback",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-214",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-214: normal order outcomes and rendering-specific feedback bound the diagnosis.",
+            "CASE-214: analytics and feedback tools distinguish experience latency from transaction failure.",
+            "CASE-214: release context and database history are reviewed as non-decisive."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "User-experience latency separated from transaction correctness.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-310"
+      },
+      {
+        "caseId": "CASE-215",
+        "category": "user_feedback",
+        "difficulty": "HARD",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 1,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 1,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 8,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-215",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-215: stable downstream visits, complete feedback, and SDK release context support telemetry failure.",
+            "CASE-215: three current source kinds provide the required evidence without hidden SDK logs.",
+            "CASE-215: ranking-history similarity is reviewed as a high-relevance but contradicted distractor."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Hard telemetry false alarm with current controls and historical trap.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-309"
+      },
+      {
+        "caseId": "CASE-216",
+        "category": "unknown",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 0,
+          "distractorCount": 0,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 0,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 1,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-216",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-216: unchanged within-cohort rates and changed weights prove a benign composition effect.",
+            "CASE-216: segment_metric and query_metric expose the complete weighted comparison.",
+            "CASE-216: no release exists, preventing reuse of a release-regression template."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped Simpson's-paradox traffic mix case.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "query_metric",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-311"
+      },
+      {
+        "caseId": "CASE-217",
+        "category": "unknown",
+        "difficulty": "EASY",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 0,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 0,
+          "sourceCount": 0,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 2,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-217",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-217: sample size and immediate recovery distinguish noise from persistent impact.",
+            "CASE-217: query_metric alone contains the decisive time-series and quality evidence.",
+            "CASE-217: prior-day feedback is outside the current window and reviewed as distractor noise."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Transient low-sample anomaly with complete recovery evidence.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "query_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-312"
+      },
+      {
+        "caseId": "CASE-218",
+        "category": "unknown",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 1,
+          "distractorCount": 1,
+          "evidenceCompleteness": 0,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-218",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-218: volume, reliability controls, and promotion feedback support expected demand behavior.",
+            "CASE-218: analytics and feedback are sufficient without a campaign-management tool.",
+            "CASE-218: unrelated release and cart-error history are reviewed as alternative false leads."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Expected promotional cohort behavior with release and history distractors.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "query_metric",
+          "search_user_feedback"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-311"
+      },
+      {
+        "caseId": "CASE-219",
+        "category": "insufficient_evidence",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 0,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 2,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 7,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-219",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-219: platform overlap and conflicting feedback leave release and provider hypotheses viable.",
+            "CASE-219: all available release, analytics, and feedback observations are represented.",
+            "CASE-219: no hidden true cause exists; history is a clue only and split structure is unique."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Production-shaped unresolved release-versus-provider competition.",
+          "sourceReference": "repository://releaseguard/governed-dev-authoring",
+          "sourceType": "repository_native"
+        },
+        "requiredTools": [
+          "get_release",
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-313"
+      },
+      {
+        "caseId": "CASE-220",
+        "category": "insufficient_evidence",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 0,
+          "evidenceCompleteness": 2,
+          "plausibleHypotheses": 1,
+          "sourceCount": 0,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-220",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-220: low sample and empty segmentation establish an evidence boundary, not a hidden cause.",
+            "CASE-220: query_metric and segment_metric fully represent the available observations.",
+            "CASE-220: no-release context is a distractor, and no decisive fixture data is withheld."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Missing segmentation and corroboration boundary.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "query_metric",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-314"
+      },
+      {
+        "caseId": "CASE-221",
+        "category": "insufficient_evidence",
+        "difficulty": "HARD",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 1,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 2,
+          "sourceCount": 2,
+          "temporalCorrelationTrap": 1
+        },
+        "difficultyScore": 9,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-221",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-221: partial version controls and unavailable feedback do not confirm the historical mechanism.",
+            "CASE-221: current release, analytics, and feedback availability are all tool-observable.",
+            "CASE-221: historical similarity is deliberately labeled distractor and never required proof."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Hard historical-memory trap with no current mechanism evidence.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "get_release",
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-315"
+      },
+      {
+        "caseId": "CASE-222",
+        "category": "insufficient_evidence",
+        "difficulty": "MEDIUM",
+        "difficultyDimensions": {
+          "causalDirectness": 2,
+          "distractorCount": 0,
+          "evidenceCompleteness": 1,
+          "plausibleHypotheses": 1,
+          "sourceCount": 1,
+          "temporalCorrelationTrap": 0
+        },
+        "difficultyScore": 5,
+        "enabled": true,
+        "fixtureRef": "benchmark-fixture://FX-222",
+        "manualReview": {
+          "groundTruthSemantics": "APPROVED",
+          "notes": [
+            "CASE-222: one ambiguous complaint cannot discriminate queue, eligibility, or notification hypotheses.",
+            "CASE-222: segment and feedback tools expose all available current evidence.",
+            "CASE-222: historical queue similarity remains a distractor and no true cause is hidden."
+          ],
+          "splitSimilarity": "APPROVED",
+          "toolSolvability": "APPROVED"
+        },
+        "provenance": {
+          "description": "Sparse-feedback evidence boundary with multiple viable explanations.",
+          "sourceType": "synthetic"
+        },
+        "requiredTools": [
+          "search_user_feedback",
+          "segment_metric"
+        ],
+        "schemaVersion": "1",
+        "split": "DEV",
+        "templateFamily": "TPL-314"
+      }
+    ],
+    "createdAt": "2031-02-01T00:00:00.000Z",
+    "datasetId": "INVESTIGATION-BENCHMARK-DEV",
+    "evaluationContractVersion": "phase1a-v2",
+    "expectedDatasetHash": "c07959702947f821eaf635b68ec2a2d162dee403c3c9ebc3fea2b4689c4fb073",
+    "purpose": "GOVERNED_DEV",
+    "schemaVersion": "1",
+    "updatedAt": "2031-02-01T00:00:00.000Z",
+    "version": "0.2.0"
+  }
+}
