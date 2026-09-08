@@ -55,7 +55,7 @@ test("renders development preview metadata", async () => {
   assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
 });
 
-test("renders the generated benchmark viewer without hard-coded result claims", async () => {
+test("renders the public Final V8 evidence summary without low-level judge scores", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("benchmark-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -66,9 +66,13 @@ test("renders the generated benchmark viewer without hard-coded result claims", 
   );
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /正在载入可审计评测结果/);
-  assert.match(html, /页面只读取生成的 summary\.json/);
-  assert.doesNotMatch(html, /真实企业生产数据.*22 个公开事故/);
+  assert.match(html, /22 \/ 22/);
+  assert.match(html, /14 \/ 22/);
+  assert.match(html, /受控工具调用/);
+  assert.match(html, /Failure Analysis/);
+  assert.match(html, /不代表生产环境准确率/);
+  assert.doesNotMatch(html, /严格根因准确率|Strict Blind Judge|Grounded diagnosis/);
+  assert.doesNotMatch(html, /score2Strict|rootCauseScore|rawDirectory/);
   assert.doesNotMatch(html, /API Key|Fine-grained access token/);
 });
 

@@ -10,12 +10,21 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, "李超_AI产品经理_项目作品集.pptx");
 const screenshotDir = "C:/Users/eason/.codex/visualizations/2026/08/09/019fe640-9e81-78f3-82f3-cd996fc8cfac";
 const homeShot = path.join(screenshotDir, "releaseguard-home.png");
+const evidenceShot = path.join(screenshotDir, "releaseguard-evidence.png");
+const approvalShot = path.join(screenshotDir, "releaseguard-approval.png");
+const evidenceUiCrop = path.join(screenshotDir, "releaseguard-evidence-portfolio-crop.png");
+const approvalUiCrop = path.join(screenshotDir, "releaseguard-approval-portfolio-crop.png");
+
+await Promise.all([
+  sharp(evidenceShot).extract({ left: 250, top: 120, width: 1175, height: 680 }).toFile(evidenceUiCrop),
+  sharp(approvalShot).extract({ left: 250, top: 120, width: 1175, height: 680 }).toFile(approvalUiCrop),
+]);
 
 const pptx = new PptxGenJS();
 pptx.layout = "LAYOUT_WIDE";
 pptx.author = "李超";
-pptx.subject = "2027届秋招 AI 产品经理项目作品集";
-pptx.title = "李超｜AI 产品经理项目作品集";
+pptx.subject = "ReleaseGuard AI Portfolio v1.0";
+pptx.title = "ReleaseGuard AI｜AI 产品经理项目作品集";
 pptx.company = "UNSW";
 pptx.lang = "zh-CN";
 pptx.theme = {
@@ -28,368 +37,977 @@ pptx.defineSlideMaster({
   background: { color: "F7F9FC" },
   objects: [
     { rect: { x: 0, y: 0, w: 13.333, h: 0.08, fill: { color: "2155F5" }, line: { color: "2155F5" } } },
-    { text: { text: "李超 · AI 产品经理作品集", options: { x: 0.55, y: 7.13, w: 3.1, h: 0.18, fontFace: "Microsoft YaHei", fontSize: 8.5, color: "7C879A", margin: 0 } } },
+    { text: { text: "李超 · ReleaseGuard AI 作品集 v1.0", options: { x: 0.55, y: 7.13, w: 3.8, h: 0.18, fontFace: "Microsoft YaHei", fontSize: 8.5, color: "7C879A", margin: 0 } } },
     { text: { text: "2027 校招", options: { x: 11.7, y: 7.13, w: 1.05, h: 0.18, fontFace: "Microsoft YaHei", fontSize: 8.5, color: "7C879A", align: "right", margin: 0 } } },
   ],
-  slideNumber: { x: 12.82, y: 7.11, w: 0.22, h: 0.2, color: "7C879A", fontSize: 8.5, align: "right" },
+  slideNumber: { x: 12.58, y: 7.11, w: 0.46, h: 0.2, color: "7C879A", fontSize: 8.5, align: "right" },
 });
 
 const C = {
-  navy: "102A56", blue: "2155F5", blue2: "4E7BFF", pale: "EAF0FF", pale2: "F1F5FF",
-  ink: "182235", sub: "566276", muted: "7C879A", line: "DCE3EF", white: "FFFFFF",
-  red: "D84A5D", redPale: "FFF0F2", amber: "D48A16", amberPale: "FFF7E8", cyan: "1E8FB3", cyanPale: "EAF8FC"
+  navy: "102A56",
+  blue: "2155F5",
+  blue2: "4E7BFF",
+  pale: "EAF0FF",
+  pale2: "F1F5FF",
+  ink: "182235",
+  sub: "566276",
+  muted: "7C879A",
+  line: "DCE3EF",
+  white: "FFFFFF",
+  red: "D84A5D",
+  redPale: "FFF0F2",
+  amber: "D48A16",
+  amberPale: "FFF7E8",
+  cyan: "1E8FB3",
+  cyanPale: "EAF8FC",
+  green: "167A5B",
+  greenPale: "EAF7F2",
 };
 const font = "Microsoft YaHei";
 const noLine = { color: "FFFFFF", transparency: 100 };
 
 function addText(slide, text, x, y, w, h, opts = {}) {
   slide.addText(text, {
-    x, y, w, h, fontFace: font, fontSize: 14, color: C.ink, margin: 0,
-    valign: "mid", breakLine: false, fit: "shrink", ...opts,
+    x,
+    y,
+    w,
+    h,
+    fontFace: font,
+    fontSize: 14,
+    color: C.ink,
+    margin: 0,
+    valign: "mid",
+    fit: "shrink",
+    ...opts,
   });
 }
 
-function addTitle(slide, kicker, title, conclusion) {
-  addText(slide, kicker.toUpperCase(), 0.62, 0.34, 3.5, 0.24, { fontSize: 10.5, bold: true, color: C.blue, charSpacing: 1.1 });
-  addText(slide, title, 0.62, 0.68, 12.0, 0.52, { fontSize: 28.5, bold: true, color: C.navy });
-  addText(slide, conclusion, 0.62, 1.25, 11.9, 0.4, { fontSize: 14.5, color: C.sub });
+function addTitle(slide, number, kicker, title, conclusion) {
+  addText(slide, `${number}  ${kicker.toUpperCase()}`, 0.62, 0.31, 4.3, 0.25, {
+    fontSize: 10.5,
+    bold: true,
+    color: C.blue,
+    charSpacing: 1,
+  });
+  addText(slide, title, 0.62, 0.66, 12.0, 0.54, {
+    fontSize: 28,
+    bold: true,
+    color: C.navy,
+  });
+  addText(slide, conclusion, 0.62, 1.23, 11.9, 0.42, {
+    fontSize: 14,
+    color: C.sub,
+  });
 }
 
 function card(slide, x, y, w, h, opts = {}) {
   slide.addShape(pptx.ShapeType.roundRect, {
-    x, y, w, h, rectRadius: 0.08,
+    x,
+    y,
+    w,
+    h,
+    rectRadius: 0.06,
     fill: { color: opts.fill || C.white },
     line: { color: opts.line || C.line, width: opts.lineWidth || 1 },
-    shadow: opts.shadow === false ? undefined : { type: "outer", color: "9AA8BF", opacity: 0.10, blur: 1.2, angle: 45, distance: 1 },
+    shadow: opts.shadow === false
+      ? undefined
+      : { type: "outer", color: "9AA8BF", opacity: 0.08, blur: 1, angle: 45, distance: 1 },
   });
 }
 
 function pill(slide, text, x, y, w, fill = C.pale, color = C.blue) {
-  slide.addShape(pptx.ShapeType.roundRect, { x, y, w, h: 0.28, fill: { color: fill }, line: noLine, rectRadius: 0.14 });
-  addText(slide, text, x + 0.05, y + 0.01, w - 0.1, 0.24, { fontSize: 10.5, bold: true, color, align: "center" });
+  slide.addShape(pptx.ShapeType.roundRect, {
+    x,
+    y,
+    w,
+    h: 0.3,
+    fill: { color: fill },
+    line: noLine,
+    rectRadius: 0.15,
+  });
+  addText(slide, text, x + 0.05, y + 0.02, w - 0.1, 0.24, {
+    fontSize: 10.5,
+    bold: true,
+    color,
+    align: "center",
+  });
 }
 
 function arrow(slide, x1, y1, x2, y2, color = C.blue, width = 1.6) {
-  slide.addShape(pptx.ShapeType.line, { x: x1, y: y1, w: x2 - x1, h: y2 - y1, line: { color, width, endArrowType: "triangle" } });
+  slide.addShape(pptx.ShapeType.line, {
+    x: x1,
+    y: y1,
+    w: x2 - x1,
+    h: y2 - y1,
+    line: { color, width, endArrowType: "triangle" },
+  });
 }
 
 function dot(slide, n, x, y, fill = C.blue) {
-  slide.addShape(pptx.ShapeType.ellipse, { x, y, w: 0.34, h: 0.34, fill: { color: fill }, line: noLine });
-  addText(slide, String(n), x, y + 0.01, 0.34, 0.29, { fontSize: 10.5, bold: true, color: C.white, align: "center" });
+  slide.addShape(pptx.ShapeType.ellipse, {
+    x,
+    y,
+    w: 0.36,
+    h: 0.36,
+    fill: { color: fill },
+    line: noLine,
+  });
+  addText(slide, String(n), x, y + 0.02, 0.36, 0.29, {
+    fontSize: 10.5,
+    bold: true,
+    color: C.white,
+    align: "center",
+  });
 }
 
 function metricCard(slide, x, y, w, label, value, sub, accent = C.blue) {
-  card(slide, x, y, w, 1.28, { shadow: false });
-  slide.addShape(pptx.ShapeType.rect, { x, y, w: 0.06, h: 1.28, fill: { color: accent }, line: noLine });
-  addText(slide, label, x + 0.22, y + 0.15, w - 0.35, 0.25, { fontSize: 11.5, bold: true, color: C.sub });
-  addText(slide, value, x + 0.22, y + 0.43, w - 0.35, 0.46, { fontSize: 28, bold: true, color: C.navy });
-  addText(slide, sub, x + 0.22, y + 0.95, w - 0.35, 0.2, { fontSize: 9.5, color: C.muted });
-}
-
-async function imageContain(slide, imagePath, x, y, w, h) {
-  const m = await sharp(imagePath).metadata();
-  const ratio = m.width / m.height;
-  const box = w / h;
-  let iw = w, ih = h, ix = x, iy = y;
-  if (ratio > box) { ih = w / ratio; iy = y + (h - ih) / 2; }
-  else { iw = h * ratio; ix = x + (w - iw) / 2; }
-  slide.addImage({ path: imagePath, x: ix, y: iy, w: iw, h: ih });
+  card(slide, x, y, w, 1.25, { shadow: false });
+  slide.addShape(pptx.ShapeType.rect, {
+    x,
+    y,
+    w: 0.06,
+    h: 1.25,
+    fill: { color: accent },
+    line: noLine,
+  });
+  addText(slide, label, x + 0.22, y + 0.14, w - 0.34, 0.23, {
+    fontSize: 11,
+    bold: true,
+    color: C.sub,
+  });
+  addText(slide, value, x + 0.22, y + 0.39, w - 0.34, 0.43, {
+    fontSize: 25,
+    bold: true,
+    color: C.navy,
+  });
+  addText(slide, sub, x + 0.22, y + 0.9, w - 0.34, 0.22, {
+    fontSize: 9.5,
+    color: C.muted,
+  });
 }
 
 function sectionLabel(slide, text, x, y, color = C.blue) {
-  slide.addShape(pptx.ShapeType.rect, { x, y: y + 0.05, w: 0.05, h: 0.24, fill: { color }, line: noLine });
-  addText(slide, text, x + 0.14, y, 2.8, 0.34, { fontSize: 12, bold: true, color: C.navy });
+  slide.addShape(pptx.ShapeType.rect, {
+    x,
+    y: y + 0.05,
+    w: 0.05,
+    h: 0.24,
+    fill: { color },
+    line: noLine,
+  });
+  addText(slide, text, x + 0.14, y, 3.2, 0.34, {
+    fontSize: 12,
+    bold: true,
+    color: C.navy,
+  });
 }
 
-// 1. Cover
+async function imageContain(slide, imagePath, x, y, w, h) {
+  const metadata = await sharp(imagePath).metadata();
+  const ratio = metadata.width / metadata.height;
+  const box = w / h;
+  let imageWidth = w;
+  let imageHeight = h;
+  let imageX = x;
+  let imageY = y;
+  if (ratio > box) {
+    imageHeight = w / ratio;
+    imageY = y + (h - imageHeight) / 2;
+  } else {
+    imageWidth = h * ratio;
+    imageX = x + (w - imageWidth) / 2;
+  }
+  slide.addImage({ path: imagePath, x: imageX, y: imageY, w: imageWidth, h: imageHeight });
+}
+
+function addSource(slide, text) {
+  addText(slide, text, 0.65, 6.82, 11.95, 0.17, {
+    fontSize: 8.5,
+    color: C.muted,
+    align: "right",
+  });
+}
+
+// 01 Project overview
 {
   const s = pptx.addSlide("MASTER");
   s.background = { color: "F7F9FC" };
-  s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 4.72, h: 7.5, fill: { color: C.navy }, line: noLine });
-  s.addShape(pptx.ShapeType.rect, { x: 0.62, y: 0.66, w: 0.46, h: 0.06, fill: { color: C.blue2 }, line: noLine });
-  addText(s, "AI PRODUCT MANAGER", 0.62, 0.84, 3.15, 0.28, { fontSize: 11, bold: true, color: "9EB5FF", charSpacing: 1.4 });
-  addText(s, "李超", 0.62, 1.39, 3.2, 0.65, { fontSize: 35, bold: true, color: C.white });
-  addText(s, "AI 产品经理\n项目作品集", 0.62, 2.13, 3.3, 1.25, { fontSize: 27, bold: true, color: C.white, breakLine: true, valign: "top", paraSpaceAfterPt: 5 });
-  addText(s, "把 AI 从 Demo 变成\n可评测、可约束、可落地的产品", 0.62, 3.66, 3.35, 0.9, { fontSize: 17, color: "D7E0F7", breakLine: true, valign: "top", breakLineOnOverflow: false });
-  addText(s, "UNSW Master of Information Technology\nArtificial Intelligence 方向 · 2027 届校招", 0.62, 5.55, 3.45, 0.72, { fontSize: 12.5, color: "B9C7E5", breakLine: true, valign: "top" });
-  pill(s, "求职方向  AI 产品经理", 0.62, 6.42, 2.45, "24477D", "FFFFFF");
+  s.addShape(pptx.ShapeType.rect, {
+    x: 0,
+    y: 0,
+    w: 4.48,
+    h: 7.5,
+    fill: { color: C.navy },
+    line: noLine,
+  });
+  addText(s, "RELEASEGUARD AI", 0.6, 0.58, 3.2, 0.28, {
+    fontSize: 11,
+    bold: true,
+    color: "9EB5FF",
+    charSpacing: 1.4,
+  });
+  addText(s, "发布异常调查\nAgent", 0.6, 1.18, 3.25, 1.15, {
+    fontSize: 31,
+    bold: true,
+    color: C.white,
+    breakLine: true,
+    valign: "top",
+  });
+  addText(s, "面向产品经理、产品负责人\n与发布负责人", 0.6, 2.62, 3.25, 0.72, {
+    fontSize: 15,
+    color: "D7E0F7",
+    breakLine: true,
+    valign: "top",
+  });
+  addText(s, "场景", 0.6, 3.72, 0.8, 0.23, {
+    fontSize: 10.5,
+    bold: true,
+    color: "9EB5FF",
+  });
+  addText(s, "版本上线后，核心业务指标出现异常", 0.6, 4.06, 3.18, 0.62, {
+    fontSize: 17,
+    bold: true,
+    color: C.white,
+    valign: "top",
+  });
+  addText(s, "我的工作", 0.6, 5.1, 0.9, 0.23, {
+    fontSize: 10.5,
+    bold: true,
+    color: "9EB5FF",
+  });
+  addText(s, "产品定义 · Agent 产品设计\n评测体系 · 迭代决策", 0.6, 5.44, 3.15, 0.75, {
+    fontSize: 15,
+    bold: true,
+    color: C.white,
+    breakLine: true,
+    valign: "top",
+  });
+  pill(s, "作品集 v1.0 · 非生产数据", 0.6, 6.43, 2.65, "24477D", C.white);
 
-  addText(s, "我关注的不只是模型能否回答，\n而是产品能否稳定完成任务。", 5.35, 0.82, 7.1, 0.9, { fontSize: 23, bold: true, color: C.navy, breakLine: true, valign: "top" });
-  const nodes = [
-    ["业务问题", "定义值得解决的场景"], ["Agent 工作流", "模型 + 工具 + 状态 + 约束"],
-    ["评测体系", "指标 + Case Review"], ["产品落地", "Prototype · Demo · Deployment"]
+  addText(s, "帮助团队判断：\n究竟是不是这次发布导致的？", 5.05, 0.72, 7.35, 1.02, {
+    fontSize: 26,
+    bold: true,
+    color: C.navy,
+    breakLine: true,
+    valign: "top",
+  });
+  addText(s, "系统维护竞争假设，通过受控工具取证与证据约束形成诊断；证据不足时给出有界结论，外部动作始终需要人工审批。", 5.05, 1.92, 7.25, 0.72, {
+    fontSize: 15,
+    color: C.sub,
+    valign: "top",
+  });
+  card(s, 5.05, 2.94, 7.34, 3.2, { fill: C.white, line: "C9D7FF" });
+  await imageContain(s, homeShot, 5.28, 3.17, 4.55, 2.74);
+  s.addShape(pptx.ShapeType.rect, {
+    x: 10.08,
+    y: 3.17,
+    w: 0.04,
+    h: 2.74,
+    fill: { color: C.line },
+    line: noLine,
+  });
+  addText(s, "调查闭环", 10.42, 3.26, 1.4, 0.25, {
+    fontSize: 11,
+    bold: true,
+    color: C.blue,
+  });
+  addText(s, "风险信号\n调查\n证据\n诊断\n审批\n验证", 10.42, 3.68, 1.58, 1.92, {
+    fontSize: 14,
+    bold: true,
+    color: C.navy,
+    breakLine: true,
+    valign: "top",
+  });
+  addSource(s, "公开演示使用确定性回放数据，不触发真实外部写操作。");
+}
+
+// 02 User problem
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "02", "用户问题", "发布后的第一判断，常常缺少完整证据", "指标变化与发布时间接近，只能说明相关；可靠归因需要跨信息源验证。");
+
+  const flow = [
+    ["新版本上线", "发布记录"],
+    ["核心指标下降", "业务指标"],
+    ["团队开始排查", "产品、研发与数据团队"],
+    ["信息分散", "分群、反馈与历史事故"],
+    ["过早归因", "“一定是版本导致”"],
   ];
-  nodes.forEach((n, i) => {
-    const x = 5.35 + (i % 2) * 3.56, y = 2.06 + Math.floor(i / 2) * 1.48;
-    card(s, x, y, 3.18, 1.12, { shadow: false, line: i === 1 ? C.blue : C.line, fill: i === 1 ? C.pale2 : C.white });
-    dot(s, i + 1, x + 0.2, y + 0.2, i === 1 ? C.blue : C.navy);
-    addText(s, n[0], x + 0.68, y + 0.16, 2.25, 0.3, { fontSize: 15, bold: true, color: C.navy });
-    addText(s, n[1], x + 0.2, y + 0.63, 2.75, 0.24, { fontSize: 10.5, color: C.sub });
-  });
-  card(s, 5.35, 5.16, 6.75, 1.12, { fill: C.navy, line: C.navy, shadow: false });
-  addText(s, "核心能力", 5.65, 5.39, 1.0, 0.26, { fontSize: 11, bold: true, color: "9EB5FF" });
-  addText(s, "产品定义  ·  Agent 机制  ·  数据评测  ·  失败复盘  ·  Demo 落地", 5.65, 5.72, 5.95, 0.3, { fontSize: 13.5, bold: true, color: C.white });
-}
-
-// 2. Why ReleaseGuard
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "PROJECT 01 · RELEASEGUARD AI", "让上线异常从“人工排查”变成“Agent 调查”", "核心不是让 AI 直接给答案，而是让它基于工具调用和证据逐步完成调查。");
-
-  card(s, 0.62, 1.88, 4.45, 4.72, { fill: "FFFDFD", line: "F1DCE0", shadow: false });
-  pill(s, "传统流程", 0.9, 2.14, 1.05, C.redPale, C.red);
-  addText(s, "信息碎片化，让调查依赖经验与跨团队协作", 0.9, 2.56, 3.82, 0.46, { fontSize: 17, bold: true, color: C.navy });
-  const oldFlow = ["异常发现", "查指标", "查发布", "找团队", "猜根因", "决策"];
-  oldFlow.forEach((t, i) => {
-    const yy = 3.18 + i * 0.49;
-    dot(s, i + 1, 0.95, yy, i === 4 ? C.red : "8190A8");
-    addText(s, t, 1.43, yy - 0.01, 1.35, 0.32, { fontSize: 13.5, bold: i === 4, color: i === 4 ? C.red : C.ink });
-    if (i < oldFlow.length - 1) s.addShape(pptx.ShapeType.line, { x: 1.12, y: yy + 0.34, w: 0, h: 0.15, line: { color: "C8D0DD", width: 1.1 } });
-  });
-  addText(s, "多系统切换  ·  人工提出假设\n调查耗时长  ·  直接总结易产生无依据结论", 2.68, 3.25, 1.98, 2.4, { fontSize: 12.5, color: C.sub, breakLine: true, valign: "top", breakLineOnOverflow: false });
-  card(s, 0.9, 6.01, 3.83, 0.38, { fill: C.redPale, line: C.redPale, shadow: false });
-  addText(s, "痛点：答案快，但无法说明“为什么可信”", 1.05, 6.07, 3.52, 0.23, { fontSize: 11, bold: true, color: C.red });
-
-  arrow(s, 5.25, 4.22, 5.88, 4.22, C.blue, 2.2);
-  pill(s, "流程重构", 5.18, 3.62, 0.85, C.pale, C.blue);
-
-  card(s, 6.08, 1.88, 6.63, 4.72, { fill: C.white, line: "C9D7FF" });
-  pill(s, "产品方案", 6.38, 2.14, 1.05, C.pale, C.blue);
-  addText(s, "证据驱动的受约束 Agent Loop", 6.38, 2.54, 4.5, 0.4, { fontSize: 19, bold: true, color: C.navy });
-  await imageContain(s, homeShot, 6.38, 3.06, 3.62, 2.05);
-  s.addShape(pptx.ShapeType.roundRect, { x: 10.25, y: 3.06, w: 2.12, h: 2.05, fill: { color: C.navy }, line: noLine, rectRadius: 0.08 });
-  addText(s, "统计检测\n→ 风险事件\n→ Agent 调查\n→ 审批与验证", 10.53, 3.34, 1.56, 1.45, { fontSize: 14.2, bold: true, color: C.white, breakLine: true, valign: "top", breakLineOnOverflow: false });
-  card(s, 6.38, 5.38, 5.99, 0.83, { fill: C.pale2, line: C.pale, shadow: false });
-  addText(s, "可追踪：每一步有状态   ·   可回溯：结论关联证据   ·   可审计：外部动作需审批", 6.65, 5.58, 5.45, 0.38, { fontSize: 12, bold: true, color: C.blue, align: "center" });
-  addText(s, "真实界面截取自 ReleaseGuard 公开演示；数据为确定性 Demo / Replay，不代表生产流量。", 6.38, 6.26, 5.98, 0.2, { fontSize: 9, color: C.muted });
-}
-
-// 3. Agent workflow
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "PRODUCT MECHANISM", "Agent 不是一个 Prompt，而是一条可控的产品工作流", "模型负责规划，工具负责取证，运行时负责约束；证据不足时继续调查，而不是提前下结论。");
-  const top = ["Risk Event", "Planner", "竞争假设", "Tool Calling", "Evidence", "Diagnosis"];
-  top.forEach((t, i) => {
-    const x = 0.68 + i * 2.03;
-    card(s, x, 1.96, 1.58, 0.7, { fill: i === 0 ? C.navy : (i === 4 ? C.pale2 : C.white), line: i === 4 ? C.blue : C.line, shadow: false });
-    addText(s, t, x + 0.08, 2.14, 1.42, 0.28, { fontSize: 12.5, bold: true, color: i === 0 ? C.white : C.navy, align: "center" });
-    if (i < top.length - 1) arrow(s, x + 1.62, 2.31, x + 1.98, 2.31, "8795AA", 1.2);
-  });
-  card(s, 10.8, 2.91, 1.78, 0.75, { fill: C.amberPale, line: "F0D397", shadow: false });
-  addText(s, "证据充分？", 10.95, 3.11, 1.48, 0.28, { fontSize: 13, bold: true, color: C.navy, align: "center" });
-  arrow(s, 11.72, 2.69, 11.72, 2.91, C.amber, 1.5);
-  addText(s, "不足", 9.73, 3.14, 0.55, 0.22, { fontSize: 10.5, bold: true, color: C.red, align: "right" });
-  s.addShape(pptx.ShapeType.line, { x: 4.8, y: 3.29, w: 6.0, h: 0, line: { color: C.red, width: 1.4, beginArrowType: "triangle" } });
-  addText(s, "返回 Planner / Tool Calling", 6.15, 3.37, 2.35, 0.24, { fontSize: 10.5, bold: true, color: C.red, align: "center" });
-  addText(s, "充分", 11.96, 3.76, 0.55, 0.2, { fontSize: 10.5, bold: true, color: C.blue });
-  arrow(s, 11.72, 3.68, 11.72, 4.05, C.blue, 1.5);
-  const bottom = ["处置建议", "Human Approval", "Action", "Verification"];
-  bottom.forEach((t, i) => {
-    const x = 5.01 + i * 1.91;
-    card(s, x, 4.08, 1.58, 0.7, { fill: i === 1 ? C.pale2 : C.white, line: i === 1 ? C.blue : C.line, shadow: false });
-    addText(s, t, x + 0.06, 4.27, 1.46, 0.28, { fontSize: 11.8, bold: true, color: C.navy, align: "center" });
-    if (i < bottom.length - 1) arrow(s, x + 1.61, 4.43, x + 1.86, 4.43, "8795AA", 1.2);
-  });
-
-  const pillars = [
-    ["01 竞争假设", "同时保留多个可能原因，主动寻找支持与反驳证据。"],
-    ["02 Evidence-first", "每个结论必须回溯到 ToolResult 产生的 Evidence。"],
-    ["03 Human-in-the-loop", "高风险外部动作冻结参数并等待一次明确审批。"]
-  ];
-  pillars.forEach((p, i) => {
-    const x = 0.68 + i * 4.03;
-    card(s, x, 5.18, 3.72, 1.1, { fill: i === 1 ? C.pale2 : C.white, line: i === 1 ? C.blue : C.line, shadow: false });
-    addText(s, p[0], x + 0.22, 5.37, 3.25, 0.27, { fontSize: 13.2, bold: true, color: i === 1 ? C.blue : C.navy });
-    addText(s, p[1], x + 0.22, 5.73, 3.25, 0.38, { fontSize: 11.3, color: C.sub, valign: "top" });
-  });
-  addText(s, "运行支撑：Agent Loop · Tool Adapter · Approval · Verification · Benchmark · Harness · Scorer", 0.72, 6.55, 11.85, 0.23, { fontSize: 10.5, color: C.muted, align: "center" });
-}
-
-// 4. Benchmark
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "METRICS & BENCHMARK", "用任务完成、诊断质量、可信度、效率与人机协同共同评估", "评测目标不是“模型说得像不像”，而是 Agent 能否在约束内完成一次有据可查的调查。");
-  metricCard(s, 0.68, 1.9, 2.28, "Benchmark", "22 Case", "20 完成 · 2 失败", C.blue);
-  metricCard(s, 3.1, 1.9, 2.28, "全链路完成率", "90%+", "End-to-End Completion", C.blue2);
-  metricCard(s, 5.52, 1.9, 2.28, "根因识别准确率", "75–85%", "Root Cause Accuracy", C.cyan);
-  metricCard(s, 7.94, 1.9, 2.28, "有据结论率", "90%+", "Evidence-grounded", C.navy);
-  metricCard(s, 10.36, 1.9, 2.28, "无需人工纠偏", "约 70%", "No-intervention Rate", C.amber);
-
-  card(s, 0.68, 3.55, 5.12, 2.63, { shadow: false });
-  sectionLabel(s, "效率对比", 0.96, 3.8);
-  addText(s, "约 30 分钟", 0.95, 4.3, 1.95, 0.45, { fontSize: 22, bold: true, color: C.muted, align: "center" });
-  addText(s, "人工跨系统调查", 1.06, 4.82, 1.65, 0.22, { fontSize: 10.5, color: C.muted, align: "center" });
-  arrow(s, 2.94, 4.55, 3.53, 4.55, C.blue, 2.4);
-  addText(s, "约 5–8 分钟", 3.55, 4.3, 1.95, 0.45, { fontSize: 22, bold: true, color: C.blue, align: "center" });
-  addText(s, "Agent 调查", 3.7, 4.82, 1.65, 0.22, { fontSize: 10.5, color: C.blue, align: "center" });
-  card(s, 1.05, 5.4, 4.38, 0.48, { fill: C.pale2, line: C.pale, shadow: false });
-  addText(s, "效率提升来自流程自动化与有界工具调用，不来自省略证据。", 1.26, 5.51, 3.95, 0.24, { fontSize: 10.5, bold: true, color: C.blue, align: "center" });
-
-  card(s, 6.02, 3.55, 6.62, 2.63, { shadow: false });
-  sectionLabel(s, "评测闭环", 6.3, 3.8);
-  const evalSteps = [["Case", "输入与期望"], ["Harness", "固定约束"], ["Agent Run", "保留轨迹"], ["Scorer", "指标 + Case"]];
-  evalSteps.forEach((e, i) => {
-    const x = 6.35 + i * 1.5;
-    s.addShape(pptx.ShapeType.ellipse, { x, y: 4.37, w: 0.72, h: 0.72, fill: { color: i === 2 ? C.blue : C.pale }, line: { color: i === 2 ? C.blue : "BED0FF", width: 1 } });
-    addText(s, String(i + 1), x, 4.55, 0.72, 0.25, { fontSize: 13, bold: true, color: i === 2 ? C.white : C.blue, align: "center" });
-    addText(s, e[0], x - 0.25, 5.19, 1.22, 0.25, { fontSize: 11.5, bold: true, color: C.navy, align: "center" });
-    addText(s, e[1], x - 0.3, 5.51, 1.32, 0.2, { fontSize: 9.5, color: C.muted, align: "center" });
-    if (i < evalSteps.length - 1) arrow(s, x + 0.79, 4.73, x + 1.38, 4.73, "9AA8BF", 1.2);
-  });
-  addText(s, "数据口径：项目 22-case 确定性 Benchmark 与提供的评测汇总；合成/可复现实验数据，不代表生产流量。", 0.72, 6.46, 11.8, 0.22, { fontSize: 9.2, color: C.muted, align: "center" });
-}
-
-// 5. Case 205
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "FAILURE CASE · CASE-205", "一次失败 Case，暴露的不是“模型笨”，而是执行约束不充分", "当 region 分段返回 EMPTY，Planner 仍沿错误方向继续推理；修复重点因此落在 Harness 与语义校验机制。");
-  const cols = [
-    ["01 问题", "第一次运行", ["11 次模型调用", "5 次工具调用", "361 秒", "PRODUCT_METRIC → SUCCESS", "region → EMPTY", "终止：语义校验失败"], C.red, C.redPale],
-    ["02 原因", "错误调查方向未被及时切断", ["EMPTY 仍消耗预算", "错误 AFFECTED_SEGMENT", "Repair context 信息不足", "Known Slice 未注入"], C.amber, C.amberPale],
-    ["03 机制优化", "把失败变成可执行规则", ["优化 Harness selector", "EMPTY 不继续耗预算", "增加 INVALID_SEGMENT_GROUNDING", "增强 Evidence mapping", "注入 EMPTY + Known Slice", "Desktop / 6.5.0 / upload_success_rate"], C.blue, C.pale2],
-    ["04 结果", "Deterministic replay", ["12 次模型调用", "6 次工具调用", "212 秒", "删除错误 Segment", "进入 FINALIZE", "终态：INCONCLUSIVE"], C.navy, "EEF2F8"]
-  ];
-  cols.forEach((c, i) => {
-    const x = 0.62 + i * 3.16;
-    card(s, x, 1.92, 2.92, 4.43, { fill: C.white, line: i === 2 ? C.blue : C.line, shadow: false });
-    pill(s, c[0], x + 0.22, 2.17, 1.08, c[4], c[3]);
-    addText(s, c[1], x + 0.22, 2.66, 2.46, 0.56, { fontSize: 16, bold: true, color: C.navy, valign: "top" });
-    c[2].forEach((t, j) => {
-      s.addShape(pptx.ShapeType.ellipse, { x: x + 0.26, y: 3.44 + j * 0.44, w: 0.12, h: 0.12, fill: { color: c[3] }, line: noLine });
-      addText(s, t, x + 0.48, 3.34 + j * 0.44, 2.18, 0.3, { fontSize: 11.5, color: C.sub, bold: j === c[2].length - 1 && i !== 2 });
+  flow.forEach((item, index) => {
+    const x = 0.68 + index * 2.5;
+    card(s, x, 1.92, 2.06, 0.9, {
+      fill: index === 4 ? C.redPale : C.white,
+      line: index === 4 ? C.red : C.line,
+      shadow: false,
     });
-    if (i < 3) arrow(s, x + 2.95, 4.17, x + 3.11, 4.17, "99A6B9", 1.2);
+    addText(s, item[0], x + 0.14, 2.08, 1.78, 0.25, {
+      fontSize: 14,
+      bold: true,
+      color: index === 4 ? C.red : C.navy,
+      align: "center",
+    });
+    addText(s, item[1], x + 0.14, 2.42, 1.78, 0.2, {
+      fontSize: 9.5,
+      color: C.muted,
+      align: "center",
+    });
+    if (index < flow.length - 1) arrow(s, x + 2.08, 2.37, x + 2.42, 2.37, "96A5BA", 1.2);
   });
-  card(s, 0.9, 6.52, 11.48, 0.39, { fill: C.navy, line: C.navy, shadow: false });
-  addText(s, "INCONCLUSIVE ≠ 失败：证据不足时拒绝制造“看似合理”的根因，是可信 Agent 的产品能力。", 1.12, 6.6, 11.0, 0.23, { fontSize: 12.2, bold: true, color: C.white, align: "center" });
-}
 
-// 6. Customer-service QA
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "PROJECT 02 · AI 智能客服质检", "LLM 负责理解隐性语义，规则负责稳定边界，人负责最终裁决", "产品目标不是替代质检员，而是扩大覆盖、统一初判，并把争议 Case 送入可追溯的复核流程。");
-  card(s, 0.62, 1.88, 3.05, 4.77, { fill: C.navy, line: C.navy, shadow: false });
-  pill(s, "业务问题", 0.92, 2.18, 1.02, "24477D", C.white);
-  addText(s, "传统人工抽检", 0.92, 2.68, 2.38, 0.38, { fontSize: 20, bold: true, color: C.white });
-  const pains = [["覆盖率低", "只能抽样"], ["标准不一", "判断依赖经验"], ["隐性违规", "关键词难捕捉"], ["复核成本", "上下文回看耗时"]];
-  pains.forEach((p, i) => {
-    const yy = 3.35 + i * 0.68;
-    addText(s, `0${i + 1}`, 0.95, yy, 0.34, 0.25, { fontSize: 10.5, bold: true, color: "9EB5FF" });
-    addText(s, p[0], 1.4, yy - 0.03, 0.92, 0.27, { fontSize: 13, bold: true, color: C.white });
-    addText(s, p[1], 2.28, yy - 0.03, 1.0, 0.27, { fontSize: 10.5, color: "B9C7E5" });
-  });
-  addText(s, "产品判断：高覆盖不等于高可信，必须保留人工复核与版本化结果。", 0.92, 6.0, 2.38, 0.44, { fontSize: 11.3, bold: true, color: "D7E0F7", valign: "top" });
-
-  card(s, 3.94, 1.88, 8.77, 2.42, { shadow: false });
-  sectionLabel(s, "产品工作流", 4.23, 2.15);
-  const flow = ["会话数据", "规则初筛", "LLM 语义", "违规/风险", "扣分", "人工复核", "最终结果"];
-  flow.forEach((t, i) => {
-    const x = 4.22 + i * 1.16;
-    card(s, x, 2.75, 0.94, 0.78, { fill: i === 2 || i === 5 ? C.pale2 : C.white, line: i === 2 || i === 5 ? C.blue : C.line, shadow: false });
-    addText(s, t, x + 0.06, 2.96, 0.82, 0.34, { fontSize: 11, bold: true, color: C.navy, align: "center" });
-    if (i < flow.length - 1) arrow(s, x + 0.95, 3.14, x + 1.12, 3.14, "94A2B6", 1.1);
-  });
-  addText(s, "规则：关键词 / 正则 / SOP", 5.28, 3.68, 2.15, 0.2, { fontSize: 9.5, color: C.muted, align: "center" });
-  addText(s, "覆盖：质检概览 · 会话管理 · 规则 / 方案 / 任务 · 结果复核 · 离线评测", 7.08, 3.68, 5.0, 0.2, { fontSize: 9.5, color: C.muted, align: "right" });
-
-  card(s, 3.94, 4.55, 8.77, 2.1, { shadow: false });
-  sectionLabel(s, "重点 Case · 隐性推诿", 4.23, 4.82);
-  card(s, 4.28, 5.3, 2.22, 0.92, { fill: C.pale2, line: C.pale, shadow: false });
-  addText(s, "AI 初始判断", 4.49, 5.44, 1.8, 0.22, { fontSize: 11, bold: true, color: C.blue });
-  addText(s, "中度违规  ·  扣 10 分  ·  90 分", 4.49, 5.76, 1.8, 0.22, { fontSize: 12.2, bold: true, color: C.navy });
-  arrow(s, 6.63, 5.76, 7.23, 5.76, C.blue, 1.8);
-  card(s, 7.38, 5.3, 2.22, 0.92, { fill: C.white, line: C.blue, shadow: false });
-  addText(s, "人工复核", 7.59, 5.44, 1.8, 0.22, { fontSize: 11, bold: true, color: C.blue });
-  addText(s, "轻度违规  ·  扣 5 分  ·  95 分", 7.59, 5.76, 1.8, 0.22, { fontSize: 12.2, bold: true, color: C.navy });
-  card(s, 9.87, 5.21, 2.48, 1.1, { fill: C.navy, line: C.navy, shadow: false });
-  addText(s, "AI 原始结果保留\n人工结果独立记录", 10.16, 5.45, 1.9, 0.56, { fontSize: 12.5, bold: true, color: C.white, breakLine: true, align: "center", valign: "top" });
-  addText(s, "Human-in-the-loop + 可追溯性", 7.05, 6.36, 3.6, 0.2, { fontSize: 10.5, bold: true, color: C.blue, align: "center" });
-}
-
-// 7. QA evaluation
-{
-  const s = pptx.addSlide("MASTER");
-  addTitle(s, "AI EVALUATION", "不是只看 Accuracy，而是同时检查指标与错误 Case", "客服违规识别中，漏掉真实违规（FN）往往比误报更危险，因此 Recall 与 FN Review 必须进入产品决策。");
-  card(s, 0.62, 1.9, 5.05, 4.74, { shadow: false });
-  sectionLabel(s, "Confusion Matrix · N=20", 0.94, 2.17);
-  pill(s, "人工 Gold Label", 3.68, 2.18, 1.48, C.pale, C.blue);
-  addText(s, "预测结果", 2.39, 2.68, 2.25, 0.22, { fontSize: 11, bold: true, color: C.muted, align: "center" });
-  addText(s, "实际\n标签", 1.05, 3.58, 0.42, 0.64, { fontSize: 11, bold: true, color: C.muted, align: "center", breakLine: true });
-  addText(s, "违规", 2.0, 3.05, 1.38, 0.26, { fontSize: 11.5, bold: true, color: C.navy, align: "center" });
-  addText(s, "正常", 3.48, 3.05, 1.38, 0.26, { fontSize: 11.5, bold: true, color: C.navy, align: "center" });
-  addText(s, "违规", 1.5, 3.53, 0.42, 0.25, { fontSize: 11.5, bold: true, color: C.navy, align: "center" });
-  addText(s, "正常", 1.5, 4.62, 0.42, 0.25, { fontSize: 11.5, bold: true, color: C.navy, align: "center" });
-  const cells = [
-    [2.0, 3.4, "TP", "10", C.pale2, C.blue], [3.48, 3.4, "FN", "1", C.redPale, C.red],
-    [2.0, 4.48, "FP", "1", C.amberPale, C.amber], [3.48, 4.48, "TN", "8", "EEF2F8", C.navy]
+  const problems = [
+    ["01", "信息分散", "调查者需要在发布记录、指标分群、用户反馈和历史事故之间反复切换。"],
+    ["02", "相关被误判为因果", "版本与异常同时发生时，团队容易忽略流量结构、外部依赖或测量问题。"],
+    ["03", "解释缺少证据约束", "普通 LLM 可以快速生成合理叙述，却不保证每个判断都来自当前事故证据。"],
   ];
-  cells.forEach(c => {
-    card(s, c[0], c[1], 1.38, 0.92, { fill: c[4], line: c[4], shadow: false });
-    addText(s, c[2], c[0] + 0.12, c[1] + 0.13, 0.42, 0.2, { fontSize: 10.5, bold: true, color: c[5] });
-    addText(s, c[3], c[0] + 0.64, c[1] + 0.22, 0.55, 0.38, { fontSize: 24, bold: true, color: c[5], align: "right" });
+  problems.forEach((item, index) => {
+    const x = 0.68 + index * 4.14;
+    card(s, x, 3.35, 3.78, 2.62, {
+      fill: index === 1 ? C.pale2 : C.white,
+      line: index === 1 ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, item[0], x + 0.22, 3.62, 0.48, 0.25, {
+      fontSize: 11,
+      bold: true,
+      color: C.blue,
+    });
+    addText(s, item[1], x + 0.78, 3.56, 2.7, 0.34, {
+      fontSize: 18,
+      bold: true,
+      color: C.navy,
+    });
+    addText(s, item[2], x + 0.22, 4.22, 3.3, 1.2, {
+      fontSize: 13.5,
+      color: C.sub,
+      valign: "top",
+    });
   });
-  card(s, 1.52, 5.72, 3.62, 0.5, { fill: C.redPale, line: C.redPale, shadow: false });
-  addText(s, "重点：逐条 Review FN，定位漏检与规则边界", 1.72, 5.84, 3.22, 0.22, { fontSize: 10.5, bold: true, color: C.red, align: "center" });
-
-  metricCard(s, 5.94, 1.9, 1.58, "Accuracy", "90.0%", "整体正确率", C.blue);
-  metricCard(s, 7.67, 1.9, 1.58, "Precision", "0.909", "误报控制", C.blue2);
-  metricCard(s, 9.4, 1.9, 1.58, "Recall", "0.909", "漏报控制", C.red);
-  metricCard(s, 11.13, 1.9, 1.58, "F1", "0.909", "综合平衡", C.navy);
-  card(s, 5.94, 3.55, 6.77, 3.09, { shadow: false });
-  sectionLabel(s, "指标 + Case Review 的评测闭环", 6.25, 3.85);
-  const reviews = [
-    ["1", "看指标", "Precision / Recall / F1 识别整体偏差"],
-    ["2", "拆错误", "分别查看 FP 与 FN 的具体语义"],
-    ["3", "改机制", "调整规则、Prompt、阈值与复核策略"],
-    ["4", "再评测", "固定 Gold Label，避免只看单次 Demo"]
-  ];
-  reviews.forEach((r, i) => {
-    const yy = 4.38 + i * 0.48;
-    dot(s, r[0], 6.3, yy, i === 1 ? C.red : C.blue);
-    addText(s, r[1], 6.79, yy - 0.01, 0.82, 0.3, { fontSize: 12.2, bold: true, color: C.navy });
-    addText(s, r[2], 7.75, yy - 0.01, 4.46, 0.3, { fontSize: 11.2, color: C.sub });
+  addText(s, "产品机会：把一次开放式排查，转化为有状态、有证据、有停止边界的调查流程。", 1.4, 6.25, 10.55, 0.34, {
+    fontSize: 15,
+    bold: true,
+    color: C.blue,
+    align: "center",
   });
-  card(s, 6.25, 6.28, 6.15, 0.2, { fill: C.navy, line: C.navy, shadow: false });
 }
 
-// 8. Summary & contact
+// 03 Product workflow
 {
   const s = pptx.addSlide("MASTER");
-  addTitle(s, "CAPABILITIES & CONTACT", "从 AI Demo 到可评测、可约束、可落地的 AI 产品", "我能把业务问题转译为 AI 产品机制，并用指标、失败 Case 与人机协同边界持续迭代。");
+  addTitle(s, "03", "产品流程", "从风险信号到恢复验证", "每一步都向下一步提供结构化状态，模型只负责调查决策，运行时负责权限与边界。");
+
+  const steps = [
+    ["风险信号", "确定性规则识别异常"],
+    ["调查任务", "创建可恢复调查"],
+    ["竞争假设", "保留多种解释"],
+    ["调查工具", "查询当前事故事实"],
+    ["证据包", "整理来源与关系"],
+    ["就绪判断", "判断证据是否足够"],
+    ["诊断或拒答", "输出有据结论"],
+    ["人工审批", "负责人确认动作"],
+    ["执行动作", "受控外部写操作"],
+    ["效果验证", "检查业务是否恢复"],
+  ];
+  steps.forEach((item, index) => {
+    const row = index < 5 ? 0 : 1;
+    const column = row === 0 ? index : 9 - index;
+    const x = 0.72 + column * 2.47;
+    const y = row === 0 ? 1.95 : 4.25;
+    const active = ["证据包", "就绪判断", "人工审批"].includes(item[0]);
+    card(s, x, y, 2.05, 1.18, {
+      fill: active ? C.pale2 : C.white,
+      line: active ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, String(index + 1).padStart(2, "0"), x + 0.15, y + 0.13, 0.4, 0.2, {
+      fontSize: 9.5,
+      bold: true,
+      color: C.blue,
+    });
+    addText(s, item[0], x + 0.15, y + 0.4, 1.75, 0.28, {
+      fontSize: 14,
+      bold: true,
+      color: C.navy,
+      align: "center",
+    });
+    addText(s, item[1], x + 0.15, y + 0.8, 1.75, 0.2, {
+      fontSize: 9.5,
+      color: C.muted,
+      align: "center",
+    });
+    if (row === 0 && index < 4) arrow(s, x + 2.08, y + 0.59, x + 2.38, y + 0.59, "96A5BA", 1.2);
+    if (row === 1 && index < 9) arrow(s, x - 0.09, y + 0.59, x - 0.36, y + 0.59, "96A5BA", 1.2);
+  });
+  arrow(s, 10.19, 3.18, 10.19, 4.1, C.blue, 1.5);
+
+  card(s, 0.72, 5.78, 11.93, 0.65, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "用户获得的不只是答案，而是一条可回看、可审批、可验证的调查记录。", 1.05, 5.94, 11.28, 0.28, {
+    fontSize: 15,
+    bold: true,
+    color: C.white,
+    align: "center",
+  });
+}
+
+// 04 Real product UI
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "04", "真实产品界面", "一次真实调查，在产品里是怎么发生的？", "真实 Demo 将调查进度、竞争假设、证据状态和人工审批放在同一条可追溯流程中。");
+
+  card(s, 0.62, 1.83, 6.0, 3.72, { fill: C.white, line: C.line, shadow: false });
+  card(s, 6.72, 1.83, 6.0, 3.72, { fill: C.white, line: C.line, shadow: false });
+  pill(s, "调查与取证", 0.88, 2.02, 1.18, C.greenPale, C.green);
+  pill(s, "审批与验证", 6.98, 2.02, 1.18, C.pale, C.blue);
+  await imageContain(s, evidenceUiCrop, 0.84, 2.42, 5.56, 2.94);
+  await imageContain(s, approvalUiCrop, 6.94, 2.42, 5.56, 2.94);
+
+  const uiSteps = [
+    "创建竞争假设",
+    "调用受控工具取证",
+    "证据保留来源与关系",
+    "继续调查或有界停止",
+    "诊断后进入审批与验证",
+  ];
+  uiSteps.forEach((label, index) => {
+    const x = 0.72 + index * 2.5;
+    dot(s, index + 1, x, 5.9, index === 4 ? C.green : C.blue);
+    addText(s, label, x + 0.48, 5.87, 1.82, 0.42, {
+      fontSize: 10.5,
+      bold: true,
+      color: C.navy,
+    });
+  });
+  addSource(s, "来源：ReleaseGuard AI 当前公开 Demo 的真实界面截图；演示使用确定性回放数据。");
+}
+
+// 05 Competing hypotheses and discriminator
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "05", "核心设计", "竞争假设与区分性调查", "Agent 优先寻找能区分多个解释的证据，而不是持续为第一个猜测寻找支持。");
+
+  card(s, 0.68, 1.9, 2.15, 3.95, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "观察", 0.95, 2.2, 0.8, 0.25, {
+    fontSize: 11,
+    bold: true,
+    color: "9EB5FF",
+  });
+  addText(s, "核心指标\n发布后下降", 0.95, 2.75, 1.58, 1.02, {
+    fontSize: 24,
+    bold: true,
+    color: C.white,
+    breakLine: true,
+    align: "center",
+    valign: "top",
+  });
+  addText(s, "时间相关\n尚未证明因果", 0.95, 4.45, 1.58, 0.72, {
+    fontSize: 14,
+    color: "D7E0F7",
+    breakLine: true,
+    align: "center",
+  });
+
+  const hypotheses = [
+    ["A", "版本 Bug", "新版本用户异常更明显"],
+    ["B", "流量结构变化", "分群内稳定，流量权重改变"],
+    ["C", "埋点测量问题", "业务结果稳定，埋点指标下降"],
+  ];
+  hypotheses.forEach((item, index) => {
+    const y = 1.92 + index * 1.33;
+    card(s, 3.25, y, 3.35, 1.02, {
+      fill: index === 0 ? C.pale2 : C.white,
+      line: index === 0 ? C.blue : C.line,
+      shadow: false,
+    });
+    dot(s, item[0], 3.48, y + 0.31, index === 0 ? C.blue : C.navy);
+    addText(s, item[1], 3.98, y + 0.17, 2.28, 0.3, {
+      fontSize: 16,
+      bold: true,
+      color: C.navy,
+    });
+    addText(s, item[2], 3.98, y + 0.56, 2.28, 0.22, {
+      fontSize: 10.5,
+      color: C.sub,
+    });
+  });
+
+  card(s, 7.08, 1.9, 5.55, 3.95, { fill: C.white, line: "C9D7FF", shadow: false });
+  sectionLabel(s, "下一条最有区分力的证据", 7.42, 2.2);
+  const queries = [
+    ["版本隔离", "同平台比较新旧应用版本", "区分版本特异异常与整体流量问题"],
+    ["分群稳定性", "比较用户类型和地区内指标", "识别分群汇总偏差与流量结构变化"],
+    ["互补业务结果", "比较行为完成与埋点指标", "区分真实故障与测量偏差"],
+  ];
+  queries.forEach((item, index) => {
+    const y = 2.82 + index * 0.82;
+    addText(s, String(index + 1), 7.45, y, 0.3, 0.3, {
+      fontSize: 11,
+      bold: true,
+      color: C.white,
+      align: "center",
+      fill: { color: C.blue },
+    });
+    addText(s, item[0], 7.9, y - 0.02, 1.18, 0.3, {
+      fontSize: 13,
+      bold: true,
+      color: C.navy,
+    });
+    addText(s, item[1], 9.08, y - 0.02, 2.95, 0.27, {
+      fontSize: 11.5,
+      color: C.ink,
+    });
+    addText(s, item[2], 7.9, y + 0.33, 4.18, 0.24, {
+      fontSize: 10,
+      color: C.muted,
+    });
+  });
+
+  card(s, 1.25, 6.14, 10.83, 0.48, { fill: C.pale2, line: C.pale, shadow: false });
+  addText(s, "产品价值：减少确认偏误，让“为什么继续查这条证据”对用户和评测者都可解释。", 1.52, 6.25, 10.28, 0.25, {
+    fontSize: 13.5,
+    bold: true,
+    color: C.blue,
+    align: "center",
+  });
+}
+
+// 06 Evidence-first
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "06", "证据优先", "工具结果 ≠ 证据 ≠ 诊断", "ReleaseGuard 把机器返回、证据解释和最终结论分开保存，避免模型叙述覆盖事实。");
+
+  const layers = [
+    ["工具结果", "工具返回的机器事实", "状态 · 原始输出 · 错误"],
+    ["证据", "对当前调查有意义的结构化事实", "来源 · 强度 · 可追溯信息 · 关系"],
+    ["诊断", "通过服务端校验的用户结论", "根因 · 论断 · 引用"],
+  ];
+  layers.forEach((item, index) => {
+    const x = 0.75 + index * 4.2;
+    const tone = index === 1 ? C.blue : C.navy;
+    card(s, x, 2.02, 3.55, 2.62, {
+      fill: index === 1 ? C.pale2 : C.white,
+      line: index === 1 ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, item[0], x + 0.25, 2.35, 3.05, 0.38, {
+      fontSize: 22,
+      bold: true,
+      color: tone,
+      align: "center",
+    });
+    addText(s, item[1], x + 0.3, 3.03, 2.95, 0.58, {
+      fontSize: 14,
+      bold: true,
+      color: C.ink,
+      align: "center",
+    });
+    addText(s, item[2], x + 0.3, 3.87, 2.95, 0.34, {
+      fontSize: 10.5,
+      color: C.muted,
+      align: "center",
+    });
+    if (index < 2) {
+      addText(s, "≠", x + 3.68, 2.98, 0.35, 0.4, {
+        fontSize: 25,
+        bold: true,
+        color: C.red,
+        align: "center",
+      });
+    }
+  });
+
+  card(s, 0.75, 5.05, 11.94, 1.13, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "LLM", 1.1, 5.31, 0.65, 0.24, {
+    fontSize: 11,
+    bold: true,
+    color: "9EB5FF",
+  });
+  addText(s, "决定下一步调查方向", 1.85, 5.25, 2.38, 0.35, {
+    fontSize: 15,
+    bold: true,
+    color: C.white,
+  });
+  addText(s, "服务端", 5.03, 5.31, 0.75, 0.24, {
+    fontSize: 11,
+    bold: true,
+    color: "9EB5FF",
+  });
+  addText(s, "控制事实、状态、预算、权限和最终校验", 5.88, 5.25, 5.58, 0.35, {
+    fontSize: 15,
+    bold: true,
+    color: C.white,
+  });
+  addText(s, "Evidence Packet v2 保留事实范围与工具结果关联，综合结论模块不能补造缺失证据。", 1.08, 6.4, 11.25, 0.28, {
+    fontSize: 13,
+    color: C.sub,
+    align: "center",
+  });
+}
+
+// 07 Readiness and abstention
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "07", "就绪判断与有界拒答", "证据不足时，系统不强行给出根因", "就绪判断将“是否继续调查”和“应该交付哪类结果”变成明确的产品状态。");
+
+  const states = [
+    ["继续取证", "仍有竞争假设", "存在调查预算\n继续寻找区分证据", C.blue, C.pale2],
+    ["有据诊断", "证据足够区分", "主要假设已区分\n且结论有证据约束", C.green, C.greenPale],
+    ["有界假设", "已有领先方向", "但现有证据仍然\n不能唯一归因", C.amber, C.amberPale],
+    ["可行动拒答", "关键问题未解", "预算或工具无法\n解决关键不确定性", C.red, C.redPale],
+  ];
+  states.forEach((item, index) => {
+    const x = 0.68 + index * 3.08;
+    card(s, x, 2.08, 2.72, 2.5, {
+      fill: item[4],
+      line: item[3],
+      shadow: false,
+    });
+    addText(s, item[0], x + 0.2, 2.32, 2.32, 0.28, {
+      fontSize: 10,
+      bold: true,
+      color: item[3],
+      align: "center",
+    });
+    addText(s, item[1], x + 0.2, 2.85, 2.32, 0.42, {
+      fontSize: 21,
+      bold: true,
+      color: C.navy,
+      align: "center",
+    });
+    addText(s, item[2], x + 0.25, 3.55, 2.22, 0.62, {
+      fontSize: 12,
+      color: C.sub,
+      breakLine: true,
+      align: "center",
+      valign: "top",
+    });
+  });
+
+  card(s, 0.68, 5.03, 7.45, 1.22, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "“不知道”是合法结果", 1.03, 5.27, 2.5, 0.4, {
+    fontSize: 22,
+    bold: true,
+    color: C.white,
+  });
+  addText(s, "系统应告诉用户：已经确认什么、还缺什么、下一项最有价值的数据是什么。", 3.73, 5.24, 3.96, 0.52, {
+    fontSize: 13.5,
+    color: "D7E0F7",
+  });
+
+  card(s, 8.48, 5.03, 4.2, 1.22, { fill: C.white, line: C.blue, shadow: false });
+  addText(s, "运行时保证", 8.78, 5.23, 1.15, 0.26, {
+    fontSize: 11,
+    bold: true,
+    color: C.blue,
+  });
+  addText(s, "工具预算 · 最大迭代次数\n重复调用拦截 · 部分证据保留", 8.78, 5.56, 3.45, 0.45, {
+    fontSize: 12,
+    bold: true,
+    color: C.navy,
+    breakLine: true,
+    valign: "top",
+  });
+}
+
+// 08 Human in the loop
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "08", "人工审批闭环", "审批是一条服务端安全边界", "模型不能直接执行外部写操作；审批绑定具体诊断、具体动作和冻结参数。");
+
+  const flow = [
+    ["诊断", "有据结论"],
+    ["建议动作", "具体动作与参数"],
+    ["人工审批", "负责人确认"],
+    ["受控外部动作", "当前实现\nCREATE_GITHUB_ISSUE"],
+    ["效果验证", "检查指标恢复"],
+  ];
+  flow.forEach((item, index) => {
+    const x = 0.69 + index * 2.5;
+    const active = index === 2;
+    card(s, x, 2.05, 2.08, 1.08, {
+      fill: active ? C.pale2 : C.white,
+      line: active ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, item[0], x + 0.12, 2.26, 1.84, 0.3, {
+      fontSize: index === 3 ? 11 : 14,
+      bold: true,
+      color: active ? C.blue : C.navy,
+      align: "center",
+    });
+    addText(s, item[1], x + 0.12, 2.65, 1.84, index === 3 ? 0.38 : 0.2, {
+      fontSize: index === 3 ? 8.2 : 9.5,
+      color: C.muted,
+      align: "center",
+      breakLine: index === 3,
+    });
+    if (index < flow.length - 1) arrow(s, x + 2.1, 2.59, x + 2.39, 2.59, "96A5BA", 1.2);
+  });
+
+  const safeguards = [
+    ["权限边界", "只读调查工具可自主执行；外部写操作必须审批。"],
+    ["参数冻结", "执行使用审批时保存的不可变快照，不接受临时改写。"],
+    ["幂等与审计", "重复请求不会创建第二次外部工作，状态变化保留审计记录。"],
+    ["效果验证", "动作成功不等于问题解决，系统需要等待窗口并检查业务信号。"],
+  ];
+  safeguards.forEach((item, index) => {
+    const x = 0.72 + (index % 2) * 6.12;
+    const y = 3.72 + Math.floor(index / 2) * 1.18;
+    card(s, x, y, 5.72, 0.9, {
+      fill: index === 0 ? C.pale2 : C.white,
+      line: index === 0 ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, item[0], x + 0.22, y + 0.16, 1.18, 0.27, {
+      fontSize: 13.5,
+      bold: true,
+      color: C.navy,
+    });
+    addText(s, item[1], x + 1.55, y + 0.13, 3.88, 0.55, {
+      fontSize: 11.5,
+      color: C.sub,
+      valign: "top",
+    });
+  });
+  addText(s, "公开演示中的审批仅改变演示状态，不会调用真实 GitHub 或线上系统。", 1.5, 6.35, 10.3, 0.3, {
+    fontSize: 12.5,
+    color: C.muted,
+    align: "center",
+  });
+}
+
+// 09 Evaluation
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "09", "评测", "用失败案例验证 Agent，而不是只展示成功演示", "固定标准答案、保留完整运行轨迹，再分别评估取证、引用、证据约束与最终判断。");
+
+  const metrics = [
+    ["固定开发集评测", "22 个案例", "单轮"],
+    ["至少一项关键证据", "22 / 22", "运行后与标准答案对照"],
+    ["完整关键证据集", "14 / 22", "证据收集"],
+    ["受控调查信息源", "5 类", "40 次只读工具调用"],
+  ];
+  metrics.forEach((item, index) => {
+    metricCard(s, 0.67 + index * 3.08, 1.82, 2.72, item[0], item[1], item[2], index === 1 ? C.green : C.blue);
+  });
+
+  const evalFlow = ["固定标准答案", "Agent 运行", "证据评分", "盲评", "失败分类", "迭代"];
+  evalFlow.forEach((item, index) => {
+    const x = 0.75 + index * 2.05;
+    addText(s, String(index + 1), x, 3.48, 0.38, 0.34, {
+      fontSize: 11,
+      bold: true,
+      color: C.white,
+      align: "center",
+      fill: { color: index === 3 ? C.navy : C.blue },
+    });
+    addText(s, item, x + 0.48, 3.47, 1.38, 0.34, {
+      fontSize: 11.5,
+      bold: true,
+      color: C.navy,
+      align: "center",
+    });
+    if (index < evalFlow.length - 1) arrow(s, x + 1.88, 3.65, x + 2.0, 3.65, "96A5BA", 1);
+  });
+
+  card(s, 0.68, 4.24, 12.0, 1.75, { fill: "FFFDFD", line: "F1DCE0", shadow: false });
+  sectionLabel(s, "真实结果与边界", 0.98, 4.5, C.red);
+  const reality = [
+    ["取证强于最终表达", "证据收集链路已形成", "证据引用仍需加强"],
+    ["边界失败被保留", "部分运行触发能力边界", "不通过重跑覆盖失败"],
+    ["综合结论仍有断层", "证据到诊断的转化", "证据约束仍需完善"],
+  ];
+  reality.forEach((item, index) => {
+    const x = 1.0 + index * 3.9;
+    addText(s, item[0], x, 4.93, 3.42, 0.24, {
+      fontSize: 11,
+      bold: true,
+      color: C.navy,
+      align: "center",
+    });
+    addText(s, item[1], x, 5.25, 3.42, 0.3, {
+      fontSize: 13.5,
+      bold: true,
+      color: index === 1 ? C.red : C.blue,
+      align: "center",
+    });
+    addText(s, item[2], x, 5.61, 3.42, 0.2, {
+      fontSize: 9.5,
+      color: C.muted,
+      align: "center",
+    });
+  });
+  addText(s, "最终 V8 使用 gpt-5.6-sol。合成、可复现的单轮开发集评测，用于验证调查与评测方法，不代表生产环境准确率。", 0.85, 6.27, 11.65, 0.3, {
+    fontSize: 11.5,
+    color: C.sub,
+    align: "center",
+  });
+  addSource(s, "来源：最终 V8 评测报告与盲评摘要 · 标准答案未进入 Agent 运行时");
+}
+
+// 10 Iteration story
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "10", "迭代案例", "从低分追到可验证的产品机制", "没有继续盲调提示词，而是先做失败分类，再用最小改动和受控探针验证假设。");
+
+  const story = [
+    ["Agent 能完成调查", "技术成功不代表证据质量"],
+    ["盲评结果较差", "最终结论缺少区分性证据"],
+    ["失败分类", "定位查询选择与就绪判断"],
+    ["就绪门控", "竞争假设未区分时继续取证"],
+    ["受控探针", "只跑最小案例子集验证行为"],
+    ["规划上下文", "显式提供可用与已尝试查询形态"],
+  ];
+  story.forEach((item, index) => {
+    const x = 0.68 + index * 2.08;
+    dot(s, index + 1, x + 0.72, 2.02, index >= 3 ? C.blue : C.navy);
+    if (index < story.length - 1) arrow(s, x + 1.09, 2.2, x + 1.96, 2.2, "96A5BA", 1.2);
+    addText(s, item[0], x, 2.55, 1.8, 0.42, {
+      fontSize: 13,
+      bold: true,
+      color: C.navy,
+      align: "center",
+    });
+    addText(s, item[1], x, 3.06, 1.8, 0.66, {
+      fontSize: 9.5,
+      color: C.muted,
+      align: "center",
+      valign: "top",
+    });
+  });
+
+  card(s, 0.72, 4.15, 5.72, 1.52, { fill: C.greenPale, line: C.green, shadow: false });
+  pill(s, "CASE-206 · 受控探针", 1.02, 4.4, 2.35, C.greenPale, C.green);
+  addText(s, "由未命中到严格通过", 1.02, 4.9, 2.35, 0.38, {
+    fontSize: 17,
+    bold: true,
+    color: C.green,
+  });
+  addText(s, "区分性取证成功排除竞争解释", 3.52, 4.82, 2.45, 0.5, {
+    fontSize: 12.5,
+    color: C.sub,
+  });
+
+  card(s, 6.86, 4.15, 5.72, 1.52, { fill: C.pale2, line: C.blue, shadow: false });
+  pill(s, "CASE-218 · 受控探针", 7.16, 4.4, 2.35, C.pale2, C.blue);
+  addText(s, "错误确定性归因\n→ 有界拒答", 7.16, 4.86, 2.65, 0.56, {
+    fontSize: 17,
+    bold: true,
+    color: C.blue,
+    breakLine: true,
+    valign: "top",
+  });
+  addText(s, "证据不足时停止过度归因", 10.12, 4.9, 2.05, 0.4, {
+    fontSize: 12.5,
+    color: C.sub,
+  });
+
+  addText(s, "这两个结果是局部受控探针，不代表整体评测准确率提升。", 1.42, 6.14, 10.5, 0.32, {
+    fontSize: 13,
+    bold: true,
+    color: C.red,
+    align: "center",
+  });
+}
+
+// 11 My work
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "11", "我的工作", "我负责把业务问题转译为 Agent 产品机制", "工作范围覆盖产品定义、Agent 设计、评测体系和迭代决策，代码用于把这些产品约束变成可运行系统。");
+
   const groups = [
-    ["AI 产品设计", "Agent Workflow\nRAG / LLM Application\nHuman-in-the-loop"],
-    ["产品能力", "需求分析 · 用户场景\nPRD / Workflow\n产品指标"],
-    ["AI 工程理解", "Prompt · Tool Calling\nStructured Output · JSON Schema\nBenchmark · Harness"],
-    ["评测与迭代", "Gold Label\nPrecision / Recall / F1\nFailure Case Analysis"],
-    ["项目落地", "Prototype · Demo\nDeployment · GitHub\n可运行作品"],
+    ["产品定义", ["目标用户与使用场景", "发布风险调查边界", "端到端产品流程"]],
+    ["Agent 产品设计", ["竞争假设与证据", "工具契约与就绪判断", "人工审批"]],
+    ["评测体系", ["标准答案与固定案例集", "盲评机制", "失败分类"]],
+    ["迭代决策", ["定位失败阶段", "设计受控探针", "最小改动与主动冻结"]],
   ];
-  groups.forEach((g, i) => {
-    const x = 0.66 + (i % 3) * 3.23, y = 1.9 + Math.floor(i / 3) * 1.52;
-    const w = i < 3 ? 2.96 : 2.96;
-    card(s, x, y, w, 1.25, { fill: i === 0 ? C.pale2 : C.white, line: i === 0 ? C.blue : C.line, shadow: false });
-    addText(s, `0${i + 1}`, x + 0.18, y + 0.17, 0.38, 0.25, { fontSize: 10.5, bold: true, color: C.blue });
-    addText(s, g[0], x + 0.63, y + 0.14, 2.02, 0.28, { fontSize: 14, bold: true, color: C.navy });
-    addText(s, g[1], x + 0.18, y + 0.52, 2.53, 0.56, { fontSize: 10.7, color: C.sub, breakLine: true, valign: "top" });
+  groups.forEach((group, index) => {
+    const x = 0.65 + index * 3.13;
+    card(s, x, 1.95, 2.83, 3.65, {
+      fill: index === 1 ? C.pale2 : C.white,
+      line: index === 1 ? C.blue : C.line,
+      shadow: false,
+    });
+    addText(s, `0${index + 1}`, x + 0.22, 2.2, 0.42, 0.24, {
+      fontSize: 10.5,
+      bold: true,
+      color: C.blue,
+    });
+    addText(s, group[0], x + 0.22, 2.58, 2.36, 0.38, {
+      fontSize: 19,
+      bold: true,
+      color: C.navy,
+    });
+    group[1].forEach((item, itemIndex) => {
+      dot(s, itemIndex + 1, x + 0.24, 3.27 + itemIndex * 0.67, index === 1 ? C.blue : C.navy);
+      addText(s, item, x + 0.75, 3.25 + itemIndex * 0.67, 1.8, 0.38, {
+        fontSize: 12,
+        color: C.sub,
+      });
+    });
   });
 
-  card(s, 10.32, 1.9, 2.38, 2.77, { fill: C.navy, line: C.navy, shadow: false });
-  addText(s, "李超", 10.66, 2.22, 1.72, 0.48, { fontSize: 25, bold: true, color: C.white });
-  addText(s, "UNSW MIT\nArtificial Intelligence\n2027 届 · AI 产品经理", 10.66, 2.93, 1.68, 1.0, { fontSize: 12.3, color: "D7E0F7", breakLine: true, valign: "top" });
-  addText(s, "PORTFOLIO", 10.66, 4.18, 1.5, 0.22, { fontSize: 9.5, bold: true, color: "9EB5FF", charSpacing: 1.2 });
-
-  card(s, 0.66, 5.22, 12.04, 1.45, { shadow: false });
-  sectionLabel(s, "项目链接", 0.95, 5.48);
-  s.addShape(pptx.ShapeType.roundRect, { x: 3.03, y: 5.4, w: 3.62, h: 0.78, fill: { color: C.blue }, line: noLine, rectRadius: 0.08, hyperlink: { url: "https://releaseguard.easonchao.com" } });
-  addText(s, "ReleaseGuard AI · 在线 Demo  ↗", 3.3, 5.61, 3.08, 0.3, { fontSize: 13.5, bold: true, color: C.white, align: "center", hyperlink: { url: "https://releaseguard.easonchao.com" } });
-  s.addShape(pptx.ShapeType.roundRect, { x: 6.92, y: 5.4, w: 3.62, h: 0.78, fill: { color: C.white }, line: { color: C.blue, width: 1.4 }, rectRadius: 0.08, hyperlink: { url: "https://github.com/Eason4real/releaseguard-ai" } });
-  addText(s, "ReleaseGuard AI · GitHub  ↗", 7.18, 5.61, 3.1, 0.3, { fontSize: 13.5, bold: true, color: C.blue, align: "center", hyperlink: { url: "https://github.com/Eason4real/releaseguard-ai" } });
-  addText(s, "公开 Demo 使用确定性 Replay 数据，不触发真实外部写操作。", 3.04, 6.31, 7.48, 0.2, { fontSize: 9.5, color: C.muted, align: "center" });
+  card(s, 0.65, 5.95, 12.05, 0.55, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "作品集目标达到后停止针对评测调优，把剩余问题公开记录为能力边界。", 1.02, 6.07, 11.3, 0.28, {
+    fontSize: 14,
+    bold: true,
+    color: C.white,
+    align: "center",
+  });
 }
 
-for (const s of pptx._slides) {
-  if (typeof s._slideNum === "number") {
-    // PptxGenJS validates placement during serialization; all content stays within 13.333 × 7.5.
-  }
+// 12 Limitations and next steps
+{
+  const s = pptx.addSlide("MASTER");
+  addTitle(s, "12", "能力边界", "明确能力边界，才能让 Agent 迭代真正可验证", "作品集 v1.0 已完成功能冻结；后续只将未解决问题作为未来方向，不继续针对评测调参。");
+
+  card(s, 0.65, 1.87, 7.2, 4.45, { fill: C.white, line: C.line, shadow: false });
+  sectionLabel(s, "当前限制", 0.98, 2.16, C.red);
+  const limitations = [
+    "合成、可复现的开发集；最终评测仅运行一轮，未做多随机种子或 3×22",
+    "规划器的查询选择仍受模型采样影响；盲评模型也存在方差",
+    "真实写操作仅支持 CREATE_GITHUB_ISSUE；没有自动修复或自主回滚",
+    "公开演示使用确定性回放，不代表真实企业部署或客户投资回报",
+  ];
+  limitations.forEach((item, index) => {
+    dot(s, index + 1, 1.02, 2.78 + index * 0.72, C.navy);
+    addText(s, item, 1.53, 2.74 + index * 0.72, 5.88, 0.5, {
+      fontSize: 12,
+      color: C.sub,
+    });
+  });
+
+  card(s, 8.18, 1.87, 4.5, 2.38, { fill: C.pale2, line: C.blue, shadow: false });
+  sectionLabel(s, "未来方向", 8.5, 2.16);
+  addText(s, "• 提升能力边界契约的稳定性\n• 改善证据引用与结论投影\n• 完成同模型多随机种子验证\n• 在真实数据接入后重新评估", 8.52, 2.7, 3.72, 1.2, {
+    fontSize: 12.5,
+    color: C.sub,
+    breakLine: true,
+    valign: "top",
+  });
+
+  card(s, 8.18, 4.58, 4.5, 1.74, { fill: C.navy, line: C.navy, shadow: false });
+  addText(s, "李超", 8.52, 4.86, 1.3, 0.36, {
+    fontSize: 21,
+    bold: true,
+    color: C.white,
+  });
+  addText(s, "UNSW 信息技术硕士 · 人工智能方向\n2027 届 · AI 产品经理", 9.85, 4.82, 2.35, 0.65, {
+    fontSize: 11.5,
+    color: "D7E0F7",
+    breakLine: true,
+    valign: "top",
+  });
+  addText(s, "在线演示  ↗", 8.52, 5.64, 1.5, 0.3, {
+    fontSize: 12,
+    bold: true,
+    color: "9EB5FF",
+    hyperlink: { url: "https://releaseguard.easonchao.com" },
+  });
+  addText(s, "GitHub  ↗", 10.28, 5.64, 1.2, 0.3, {
+    fontSize: 12,
+    bold: true,
+    color: "9EB5FF",
+    hyperlink: { url: "https://github.com/Eason4real/releaseguard-ai" },
+  });
 }
 
 await pptx.writeFile({ fileName: out, compression: true });

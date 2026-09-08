@@ -441,7 +441,7 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
   .demo-step button { grid-column: 2; width: 100%; }
 }
 
-/* Generated evaluation summary viewer. All numbers are loaded from public/evaluation/summary.json. */
+/* Public Portfolio evaluation overview. */
 .benchmark-page { --bench-ink: #122019; --bench-green: #146c50; --bench-line: #dbe3de; min-height: 100vh; color: var(--bench-ink); background: #f5f7f5; }
 .benchmark-loading { min-height: 100vh; display: grid; place-items: center; padding: 24px; color: #23372d; background: #f5f7f5; text-align: center; }
 .benchmark-loading div { max-width: 520px; border: 1px solid #dbe3de; border-radius: 8px; padding: 32px; background: #fff; }
@@ -490,7 +490,7 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
 .benchmark-footer { max-width: 1280px; margin: 0 auto; padding: 64px 28px 90px; display: flex; align-items: end; justify-content: space-between; gap: 40px; }.benchmark-footer span { color: var(--bench-green); font-size: 11px; font-weight: 750; }.benchmark-footer h2 { margin: 7px 0; font-size: 24px; }.benchmark-footer p { max-width: 720px; margin: 0; color: #66756d; font-size: 12px; line-height: 1.6; }
 .benchmark-footer nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.benchmark-footer a { border: 1px solid #b8c8c0; border-radius: 4px; padding: 8px 10px; color: #244e3d; background: #fff; font-size: 11px; font-weight: 700; text-decoration: none; }
 @media (max-width: 900px) { .benchmark-hero-grid, .benchmark-split, .benchmark-trace { grid-template-columns: 1fr; }.benchmark-hero-grid { gap: 20px; }.benchmark-hero-grid > aside { border-top: 1px solid #4a695c; border-left: 0; padding-left: 0; }.benchmark-result-grid { grid-template-columns: 1fr; }.benchmark-footer { align-items: start; flex-direction: column; }.benchmark-footer nav { justify-content: flex-start; } }
-@media (max-width: 620px) { .benchmark-hero { padding: 22px 18px; }.benchmark-hero-grid { min-height: 0; padding: 70px 0 45px; }.benchmark-section { padding: 54px 18px; }.benchmark-section-heading, .benchmark-section-heading.compact { grid-template-columns: 1fr; gap: 7px; }.benchmark-section-heading > span { padding-top: 0; }.benchmark-result-card { padding: 18px; }.benchmark-footer { padding: 50px 18px 70px; } }
+@media (max-width: 620px) { .benchmark-page { overflow-x: hidden; }.benchmark-hero { padding: 22px 18px; }.benchmark-kicker { font-size: 10px; letter-spacing: 0; overflow-wrap: anywhere; }.benchmark-hero h1 { max-width: 100%; font-size: 32px; letter-spacing: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }.benchmark-hero p { overflow-wrap: anywhere; word-break: break-word; }.benchmark-hero-grid { min-height: 0; padding: 70px 0 45px; }.benchmark-section { padding: 54px 18px; }.benchmark-section-heading, .benchmark-section-heading.compact { grid-template-columns: 1fr; gap: 7px; }.benchmark-section-heading > span { padding-top: 0; }.benchmark-section-heading h2 { max-width: 100%; font-size: 26px; line-height: 1.25; letter-spacing: 0; overflow-wrap: anywhere; word-break: break-word; }.benchmark-result-card { padding: 18px; }.benchmark-footer { padding: 50px 18px 70px; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }

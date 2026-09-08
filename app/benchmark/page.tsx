@@ -1,170 +1,89 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
-type Rate = { successes: number; total: number; proportion: number | null; lower: number | null; upper: number | null };
-type SystemResult = {
-  system: string;
-  technicalCompletion: Rate;
-  businessCompletion: Rate;
-  rootCause: { score2Strict: Rate; score1Or2Lenient: Rate; meanScore: number | null; notApplicable: number };
-  performance: { durationMsP50: number; durationMsP95: number; peakCost: { estimatedUsd: number }; toolCallsMean: number; modelCallsMean: number };
-  terminalStates: Record<string, number>;
-  errors: Record<string, number>;
-  evidence: { meanCriticalEvidenceRecall: number | null; citationValidity: Rate };
-};
-type Summary = {
-  evaluationVersion: string;
-  generatedAt: string;
-  latestEvaluationCompletedAt: string;
-  sourceCommit: string;
-  dataset: {
-    cases: number;
-    runsPerSystem: number;
-    trialsPerSystem: number;
-    hash: string;
-    sourceClassDistribution: Record<string, number>;
-    incidentTypeDistribution: Record<string, number>;
-    claimBoundary: string;
-  };
-  model: { provider: string; model: string; temperature: number };
-  systems: SystemResult[];
-  slices: { category: Record<string, Record<string, { trials: number; technical: Rate; score2: Rate; meanScore: number | null }>> };
-  judge: { type: string; reviewQueueRows: number };
-  typicalTrace: null | {
-    system?: string;
-    caseId: string;
-    runIndex: number;
-    diagnosis: string;
-    rootCauseScore: string;
-    actions: Array<{ sequence: number; decisionType: string; rationale: string }>;
-    tools: Array<{ toolName: string; resultStatus: string; evidenceIds: string[] }>;
-  };
-  artifacts: { methodology: string; reproduce: string; report: string; reviewQueue: string; rawDirectory: string; github: string };
-  limitations: string[];
-};
+const publicMetrics = [
+  { label: "固定 DEV benchmark", value: "22 cases", detail: "合成、可复现，单轮运行" },
+  { label: "关键证据触达", value: "22 / 22", detail: "每案至少收集一项 Gold key evidence" },
+  { label: "完整证据覆盖", value: "14 / 22", detail: "收集完整 Gold key-evidence set" },
+  { label: "受控工具调用", value: "40", detail: "全部为只读 investigation tool calls" },
+];
 
-const labels: Record<string, string> = {
-  DIRECT_LLM: "Direct LLM",
-  CURRENT_AGENT: "Current Agent",
-  IMPROVED_AGENT: "Improved Agent",
-  HARNESS_V2: "Harness v2",
-  HARNESS_V3: "Harness v3",
-  HARNESS_V7: "Harness v7",
-};
-const percent = (value: number | null) => value === null ? "—" : `${(value * 100).toFixed(1)}%`;
-const rateText = (rate: Rate) => `${rate.successes}/${rate.total} · ${percent(rate.proportion)}`;
-const intervalText = (rate: Rate) => rate.lower === null ? "无可用区间" : `Wilson 95% CI ${percent(rate.lower)}–${percent(rate.upper)}`;
-const seconds = (value: number) => `${(value / 1000).toFixed(1)}s`;
+const evaluationFlow = ["Fixed Gold Dataset", "Agent Run", "Evidence Scoring", "Blind Judge", "Failure Taxonomy", "Iteration"];
 
-function ComparisonBar({ rate, tone }: { rate: Rate; tone: string }) {
-  return <div className="benchmark-bar" aria-label={rateText(rate)}>
-    <i className={tone} style={{ width: `${(rate.proportion ?? 0) * 100}%` }} />
-  </div>;
-}
-
-function ResultCard({ result, index }: { result: SystemResult; index: number }) {
-  return <article className={`benchmark-result-card tone-${index}`}>
-    <header><span>方案 {String.fromCharCode(65 + index)}</span><h2>{labels[result.system] ?? result.system}</h2></header>
-    <div className="benchmark-primary-metric">
-      <span>严格根因准确率</span>
-      <strong>{rateText(result.rootCause.score2Strict)}</strong>
-      <small>{intervalText(result.rootCause.score2Strict)}</small>
-      <ComparisonBar rate={result.rootCause.score2Strict} tone={`tone-${index}`} />
-    </div>
-    <dl>
-      <div><dt>技术完成</dt><dd>{rateText(result.technicalCompletion)}</dd></div>
-      <div><dt>业务完成</dt><dd>{rateText(result.businessCompletion)}</dd></div>
-      <div><dt>宽松命中</dt><dd>{rateText(result.rootCause.score1Or2Lenient)}</dd></div>
-      <div><dt>平均得分</dt><dd>{result.rootCause.meanScore?.toFixed(2) ?? "—"} / 2</dd></div>
-      <div><dt>P50 / P95</dt><dd>{seconds(result.performance.durationMsP50)} / {seconds(result.performance.durationMsP95)}</dd></div>
-      <div><dt>峰时估算费用</dt><dd>${result.performance.peakCost.estimatedUsd.toFixed(3)} / 66 次</dd></div>
-    </dl>
-  </article>;
-}
+const findings = [
+  {
+    title: "Evidence Collection 已形成",
+    body: "Final V8 在全部案例中触达至少一项关键证据，说明受控工具取证链路能够工作。",
+  },
+  {
+    title: "Citation projection 仍需加强",
+    body: "已收集证据没有稳定进入最终引用，Evidence 到用户可核验结论之间仍有断层。",
+  },
+  {
+    title: "Limitation contract 暴露边界",
+    body: "部分运行在 contract 边界终止。项目保留这些失败，用于定位 runtime 与表达层问题。",
+  },
+  {
+    title: "Grounded synthesis 是下一阶段课题",
+    body: "当前评测支持继续研究证据投影和综合表达，不支持把结果解释为生产环境准确率。",
+  },
+];
 
 export default function BenchmarkPage() {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    void fetch("/evaluation/summary-v7.json", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error("SUMMARY_UNAVAILABLE");
-        return response.json() as Promise<Summary>;
-      })
-      .then(setSummary)
-      .catch(() => setError(true));
-  }, []);
-
-  if (!summary) return <main className="benchmark-loading">
-    <div><b>{error ? "评测摘要暂不可用" : "正在载入可审计评测结果…"}</b><p>{error ? "请先运行 npm run eval:summary 生成构建数据。" : "页面只读取生成的 summary.json，不维护手写指标。"}</p><Link href="/">返回公开演示</Link></div>
-  </main>;
-
-  const sourceClasses = Object.entries(summary.dataset.sourceClassDistribution);
-  const categories = Object.entries(summary.slices.category);
   return <main className="benchmark-page">
     <header className="benchmark-hero">
-      <nav><Link href="/">← 返回 ReleaseGuard AI</Link><a href={summary.artifacts.github} target="_blank" rel="noreferrer">GitHub 原始结果 ↗</a></nav>
+      <nav><Link href="/">← 返回 ReleaseGuard AI</Link><a href="https://github.com/Eason4real/releaseguard-ai" target="_blank" rel="noreferrer">GitHub ↗</a></nav>
       <div className="benchmark-hero-grid">
         <div>
-          <span className="benchmark-kicker">RELEASEGUARD EVALUATION · {summary.evaluationVersion}</span>
-          <h1>{summary.dataset.cases} 个离线案例，{summary.systems.length} 种方案，<br />每案独立运行三次</h1>
-          <p>这是一套可复现的 Dev 评测，不是真实企业生产数据。数据实际由 16 个合成案例和 6 个仓库原生案例构成；不能称为“22 个独立公开事故复盘”。</p>
-          <div className="benchmark-badges"><b>同模型对照</b><span>{summary.model.model} · temperature {summary.model.temperature}</span><span>{summary.dataset.trialsPerSystem} 次/方案</span></div>
+          <span className="benchmark-kicker">PORTFOLIO V1.0 · FINAL V8 EVALUATION</span>
+          <h1>用固定案例检查 Agent 是否真的收集证据</h1>
+          <p>这是一套合成、可复现的 DEV benchmark，用于验证调查流程、证据覆盖与失败边界，不代表生产环境准确率。</p>
+          <div className="benchmark-badges"><b>Harness V8</b><span>gpt-5.6-sol</span><span>single-run</span></div>
         </div>
         <aside>
-          <span>评测边界</span>
-          <strong>{summary.dataset.cases}</strong>
-          <b>governed offline cases</b>
-          <small>{sourceClasses.map(([name, count]) => `${count} ${name.replaceAll("_", " ")}`).join(" · ")}</small>
-          <code title={summary.dataset.hash}>{summary.dataset.hash.slice(0, 16)}…</code>
+          <span>评测范围</span>
+          <strong>22</strong>
+          <b>fixed DEV cases</b>
+          <small>Gold 仅用于运行后的 scorer 与 judge，不进入 Agent runtime</small>
         </aside>
       </div>
     </header>
 
     <section className="benchmark-section benchmark-overview">
-      <div className="benchmark-section-heading"><span>01 / 总览</span><div><h2>对照结果</h2><p>根因分数来自隐藏方案名、固定乱序的同模型盲评，因此属于非独立 LLM 评审，不是人工审核。</p></div></div>
-      <div className="benchmark-result-grid">{summary.systems.map((result, index) => <ResultCard key={result.system} result={result} index={index} />)}</div>
+      <div className="benchmark-section-heading"><span>01 / 结果概览</span><div><h2>公开展示聚焦调查与证据覆盖</h2><p>低层 judge 分数与诊断得分不作为招聘或产品 KPI 展示。</p></div></div>
+      <div className="benchmark-result-grid">{publicMetrics.map((metric, index) => <article className={`benchmark-result-card tone-${index}`} key={metric.label}>
+        <header><span>指标 {String(index + 1).padStart(2, "0")}</span><h2>{metric.label}</h2></header>
+        <div className="benchmark-primary-metric"><strong>{metric.value}</strong><small>{metric.detail}</small></div>
+      </article>)}</div>
     </section>
 
     <section className="benchmark-section">
-      <div className="benchmark-section-heading"><span>02 / 分层</span><div><h2>按事故类型拆分</h2><p>每个格子同时保留原始数量；小样本切片只用于定位失败，不作泛化结论。</p></div></div>
-      <div className="benchmark-table-wrap"><table className="benchmark-table">
-        <thead><tr><th>事故类型</th>{summary.systems.map((system) => <th key={system.system}>{labels[system.system]}<small>严格 2 分 / 技术完成</small></th>)}</tr></thead>
-        <tbody>{categories.map(([category, values]) => <tr key={category}>
-          <td><b>{category.replaceAll("_", " ")}</b><span>{summary.dataset.incidentTypeDistribution[category]} 案例 × 3</span></td>
-          {summary.systems.map((system) => <td key={system.system}><strong>{rateText(values[system.system].score2)}</strong><small>{rateText(values[system.system].technical)}</small></td>)}
-        </tr>)}</tbody>
-      </table></div>
+      <div className="benchmark-section-heading"><span>02 / 方法</span><div><h2>从固定 Gold 到 Failure Taxonomy</h2><p>评测不仅判断结果，也保留取证过程和失败原因。</p></div></div>
+      <div className="benchmark-error-list">{evaluationFlow.map((step, index) => <article key={step}>
+        <header><b>{String(index + 1).padStart(2, "0")}</b><span>{step}</span></header>
+      </article>)}</div>
     </section>
 
     <section className="benchmark-section benchmark-split">
       <div>
-        <div className="benchmark-section-heading compact"><span>03 / 错误</span><div><h2>技术错误分布</h2><p>保留所有失败运行，不用重跑覆盖。</p></div></div>
-        <div className="benchmark-error-list">{summary.systems.map((system) => <article key={system.system}>
-          <header><b>{labels[system.system]}</b><span>{Object.values(system.errors).reduce((total, value) => total + value, 0)} 次技术失败</span></header>
-          {Object.keys(system.errors).length === 0 ? <p>未记录技术错误</p> : Object.entries(system.errors).map(([name, count]) => <div key={name}><code>{name}</code><strong>{count}</strong></div>)}
+        <div className="benchmark-section-heading compact"><span>03 / 发现</span><div><h2>Final V8 暴露的系统边界</h2><p>完整分数保留在内部实验 artifacts，公开页面呈现可解释的结论。</p></div></div>
+        <div className="benchmark-error-list">{findings.map((finding) => <article key={finding.title}>
+          <header><b>{finding.title}</b></header><p>{finding.body}</p>
         </article>)}</div>
       </div>
       <div>
-        <div className="benchmark-section-heading compact"><span>04 / 边界</span><div><h2>可信度说明</h2><p>评测可信度优先于数字是否好看。</p></div></div>
-        <ul className="benchmark-limitations">{summary.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
-        <div className="benchmark-review-note"><b>{summary.judge.reviewQueueRows}</b><span>条输出进入人工复核清单；在真正复核前不称为“人工审核准确率”。</span></div>
+        <div className="benchmark-section-heading compact"><span>04 / 限制</span><div><h2>如何理解这些结果</h2><p>评测可信度依赖边界说明，而不是单一数字。</p></div></div>
+        <ul className="benchmark-limitations">
+          <li>Final V8 只运行一轮，未做 multi-seed 或 3×22。</li>
+          <li>数据来自合成、可复现 fixture，不是真实企业生产流量。</li>
+          <li>LLM query selection 与 Blind Judge 都可能存在采样方差。</li>
+          <li>Evidence collection 强于 citation 与 grounded synthesis。</li>
+        </ul>
       </div>
     </section>
 
-    {summary.typicalTrace && <section className="benchmark-section">
-      <div className="benchmark-section-heading"><span>05 / 轨迹</span><div><h2>典型调查轨迹 · {summary.typicalTrace.caseId}</h2><p>{labels[summary.typicalTrace.system ?? "IMPROVED_AGENT"]} 第 {summary.typicalTrace.runIndex} 轮，盲评根因得分 {summary.typicalTrace.rootCauseScore}/2。</p></div></div>
-      <div className="benchmark-trace">
-        <div>{summary.typicalTrace.actions.map((action) => <article key={action.sequence}><span>{String(action.sequence).padStart(2, "0")}</span><div><b>{action.decisionType}</b><p>{action.rationale}</p></div></article>)}</div>
-        <aside><span>最终诊断</span><p>{summary.typicalTrace.diagnosis}</p><h3>工具与证据</h3>{summary.typicalTrace.tools.map((tool, index) => <div key={`${tool.toolName}-${index}`}><code>{tool.toolName}</code><b>{tool.resultStatus}</b><small>{tool.evidenceIds.join(", ") || "无新增证据"}</small></div>)}</aside>
-      </div>
-    </section>}
-
     <footer className="benchmark-footer">
-      <div><span>复现与审计</span><h2>数字来自生成物，不来自页面手填</h2><p>摘要生成时间 {new Date(summary.generatedAt).toLocaleString("zh-CN")} · 源 Commit {summary.sourceCommit.slice(0, 12)} · 最近完成 {new Date(summary.latestEvaluationCompletedAt).toLocaleString("zh-CN")}</p></div>
-      <nav><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/evaluation/releaseguard-evaluation-report.md" target="_blank" rel="noreferrer">正式报告</a><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/evaluation/methodology.md" target="_blank" rel="noreferrer">评分方法</a><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/evaluation/reproduce.md" target="_blank" rel="noreferrer">复现步骤</a><a href="https://github.com/Eason4real/releaseguard-ai/tree/main/evaluation/results/raw" target="_blank" rel="noreferrer">原始结果</a></nav>
+      <div><span>继续深入</span><h2>查看评测方法与失败分析</h2><p>公开文档解释 metric 定义、评分边界和当前系统限制，不直接展示低层 Final KPI。</p></div>
+      <nav><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/evaluation/methodology.md" target="_blank" rel="noreferrer">评分方法</a><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/investigation-benchmark-evaluation-contract.md" target="_blank" rel="noreferrer">Benchmark Contract</a><a href="https://github.com/Eason4real/releaseguard-ai/blob/main/docs/evaluation/portfolio-v1-failure-analysis.md" target="_blank" rel="noreferrer">Failure Analysis</a></nav>
     </footer>
   </main>;
 }

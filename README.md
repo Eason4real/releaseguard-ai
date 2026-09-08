@@ -4,7 +4,7 @@
 
 发布后业务指标异常时，指标、版本记录、用户反馈和历史事故往往分散在不同信息源中，团队也容易把“时间相关”直接判断成“发布导致”。ReleaseGuard AI 维护多个竞争假设，通过受控工具逐步收集支持与反驳证据；证据不足时继续调查或有界拒答，外部写操作则始终由服务端和人工审批控制。
 
-[在线 Demo](https://releaseguard.easonchao.com) · [GitHub](https://github.com/Eason4real/releaseguard-ai) · [Final V8 Evaluation](evaluation/results/v8/portfolio-final-v8/investigation-live-benchmark-openai-compatible-0.2.0-2026-09-06T17-52-23-415Z-98a74e53a4a1-portfolio-v1-final-v8.md) · [Evaluation Methodology](docs/evaluation/methodology.md) · [Agent Architecture](docs/AGENT_ARCHITECTURE.md)
+[在线 Demo](https://releaseguard.easonchao.com) · [GitHub](https://github.com/Eason4real/releaseguard-ai) · [Evaluation Methodology](docs/evaluation/methodology.md) · [Agent Architecture](docs/AGENT_ARCHITECTURE.md)
 
 > 当前项目是使用合成、可复现数据构建的 Portfolio / Demo，不是企业生产部署。它聚焦发布风险调查，不是通用 SRE Agent、自动修复系统或自主回滚系统。
 
@@ -79,27 +79,15 @@ Final V8 使用 `gpt-5.6-sol`、temperature `0.1`、10 次 tool budget 和 16 �
 
 > Final V8 是基于合成、可复现 DEV dataset 的单轮 Portfolio benchmark，用于验证 Agent 调查与评测方法，不代表生产环境准确率。
 
-<details>
-<summary><strong>Evaluation Reality Check：完整结果与当前瓶颈</strong></summary>
+### Evaluation Reality Check
 
-| 指标 | Final V8 |
-| --- | ---: |
-| Technical PASS / FAIL | 11 / 11 |
-| Terminal state `FINALIZED / INCONCLUSIVE / FAILED` | 1 / 10 / 11 |
-| Strict Blind Judge | 2 / 22 |
-| Lenient Blind Judge | 6 / 22 |
-| 至少引用一项 key evidence | 1 / 22 |
-| Grounded diagnosis | 1 / 22 |
+Final V8 同时暴露出明显的系统限制：evidence collection 明显强于最终 citation 与 grounded synthesis，部分案例在 limitation contract 边界被终止。这些结果描述的是当前 Portfolio benchmark 中的系统边界，不是生产业务准确率。完整 strict / lenient blind-judge 分数、technical failure 分布和 failure taxonomy 均保留在深入评测材料中。
 
-11 个 technical failure 均由 `INVALID_LIMITATION_BOUNDARY` 引起，不是 provider 或网络故障。Final V8 表明 Collector 能在全部案例中取得至少一项关键证据，但 evidence citation、limitation contract 和 grounded synthesis 仍是明显瓶颈。这些数字描述 Portfolio benchmark 中的系统限制，不是生产业务准确率。
+深入评测：[Evaluation Methodology](docs/evaluation/methodology.md) · [Benchmark Contract](docs/investigation-benchmark-evaluation-contract.md) · [Final V8 Failure Analysis](docs/evaluation/portfolio-v1-failure-analysis.md)
 
-Blind Judge 的 `2 / 1 / 0 / N/A` 分布为 `2 / 4 / 15 / 1`。Judge 本身也是 LLM evaluator，因此结果需要结合 case trace 与评分理由理解。
+Final V8 原始运行与 judge artifacts 作为内部实验记录保留，不作为招聘主阅读路径。
 
-</details>
-
-原始依据：[Final report](evaluation/results/v8/portfolio-final-v8/investigation-live-benchmark-openai-compatible-0.2.0-2026-09-06T17-52-23-415Z-98a74e53a4a1-portfolio-v1-final-v8.json) · [Blind Judge summary](evaluation/results/v8/portfolio-final-v8/judge/summary.json) · [Dataset contract](docs/investigation-benchmark-evaluation-contract.md)
-
-历史 V8 smoke 使用 `deepseek-v4-flash`，Portfolio Final V8 使用 `gpt-5.6-sol`。两阶段结果用于展示迭代路径和失败模式变化，不构成严格的同模型性能提升对比。历史材料见 [V8 smoke checkpoint](docs/evaluation/releaseguard-harness-v8-smoke-checkpoint.zh-CN.md)。
+历史 V8 smoke 使用 `deepseek-v4-flash`，Portfolio Final V8 使用 `gpt-5.6-sol`。两阶段结果用于展示迭代路径和失败模式变化，不构成严格的同模型性能提升对比。
 
 ## What I learned building the Agent
 
@@ -125,7 +113,7 @@ Agent 可以执行调查
 ## Limitations
 
 - Final V8 只有一轮 22-case DEV benchmark，未运行 multi-seed 或 `3×22`。
-- 11 个案例因 `INVALID_LIMITATION_BOUNDARY` 中断；evidence collection 明显强于 citation 和 grounded synthesis。
+- 部分案例因 `INVALID_LIMITATION_BOUNDARY` 中断；evidence collection 明显强于 citation 和 grounded synthesis。
 - Planner 的 query selection 仍受单次 LLM 采样影响。
 - Blind Judge 也是 LLM judge，可能存在语义标准和采样方差。
 - Benchmark 与公开 Demo 使用合成、可复现 fixture，不是真实企业私有数据或生产流量。
@@ -172,7 +160,7 @@ npm run eval
 - [Phase 3 Requirements](docs/PHASE3_REQUIREMENTS.md)：当前架构约束与明确排除项。
 - [Evaluation Methodology](docs/evaluation/methodology.md)：评测设计、评分和数据边界。
 - [Investigation Benchmark Contract](docs/investigation-benchmark-evaluation-contract.md)：Gold、prediction 和 scorer contract。
-- [V8 Improvement Plan](docs/evaluation/releaseguard-harness-v8-complete-improvement-plan.zh-CN.md)：历史研发方案，不是 Final 成绩声明。
+- [Final V8 Failure Analysis](docs/evaluation/portfolio-v1-failure-analysis.md)：证据覆盖、失败边界和后续验证方向。
 
 ## 部署说明
 
