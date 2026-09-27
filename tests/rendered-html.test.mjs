@@ -55,6 +55,39 @@ test("renders development preview metadata", async () => {
   assert.doesNotMatch(html, /API Key|Fine-grained access token|Eason4real|releaseguard-demo/);
 });
 
+test("renders the eight-page portfolio without a PDF viewer dependency", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("portfolio-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+
+  const response = await worker.fetch(
+    new Request("http://localhost/portfolio", {
+      headers: { accept: "text/html" },
+    }),
+    {
+      ASSETS: {
+        fetch: async () => new Response("Not found", { status: 404 }),
+      },
+    },
+    {
+      waitUntil() {},
+      passThroughOnException() {},
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>李超｜AI 产品经理作品集<\/title>/);
+  assert.match(html, /李超 AI 产品经理 2027 校招项目作品集/);
+  const imageTags = html.match(/<img\b[^>]*\/portfolio-assets\/page-\d{2}\.webp[^>]*>/g) ?? [];
+  assert.equal(imageTags.length, 8);
+  assert.match(imageTags[0], /page-01\.webp[^>]+loading="eager"[^>]+fetchPriority="high"/);
+  assert.equal(imageTags.filter((tag) => /loading="lazy"/.test(tag)).length, 7);
+  assert.match(html, /https:\/\/releaseguard\.easonchao\.com/);
+  assert.match(html, /https:\/\/github\.com\/Eason4real\/releaseguard-ai/);
+  assert.doesNotMatch(html, /<iframe|githubusercontent\.com|\.pdf/i);
+});
+
 test("renders the public Final V8 evidence summary without low-level judge scores", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("benchmark-test", `${process.pid}-${Date.now()}`);
